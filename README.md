@@ -4,8 +4,9 @@ This is the code for the Discord bot we'll be using to queue jobs to a cluster o
 
 The key idea is that we're using Github Actions as a job scheduling engine and primarily making the Discord bot interact with the cluster via issuing Github Actions and and monitoring their status
 
-
 ## Dev instructions
+
+Install dependencies with `pip install -r requirements.txt`
 
 ## Why Github Actions
 
