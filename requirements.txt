@@ -1,5 +1,5 @@
-
 PyGithub
 aiohttp
 discord
 python-dotenv
+requests
