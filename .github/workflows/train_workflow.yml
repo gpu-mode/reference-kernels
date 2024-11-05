@@ -1,26 +1,26 @@
 name: Training Workflow
 on:
   workflow_dispatch:
+    inputs:
+      script_content:
+        description: 'Content of train.py'
+        required: true
+        type: string  # Explicitly specify the type
 
 jobs:
   train:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.x'
-          
       - name: Install dependencies
         run: |
           pip install -r ci-requirements.txt
-          
-      - name: Run training
+
+      - name: Create and run training script
         run: |
+          echo "${{ inputs.script_content }}" > train.py
+          cat train.py  # Debug: print the content
           python train.py > training.log 2>&1
-          
+        
       - name: Upload logs
         uses: actions/upload-artifact@v3
         if: always()  # Upload logs whether the job succeeds or fails
