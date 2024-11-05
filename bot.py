@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 from github import Github
 import os
 import time
+from github import GithubException
 
 # Load environment variables
 load_dotenv()
@@ -29,17 +30,29 @@ def trigger_github_action(file_path='train.py'):
                 content,
                 file.sha
             )
-        except Exception:
-            repo.create_file(
-                "train.py",
-                "Create train.py via script",
-                content
-            )
+        except GithubException as e:
+            if e.status == 404:  # File doesn't exist yet
+                repo.create_file(
+                    "train.py",
+                    "Create train.py via script",
+                    content
+                )
+            else:
+                raise
         
-        # Trigger the workflow
-        workflow = repo.get_workflow("train_workflow.yml")
-        run = workflow.create_dispatch("main")
-        return run.id
+        try:
+            # Trigger the workflow
+            workflow = repo.get_workflow("train_workflow.yml")
+            run = workflow.create_dispatch("main")
+            return run.id
+        except GithubException as e:
+            if e.status == 404:
+                print("Error: Workflow file 'train_workflow.yml' not found in repository")
+                print("Please ensure you have created .github/workflows/train_workflow.yml")
+                print("Check the README for the correct workflow file content")
+            else:
+                print(f"GitHub API Error: {e.data.get('message', str(e))}")
+            return None
     
     except Exception as e:
         print(f"Error: {str(e)}")
@@ -63,6 +76,19 @@ def check_workflow_status(run_id):
         time.sleep(30)
 
 if __name__ == "__main__":
+    # Validate environment variables
+    if not os.getenv('GITHUB_TOKEN'):
+        print("Error: GITHUB_TOKEN not found in .env file")
+        exit(1)
+    if not os.getenv('GITHUB_REPO'):
+        print("Error: GITHUB_REPO not found in .env file")
+        exit(1)
+
+    # Check if train.py exists locally
+    if not os.path.exists('train.py'):
+        print("Error: train.py not found in current directory")
+        exit(1)
+        
     # Trigger the action
     run_id = trigger_github_action()
     
