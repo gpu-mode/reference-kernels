@@ -1,9 +1,8 @@
-import torch
+import numpy
 
-a = torch.tensor([1, 2, 3])
-b = torch.tensor([4, 5, 6])
+a = numpy.array([1, 2, 3])
+b = numpy.array([4, 5, 6])
 
 c = a + b
 
-print("Kernel is running")
 print(c)

@@ -8,8 +8,7 @@ load_dotenv()
 
 def trigger_github_action():
     """
-    Just triggers the GitHub action without modifying any files
-    Returns the run ID for monitoring
+    Triggers the GitHub action and returns the latest run ID
     """
     gh = Github(os.getenv('GITHUB_TOKEN'))
     repo = gh.get_repo(os.getenv('GITHUB_REPO'))
@@ -17,8 +16,15 @@ def trigger_github_action():
     try:
         # Trigger the workflow
         workflow = repo.get_workflow("train_workflow.yml")
-        run = workflow.create_dispatch("main")
-        return run.id
+        success = workflow.create_dispatch("main")
+        
+        if success:
+            # Get the latest run ID
+            runs = list(workflow.get_runs())
+            if runs:
+                return runs[0].id  # Get the most recent run
+            
+        return None
     except Exception as e:
         print(f"Error: {str(e)}")
         return None
