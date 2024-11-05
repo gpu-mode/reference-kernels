@@ -48,13 +48,9 @@ async def trigger_github_action(script_content):
     repo = gh.get_repo(os.getenv('GITHUB_REPO'))
     
     try:
-        # Record the time before triggering
         trigger_time = datetime.now(timezone.utc)
-        
-        # Log workflow attempt
         logger.info(f"Looking for workflow 'train_workflow.yml' in repo {os.getenv('GITHUB_REPO')}")
         
-        # Trigger the workflow with the script content
         workflow = repo.get_workflow("train_workflow.yml")
         logger.info("Found workflow, attempting to dispatch")
         
@@ -62,10 +58,7 @@ async def trigger_github_action(script_content):
         logger.info(f"Workflow dispatch result: {success}")
         
         if success:
-            # Wait a moment for the run to be created
             await asyncio.sleep(2)
-            
-            # Get runs created after our trigger time
             runs = list(workflow.get_runs())
             logger.info(f"Found {len(runs)} total runs")
             
@@ -91,17 +84,13 @@ async def download_artifact(run_id):
     repo = gh.get_repo(os.getenv('GITHUB_REPO'))
     
     try:
-        # Get the specific run
         run = repo.get_workflow_run(run_id)
-        
-        # Get artifacts from the run
         artifacts = run.get_artifacts()
         logger.info(f"Found {artifacts.totalCount} artifacts")
         
         for artifact in artifacts:
             logger.info(f"Found artifact: {artifact.name}")
             if artifact.name == 'training-logs':
-                # Download the artifact
                 url = artifact.archive_download_url
                 headers = {'Authorization': f'token {os.getenv("GITHUB_TOKEN")}'}
                 response = requests.get(url, headers=headers)
@@ -111,12 +100,10 @@ async def download_artifact(run_id):
                     with open('training.log.zip', 'wb') as f:
                         f.write(response.content)
                     
-                    # Read the log file from the zip
                     with zipfile.ZipFile('training.log.zip') as z:
                         with z.open('training.log') as f:
                             logs = f.read().decode('utf-8')
                     
-                    # Clean up the zip file
                     os.remove('training.log.zip')
                     return logs
                 else:
@@ -128,9 +115,9 @@ async def download_artifact(run_id):
         logger.error(f"Error in download_artifact: {str(e)}", exc_info=True)
         return f"Error downloading artifacts: {str(e)}"
 
-async def check_workflow_status(run_id, message):
+async def check_workflow_status(run_id, thread):
     """
-    Monitors the GitHub Action workflow status and updates Discord
+    Monitors the GitHub Action workflow status and updates Discord thread
     """
     logger.info(f"Starting to monitor workflow status for run {run_id}")
     gh = Github(os.getenv('GITHUB_TOKEN'))
@@ -146,7 +133,7 @@ async def check_workflow_status(run_id, message):
                 logs = await download_artifact(run_id)
                 return run.conclusion, logs, run.html_url
             
-            await message.channel.send(f"Workflow still running... Status: {run.status}\nLive view: {run.html_url}")
+            await thread.send(f"Workflow still running... Status: {run.status}\nLive view: {run.html_url}")
             await asyncio.sleep(30)
         except Exception as e:
             logger.error(f"Error in check_workflow_status: {str(e)}", exc_info=True)
@@ -169,7 +156,14 @@ async def on_message(message):
             for attachment in message.attachments:
                 logger.info(f"Processing attachment: {attachment.filename}")
                 if attachment.filename == "train.py":
-                    await message.channel.send("Found train.py! Starting training process...")
+                    # Reply to the original message
+                    initial_reply = await message.reply("Found train.py! Starting training process...")
+                    
+                    # Create a new thread from the reply
+                    thread = await initial_reply.create_thread(
+                        name=f"Training Job - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                        auto_archive_duration=1440  # Archive after 24 hours of inactivity
+                    )
                     
                     try:
                         # Download the file content
@@ -183,36 +177,36 @@ async def on_message(message):
                         
                         if run_id:
                             logger.info(f"Successfully triggered workflow with run ID: {run_id}")
-                            await message.channel.send(f"GitHub Action triggered successfully! Run ID: {run_id}\nMonitoring progress...")
+                            await thread.send(f"GitHub Action triggered successfully! Run ID: {run_id}\nMonitoring progress...")
                             
                             # Monitor the workflow
-                            status, logs, url = await check_workflow_status(run_id, message)
+                            status, logs, url = await check_workflow_status(run_id, thread)
                             
-                            # Send results back to Discord
-                            await message.channel.send(f"Training completed with status: {status}")
+                            # Send results back to Discord thread
+                            await thread.send(f"Training completed with status: {status}")
                             
                             # Split logs if they're too long for Discord's message limit
                             if len(logs) > 1900:
                                 chunks = [logs[i:i+1900] for i in range(0, len(logs), 1900)]
                                 for i, chunk in enumerate(chunks):
-                                    await message.channel.send(f"```\nLogs (part {i+1}/{len(chunks)}):\n{chunk}\n```")
+                                    await thread.send(f"```\nLogs (part {i+1}/{len(chunks)}):\n{chunk}\n```")
                             else:
-                                await message.channel.send(f"```\nLogs:\n{logs}\n```")
+                                await thread.send(f"```\nLogs:\n{logs}\n```")
                             
                             if url:
-                                await message.channel.send(f"View the full run at: {url}")
+                                await thread.send(f"View the full run at: {url}")
                         else:
                             logger.error("Failed to trigger GitHub Action")
-                            await message.channel.send("Failed to trigger GitHub Action. Please check the configuration.")
+                            await thread.send("Failed to trigger GitHub Action. Please check the configuration.")
                     
                     except Exception as e:
                         logger.error(f"Error processing request: {str(e)}", exc_info=True)
-                        await message.channel.send(f"Error processing request: {str(e)}")
+                        await thread.send(f"Error processing request: {str(e)}")
                     
                     break
 
             if not any(att.filename == "train.py" for att in message.attachments):
-                await message.channel.send("Please attach a file named 'train.py' to your message.")
+                await message.reply("Please attach a file named 'train.py' to your message.")
 
 # Run the bot
 if __name__ == "__main__":
