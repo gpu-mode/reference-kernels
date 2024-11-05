@@ -7,6 +7,7 @@ import requests
 import discord
 import asyncio
 import logging
+import zipfile
 
 # Set up logging
 logging.basicConfig(
