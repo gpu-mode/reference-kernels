@@ -1,10 +1,5 @@
 
-# Bot requirements
 PyGithub
 aiohttp
 discord
 python-dotenv
-
-# Runtime script requirements
-# torch (some local issue with python 3.13)
-numpy
