@@ -1,3 +1,7 @@
+"""
+This is a legacy file and no longer needed but keeping it a round since its simplest example I have of triggering a Github action using a python script
+"""
+
 from dotenv import load_dotenv
 from github import Github
 import os

@@ -8,7 +8,8 @@ The key idea is that we're using Github Actions as a job scheduling engine and p
 
 1. Install dependencies with `pip install -r requirements.txt`
 2. Create a `.env` file
-3. `python bot.py`
+3. `python discord-bot.py`
+4. In the staging channel @Cluster-bot with a sample `train.py`
 
 Right now the bot is running on my macbook but will some more permanent location
 
