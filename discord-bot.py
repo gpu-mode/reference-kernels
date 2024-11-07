@@ -49,6 +49,9 @@ if not os.getenv('GITHUB_TOKEN'):
 if not os.getenv('GITHUB_REPO'):
     logger.error("GITHUB_REPO not found in environment variables")
     raise ValueError("GITHUB_REPO not found")
+if os.getenv("DEBUG") and not os.getenv('DISCORD_DEBUG_TOKEN'):
+    logger.error("DISCORD_DEBUG_TOKEN not found in environment variables for debug mode")
+    raise ValueError("DISCORD_DEBUG_TOKEN not found")
 
 logger.info(f"Using GitHub repo: {os.getenv('GITHUB_REPO')}")
 
@@ -230,4 +233,6 @@ async def on_message(message):
 # Run the bot
 if __name__ == "__main__":
     logger.info("Starting bot...")
-    client.run(os.getenv('DISCORD_TOKEN'))
+    if debug_mode := os.getenv("DEBUG"):
+        logger.info("Running in debug mode")
+    client.run(os.getenv('DISCORD_DEBUG_TOKEN') if debug_mode else os.getenv('DISCORD_TOKEN'))

@@ -19,9 +19,14 @@ Every triggered job is containerized so we don't have to worry too much about se
 
 ### How to test the bot
 
-Instead of testing on GPU MODE directly we can leverage a staging environment called "Discord Cluster Staging". If you need access to this server please ping "Seraphim"
+Instead of testing on GPU MODE directly we can leverage a staging environment called "Discord Cluster Staging". If you need access to this server please ping "Seraphim", however, you can also test the bot on your own server by following the instructions below.
 
-Bot needs to be invited using an oauth2 token and needs the `Message Content Intent` permission
+### How to add the bot to a personal server
+
+For testing purposes, bot can be run on a personal server as well. Follow the steps [here](https://discordjs.guide/preparations/setting-up-a-bot-application.html#creating-your-bot) and [here](https://discordjs.guide/preparations/adding-your-bot-to-servers.html#bot-invite-links) to create a bot application and then add it to your server.
+After doing that, you can add a new environment variable called `DISCORD_DEBUG_TOKEN` to your `.env` file and set it to the bot token you got from the Discord Developer Portal. Then you can simply run the bot for your server by running `DEBUG=1 python discord-bot.py`. When the bot is run without `DEBUG=1`, it will run on the "Discord Cluster Staging" server.
+
+Bot needs to be invited using an oauth2 token and needs the `Message Content Intent` permission.
 
 The bot also needs to permissions to read and write messages which is easy to setup if you click on https://discord.com/api/oauth2/authorize?client_id=1303135152091697183&permissions=68608&scope=bot%20applications.commands
 
@@ -30,9 +35,11 @@ The bot also needs to permissions to read and write messages which is easy to se
 Github has some nice instructions here https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners but essentially the whole thing works by running a script on some GPU people own.
 
 ### Future work
+
 * Maybe we shouldn't use Github Action and can roll our own thing?
 * Make registering new GPUs simpler
 
 ## Acknowledgements
+
 * Luca Antiga did something very similar for the NeurIPS LLM efficiency competition, it was great!
 * Midjourney was a similar inspiration in terms of UX
