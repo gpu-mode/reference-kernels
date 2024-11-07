@@ -8,6 +8,7 @@ import discord
 import asyncio
 import logging
 import zipfile
+import subprocess
 
 # Set up logging
 logging.basicConfig(
@@ -20,6 +21,23 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 logger.info("Environment variables loaded")
+
+def get_github_branch_name():
+    """
+    Runs a git command to determine the remote branch name, to be used in the GitHub Workflow
+    """
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        logging.info(f"Remote branch found: {result.stdout.strip().split('/', 1)[1]}")
+        return result.stdout.strip().split('/', 1)[1]
+    except subprocess.CalledProcessError:
+        logging.warning("Could not determine remote branch, falling back to 'main'")
+        return 'main'
 
 # Validate environment variables
 if not os.getenv('DISCORD_TOKEN'):
@@ -39,6 +57,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
+
 async def trigger_github_action(script_content):
     """
     Triggers the GitHub action with custom train.py contents
@@ -54,7 +73,7 @@ async def trigger_github_action(script_content):
         workflow = repo.get_workflow("train_workflow.yml")
         logger.info("Found workflow, attempting to dispatch")
         
-        success = workflow.create_dispatch("main", {'script_content': script_content})
+        success = workflow.create_dispatch(get_github_branch_name(), {'script_content': script_content})
         logger.info(f"Workflow dispatch result: {success}")
         
         if success:
