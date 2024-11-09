@@ -24,7 +24,13 @@ Instead of testing on GPU MODE directly we can leverage a staging environment ca
 ### How to add the bot to a personal server
 
 For testing purposes, bot can be run on a personal server as well. Follow the steps [here](https://discordjs.guide/preparations/setting-up-a-bot-application.html#creating-your-bot) and [here](https://discordjs.guide/preparations/adding-your-bot-to-servers.html#bot-invite-links) to create a bot application and then add it to your server.
-After doing that, you can add a new environment variable called `DISCORD_DEBUG_TOKEN` to your `.env` file and set it to the bot token you got from the Discord Developer Portal. Then you can simply run the bot for your server by running `DEBUG=1 python discord-bot.py`. When the bot is run without `DEBUG=1`, it will run on the "Discord Cluster Staging" server.
+After doing that, you can add a new environment variable called `DISCORD_DEBUG_TOKEN` to your `.env` file and set it to the bot token you got from the Discord Developer Portal.
+
+You can run the bot in two modes:
+- Production mode: `python discord-bot.py`
+- Debug/staging mode: `python discord-bot.py --debug`
+
+When running in debug mode, the bot will use your `DISCORD_DEBUG_TOKEN` and display as "Cluster Bot (Staging)" to clearly indicate it's not the production instance.
 
 Bot needs to be invited using an oauth2 token and needs the `Message Content Intent` permission.
 

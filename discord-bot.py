@@ -9,6 +9,7 @@ import asyncio
 import logging
 import zipfile
 import subprocess
+import argparse
 
 # Set up logging
 logging.basicConfig(
@@ -49,9 +50,6 @@ if not os.getenv('GITHUB_TOKEN'):
 if not os.getenv('GITHUB_REPO'):
     logger.error("GITHUB_REPO not found in environment variables")
     raise ValueError("GITHUB_REPO not found")
-if os.getenv("DEBUG") and not os.getenv('DISCORD_DEBUG_TOKEN'):
-    logger.error("DISCORD_DEBUG_TOKEN not found in environment variables for debug mode")
-    raise ValueError("DISCORD_DEBUG_TOKEN not found")
 
 logger.info(f"Using GitHub repo: {os.getenv('GITHUB_REPO')}")
 
@@ -164,6 +162,15 @@ async def check_workflow_status(run_id, thread):
 @client.event
 async def on_ready():
     logger.info(f'Logged in as {client.user}')
+    for guild in client.guilds:
+        try:
+            if globals().get('args') and args.debug: # TODO: Fix Do this properly, maybe subclass `discord.Client` for better argument passing
+                await guild.me.edit(nick="Cluster Bot (Staging)")
+            else:
+                await guild.me.edit(nick="Cluster Bot")
+            logger.info(f'Updated nickname in guild: {guild.name}')
+        except Exception as e:
+            logger.warning(f'Failed to update nickname in guild {guild.name}: {e}')
 
 @client.event
 async def on_message(message):
@@ -232,7 +239,18 @@ async def on_message(message):
 
 # Run the bot
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Run the Discord Cluster Bot')
+    parser.add_argument('--debug', action='store_true', help='Run in debug/staging mode')
+    args = parser.parse_args()
+
     logger.info("Starting bot...")
-    if debug_mode := os.getenv("DEBUG"):
+    if args.debug:
         logger.info("Running in debug mode")
-    client.run(os.getenv('DISCORD_DEBUG_TOKEN') if debug_mode else os.getenv('DISCORD_TOKEN'))
+        token = os.getenv('DISCORD_DEBUG_TOKEN')
+        if not token:
+            logger.error("DISCORD_DEBUG_TOKEN not found in environment variables")
+            raise ValueError("DISCORD_DEBUG_TOKEN not found")
+    else:
+        token = os.getenv('DISCORD_TOKEN')
+    
+    client.run(token)
