@@ -164,7 +164,7 @@ async def on_ready():
     logger.info(f'Logged in as {client.user}')
     for guild in client.guilds:
         try:
-            if debug_mode := os.getenv("DEBUG"):
+            if globals().get('args') and args.debug: # TODO: Fix Do this properly, maybe subclass `discord.Client` for better argument passing
                 await guild.me.edit(nick="Cluster Bot (Staging)")
             else:
                 await guild.me.edit(nick="Cluster Bot")
