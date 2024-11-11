@@ -1,8 +1,12 @@
-import numpy
+import torch
 
-a = numpy.array([1, 2, 3])
-b = numpy.array([4, 5, 6])
+a = torch.Tensor([1, 2, 3, 4, 5]).to('cuda')
+b= torch.Tensor([1, 2, 3, 4, 5]).to('cuda')
 
-c = a + b
+if torch.cuda.is_available():
+    gpu_name = torch.cuda.get_device_name(0)
+    print(f"GPU Name: {gpu_name}")
+else:
+    print("No GPU available")
 
-print(c)
+print(a + b)

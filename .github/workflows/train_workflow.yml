@@ -1,30 +1,35 @@
-name: Training Workflow
+name: AMD PyTorch Job
+
 on:
   workflow_dispatch:
     inputs:
       script_content:
         description: 'Content of train.py'
-        required: true
-        type: string  # Explicitly specify the type
+        required: false
+        type: string
 
 jobs:
   train:
-    runs-on: ubuntu-latest
+    runs-on: [amdgpu-mi250-x86-64]
+    
     steps:
-      - name: Install dependencies
-        run: |
-          pip install numpy
-          # pip install torch - need to find a way to cache this otherwise it will take a long time to install
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'  # or your preferred version
 
-      - name: Create and run training script
-        run: |
-          echo "${{ inputs.script_content }}" > train.py
-          cat train.py  # Debug: print the content
-          python train.py > training.log 2>&1
-        
-      - name: Upload logs
-        uses: actions/upload-artifact@v3
-        if: always()  # Upload logs whether the job succeeds or fails
-        with:
-          name: training-logs
-          path: training.log
+    - name: Install dependencies
+      run: |
+        pip install numpy
+        pip install torch --index-url https://download.pytorch.org/whl/rocm6.2
+
+    - name: Create and run training script
+      run: |
+        python train.py > training.log 2>&1
+
+    - name: Upload logs
+      uses: actions/upload-artifact@v3
+      if: always()  # Upload logs whether the job succeeds or fails
+      with:
+        name: training-logs
+        path: training.log
