@@ -40,3 +40,5 @@ jobs:
       with:
         name: training-logs
         path: training.log
+      env:
+        CUDA_VISIBLE_DEVICES: 0 # Make sure only one GPU is used for testing
