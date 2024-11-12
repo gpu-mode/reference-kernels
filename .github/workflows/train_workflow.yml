@@ -21,8 +21,24 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install numpy
-        pip install torch
+        # Check if 'import numpy' is in any Python file
+        if grep -rE "(import numpy|from numpy)" train.py; then
+          echo "Numpy detected, installing numpy"
+          pip install numpy
+        fi
+
+        # Check if 'import torch' is in any Python file
+        if grep -rE "(import torch|from torch)" train.py; then
+          echo "PyTorch detected, installing torch"
+          pip install torch
+        fi
+
+        # Check if 'import triton' is in any Python file
+        if grep -rE "(import triton|from triton)" train.py; then
+          echo "Triton detected, installing triton"
+          pip install triton
+
+        fi
 
     - name: Create training script
       shell: python
