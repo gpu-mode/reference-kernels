@@ -1,4 +1,4 @@
-name: AMD PyTorch Job
+name: NVIDIA PyTorch Job
 
 on:
   workflow_dispatch:
@@ -10,8 +10,9 @@ on:
 
 jobs:
   train:
-    runs-on: [amdgpu-mi250-x86-64]
-    
+    runs-on: [gpumode-nvidia-arc]
+    container:
+      image: nvidia/cuda:12.4.0-devel-ubuntu22.04
     steps:
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -21,7 +22,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install numpy
-        pip install torch --index-url https://download.pytorch.org/whl/rocm6.2
+        pip install torch
 
     - name: Create training script
       shell: python
