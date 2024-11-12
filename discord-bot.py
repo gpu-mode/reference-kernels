@@ -49,8 +49,14 @@ class ClusterBot(discord.Client):
         
     async def setup_hook(self):
         # This is called when the bot starts up
+        # Sync commands with all guilds the bot is in
+        for guild in self.guilds:
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            logger.info(f"Synced commands for guild: {guild.name}")
+        # Also sync globally
         await self.tree.sync()
-        logger.info("Slash commands synced")
+        logger.info("Slash commands synced globally")
 
 client = ClusterBot()
 
