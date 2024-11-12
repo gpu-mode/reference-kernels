@@ -38,14 +38,12 @@ The bot also needs to permissions to read and write messages which is easy to se
 
 ### How to add a new GPU to the cluster
 
-Github has some nice instructions here https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners but essentially the whole thing works by running a script on some GPU people own.
+If you'd like to donate a GPU to our efforts, we can make you a CI admin in Github and have you add an org level runner https://github.com/organizations/gpu-mode/settings/actions/runners
 
-### Future work
-
-* Maybe we shouldn't use Github Action and can roll our own thing?
-* Make registering new GPUs simpler
 
 ## Acknowledgements
 
+* Thank you to AMD for sponsoring an MI250 node
+* Thank you to NVIDIA for sponsoring an H100 node
 * Luca Antiga did something very similar for the NeurIPS LLM efficiency competition, it was great!
 * Midjourney was a similar inspiration in terms of UX
