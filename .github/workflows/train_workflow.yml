@@ -5,7 +5,7 @@ on:
     inputs:
       script_content:
         description: 'Content of train.py'
-        required: false
+        required: true
         type: string
 
 jobs:
@@ -16,14 +16,19 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'  # or your preferred version
+        python-version: '3.10'
 
     - name: Install dependencies
       run: |
         pip install numpy
         pip install torch --index-url https://download.pytorch.org/whl/rocm6.2
 
-    - name: Create and run training script
+    - name: Create training script
+      run: |
+        echo "${{ github.event.inputs.script_content }}" > train.py
+        cat train.py
+
+    - name: Run training script
       run: |
         python train.py > training.log 2>&1
 
