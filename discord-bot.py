@@ -185,14 +185,14 @@ async def on_message(message):
             for attachment in message.attachments:
                 logger.info(f"Processing attachment: {attachment.filename}")
                 if attachment.filename == "train.py":
-                    # Reply to the original message
-                    initial_reply = await message.reply("Found train.py! Starting training process...")
-                    
-                    # Create a new thread from the reply
-                    thread = await initial_reply.create_thread(
+                    # Create a thread directly from the original message
+                    thread = await message.create_thread(
                         name=f"Training Job - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
                         auto_archive_duration=1440  # Archive after 24 hours of inactivity
                     )
+                    
+                    # Send initial message in the thread
+                    await thread.send("Found train.py! Starting training process...")
                     
                     try:
                         # Download the file content
