@@ -24,9 +24,10 @@ jobs:
         pip install torch --index-url https://download.pytorch.org/whl/rocm6.2
 
     - name: Create training script
+      shell: python
       run: |
-        echo "${{ github.event.inputs.script_content }}" > train.py
-        cat train.py
+        with open('train.py', 'w') as f:
+            f.write('''${{ github.event.inputs.script_content }}''')
 
     - name: Run training script
       run: |
@@ -34,7 +35,7 @@ jobs:
 
     - name: Upload logs
       uses: actions/upload-artifact@v3
-      if: always()  # Upload logs whether the job succeeds or fails
+      if: always()
       with:
         name: training-logs
         path: training.log
