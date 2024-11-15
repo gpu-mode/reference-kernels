@@ -46,11 +46,13 @@ jobs:
       run: |
         python train.py > training.log 2>&1
 
-    - name: Upload logs
+    - name: Upload artifacts
       uses: actions/upload-artifact@v3
       if: always()
       with:
-        name: training-logs
-        path: training.log
+        name: training-artifacts
+        path: |
+          training.log
+          train.py
       env:
         CUDA_VISIBLE_DEVICES: 0 # Make sure only one GPU is used for testing
