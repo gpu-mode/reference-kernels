@@ -19,42 +19,40 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install dependencies
-      run: |
-        # Check if 'import numpy' is in any Python file
-        if grep -rE "(import numpy|from numpy)" train.py; then
-          echo "Numpy detected, installing numpy"
-          pip install numpy
-        fi
-
-        # Check if 'import torch' is in any Python file
-        if grep -rE "(import torch|from torch)" train.py; then
-          echo "PyTorch detected, installing torch"
-          pip install torch
-        fi
-
-        # Check if 'import triton' is in any Python file
-        if grep -rE "(import triton|from triton)" train.py; then
-          echo "Triton detected, installing triton"
-          pip install triton
-
-        fi
-
     - name: Create training script
       shell: python
       run: |
         with open('train.py', 'w') as f:
             f.write('''${{ github.event.inputs.script_content }}''')
 
+    - name: Install dependencies
+      run: |
+        if grep -rE "(import numpy|from numpy)" train.py; then
+          echo "Numpy detected, installing numpy"
+          pip install numpy
+        fi
+        # Check if 'import torch' is in any Python file
+        if grep -rE "(import torch|from torch)" train.py; then
+          echo "PyTorch detected, installing torch"
+          pip install torch
+        fi
+        # Check if 'import triton' is in any Python file
+        if grep -rE "(import triton|from triton)" train.py; then
+          echo "Triton detected, installing triton"
+          pip install triton
+        fi
+
     - name: Run training script
       run: |
         python train.py > training.log 2>&1
 
-    - name: Upload logs
+    - name: Upload artifacts
       uses: actions/upload-artifact@v3
       if: always()
       with:
-        name: training-logs
-        path: training.log
+        name: training-artifacts
+        path: |
+          training.log
+          train.py
       env:
         CUDA_VISIBLE_DEVICES: 0 # Make sure only one GPU is used for testing
