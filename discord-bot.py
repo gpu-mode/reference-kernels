@@ -110,7 +110,7 @@ async def download_artifact(run_id):
         
         for artifact in artifacts:
             logger.info(f"Found artifact: {artifact.name}")
-            if artifact.name == 'training-logs':
+            if artifact.name == 'training-artifacts':
                 url = artifact.archive_download_url
                 headers = {'Authorization': f'token {os.getenv("GITHUB_TOKEN")}'}
                 response = requests.get(url, headers=headers)
@@ -121,16 +121,27 @@ async def download_artifact(run_id):
                         f.write(response.content)
                     
                     with zipfile.ZipFile('training.log.zip') as z:
-                        with z.open('training.log') as f:
-                            logs = f.read().decode('utf-8')
+                        # Updated to handle potential different file paths
+                        log_file = None
+                        for file in z.namelist():
+                            if file.endswith('training.log'):
+                                log_file = file
+                                break
+                        
+                        if log_file:
+                            with z.open(log_file) as f:
+                                logs = f.read().decode('utf-8')
+                        else:
+                            logs = "training.log file not found in artifact"
                     
                     os.remove('training.log.zip')
                     return logs
                 else:
                     logger.error(f"Failed to download artifact. Status code: {response.status_code}")
+                    return f"Failed to download artifact. Status code: {response.status_code}"
         
-        logger.warning("No training-logs artifact found")
-        return "No training logs found in artifacts"
+        logger.warning("No training-artifacts found")
+        return "No training artifacts found. Available artifacts: " + ", ".join([a.name for a in artifacts])
     except Exception as e:
         logger.error(f"Error in download_artifact: {str(e)}", exc_info=True)
         return f"Error downloading artifacts: {str(e)}"
