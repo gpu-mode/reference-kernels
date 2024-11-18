@@ -40,7 +40,7 @@ jobs:
       run: |
         source ${VENV_DIR}/bin/activate
         mkdir -p rocprof_output
-        rocprof --stats --timestamp on --hip-trace --roctx-trace \
+        rocprof -q --stats --timestamp on --hip-trace --roctx-trace \
           -o rocprof_output/results.csv \
           python "${{ github.event.inputs.filename }}" > training.log 2>&1
 
