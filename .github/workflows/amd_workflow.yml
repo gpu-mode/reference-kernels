@@ -29,20 +29,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        if grep -rE "(import numpy|from numpy)" "${{ github.event.inputs.filename }}"; then
-          echo "Numpy detected, installing numpy"
-          pip install numpy
-        fi
-        # Check if 'import torch' is in any Python file
-        if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
-          echo "PyTorch detected, installing PyTorch for ROCm"
-          pip install torch --index-url https://download.pytorch.org/whl/rocm6.2
-        fi
-        # Check if 'import triton' is in any Python file
-        if grep -rE "(import triton|from triton)" "${{ github.event.inputs.filename }}"; then
-          echo "Triton detected, installing triton"
-          pip install triton
-        fi
+        pip install --pre pytorch-triton-rocm==3.1.0+cf34004b8a torch==2.6.0.dev20241023+rocm6.2 --index-url https://download.pytorch.org/whl/nightly/rocm6.2
 
     - name: Run script
       run: |
