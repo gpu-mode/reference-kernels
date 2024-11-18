@@ -45,5 +45,6 @@ If you'd like to donate a GPU to our efforts, we can make you a CI admin in Gith
 
 * Thank you to AMD for sponsoring an MI250 node
 * Thank you to NVIDIA for sponsoring an H100 node
+* Thank you to Nebius for sponsoring credits and an H100 node
 * Luca Antiga did something very similar for the NeurIPS LLM efficiency competition, it was great!
 * Midjourney was a similar inspiration in terms of UX
