@@ -12,19 +12,28 @@ import subprocess
 import argparse
 from enum import Enum
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
+# Configure logging
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s', 
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    return logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
-logger.info("Environment variables loaded")
+# Initialize logger
+logger = setup_logging()
 
+# Load and validate environment
+def init_environment():
+    load_dotenv()
+    logger.info("Environment variables loaded")
+
+init_environment()
+
+# GPU types enum
 class GPUType(Enum):
+    """Enum defining supported GPU types and their workflow files"""
     NVIDIA = "nvidia_workflow.yml"
     AMD = "amd_workflow.yml"
 
@@ -234,7 +243,7 @@ async def on_message(message):
                         await asyncio.sleep(10)
                         
                         if run_id:
-                            logger.info(f"Succ      essfully triggered {gpu_type.name} workflow with run ID: {run_id}")
+                            logger.info(f"Successfully triggered {gpu_type.name} workflow with run ID: {run_id}")
                             await thread.send(f"GitHub Action triggered successfully on {gpu_type.name}! Run ID: {run_id}\nMonitoring progress...")
                             
                             # Monitor the workflow
