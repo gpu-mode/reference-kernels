@@ -41,7 +41,7 @@ jobs:
         source ${VENV_DIR}/bin/activate
         mkdir -p rocprof_output
         rocprof --stats --timestamp on --hip-trace --roctx-trace \
-          --output-dir rocprof_output \
+          -o rocprof_output/results.csv \
           python "${{ github.event.inputs.filename }}" > training.log 2>&1
 
     - name: Upload artifacts
