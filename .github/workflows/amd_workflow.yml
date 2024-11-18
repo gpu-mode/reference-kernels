@@ -15,6 +15,8 @@ on:
 jobs:
   train:
     runs-on: [amdgpu-mi250-x86-64]
+    env:
+      VENV_DIR: /groups/aig_sharks/pytorch_venv
     steps:
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -27,12 +29,16 @@ jobs:
         with open('${{ github.event.inputs.filename }}', 'w') as f:
             f.write('''${{ github.event.inputs.script_content }}''')
 
-    - name: Install dependencies
+    - name: Setup Virtual Environment and Install Dependencies
       run: |
+        python -m venv ${VENV_DIR}
+        source ${VENV_DIR}/bin/activate
+        pip install --upgrade pip
         pip install --pre pytorch-triton-rocm==3.1.0+cf34004b8a torch==2.6.0.dev20241023+rocm6.2 --index-url https://download.pytorch.org/whl/nightly/rocm6.2
 
     - name: Run script
       run: |
+        source ${VENV_DIR}/bin/activate
         python "${{ github.event.inputs.filename }}" > training.log 2>&1
 
     - name: Upload artifacts
