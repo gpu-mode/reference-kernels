@@ -44,7 +44,7 @@ jobs:
           -o rocprof_output/results.csv \
           python "${{ github.event.inputs.filename }}" > training.log 2>&1
 
-    - name: Upload artifacts
+    - name: Upload training artifacts
       uses: actions/upload-artifact@v3
       if: always()
       with:
@@ -52,4 +52,4 @@ jobs:
         path: |
           training.log
           ${{ github.event.inputs.filename }}
-          rocprof_output/
+          rocprof_output/results.csv
