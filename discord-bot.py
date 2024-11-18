@@ -59,9 +59,9 @@ intents.message_content = True
 client = discord.Client(intents=intents)
 
 
-async def trigger_github_action(script_content):
+async def trigger_github_action(script_content, filename):
     """
-    Triggers the GitHub action with custom train.py contents
+    Triggers the GitHub action with custom script contents and filename
     """
     logger.info("Attempting to trigger GitHub action")
     gh = Github(os.getenv('GITHUB_TOKEN'))
@@ -74,7 +74,10 @@ async def trigger_github_action(script_content):
         workflow = repo.get_workflow("train_workflow.yml")
         logger.info("Found workflow, attempting to dispatch")
         
-        success = workflow.create_dispatch(get_github_branch_name(), {'script_content': script_content})
+        success = workflow.create_dispatch(get_github_branch_name(), {
+            'script_content': script_content,
+            'filename': filename
+        })
         logger.info(f"Workflow dispatch result: {success}")
         
         if success:
@@ -195,7 +198,7 @@ async def on_message(message):
         if message.attachments:
             for attachment in message.attachments:
                 logger.info(f"Processing attachment: {attachment.filename}")
-                if attachment.filename == "train.py":
+                if attachment.filename.endswith('.py'):
                     # Create a thread directly from the original message
                     thread = await message.create_thread(
                         name=f"Training Job - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
@@ -203,17 +206,17 @@ async def on_message(message):
                     )
                     
                     # Send initial message in the thread
-                    await thread.send("Found train.py! Starting training process...")
+                    await thread.send(f"Found {attachment.filename}! Starting training process...")
                     
                     try:
                         # Download the file content
-                        logger.info("Downloading train.py content")
+                        logger.info(f"Downloading {attachment.filename} content")
                         script_content = await attachment.read()
                         script_content = script_content.decode('utf-8')
-                        logger.info("Successfully read train.py content")
+                        logger.info(f"Successfully read {attachment.filename} content")
                         
                         # Trigger GitHub Action
-                        run_id = await trigger_github_action(script_content)
+                        run_id = await trigger_github_action(script_content, attachment.filename)
                         
                         if run_id:
                             logger.info(f"Successfully triggered workflow with run ID: {run_id}")
@@ -236,7 +239,7 @@ async def on_message(message):
                             if url:
                                 await thread.send(f"View the full run at: {url}")
                         else:
-                            logger.error("Failed to trigger GitHub Action")
+                            logger.error("Missing run_id. Failed to trigger GitHub Action")
                             await thread.send("Failed to trigger GitHub Action. Please check the configuration.")
                     
                     except Exception as e:
@@ -245,7 +248,7 @@ async def on_message(message):
                     
                     break
 
-            if not any(att.filename == "train.py" for att in message.attachments):
+            if not any(att.filename.endswith('.py') for att in message.attachments):
                 await message.reply("Please attach a file named 'train.py' to your message.")
 
 # Run the bot
