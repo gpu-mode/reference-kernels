@@ -1,0 +1,58 @@
+name: AMD PyTorch Job
+
+on:
+  workflow_dispatch:
+    inputs:
+      script_content:
+        description: 'Content of Python script'
+        required: true
+        type: string
+      filename:
+        description: 'Name of Python script'
+        required: true
+        type: string
+
+jobs:
+  train:
+    runs-on: [amdgpu-mi250-x86-64]
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Create script
+      shell: python
+      run: |
+        with open('${{ github.event.inputs.filename }}', 'w') as f:
+            f.write('''${{ github.event.inputs.script_content }}''')
+
+    - name: Install dependencies
+      run: |
+        if grep -rE "(import numpy|from numpy)" "${{ github.event.inputs.filename }}"; then
+          echo "Numpy detected, installing numpy"
+          pip install numpy
+        fi
+        # Check if 'import torch' is in any Python file
+        if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
+          echo "PyTorch detected, installing PyTorch for ROCm"
+          pip install torch --index-url https://download.pytorch.org/whl/rocm6.2
+        fi
+        # Check if 'import triton' is in any Python file
+        if grep -rE "(import triton|from triton)" "${{ github.event.inputs.filename }}"; then
+          echo "Triton detected, installing triton"
+          pip install triton
+        fi
+
+    - name: Run script
+      run: |
+        python "${{ github.event.inputs.filename }}" > training.log 2>&1
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: training-artifacts
+        path: |
+          training.log
+          ${{ github.event.inputs.filename }}
