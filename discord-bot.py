@@ -217,6 +217,8 @@ async def on_message(message):
                         
                         # Trigger GitHub Action
                         run_id = await trigger_github_action(script_content, attachment.filename)
+                                                # Wait a bit longer for the run to be created
+                        await asyncio.sleep(5)
                         
                         if run_id:
                             logger.info(f"Successfully triggered workflow with run ID: {run_id}")
@@ -245,7 +247,6 @@ async def on_message(message):
                     except Exception as e:
                         logger.error(f"Error processing request: {str(e)}", exc_info=True)
                         await thread.send(f"Error processing request: {str(e)}")
-                    
                     break
 
             if not any(att.filename.endswith('.py') for att in message.attachments):
