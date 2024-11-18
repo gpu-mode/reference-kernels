@@ -38,12 +38,7 @@ jobs:
 
     - name: Run script
       run: |
-        # TODO: rocprof is too noisy
-        source ${VENV_DIR}/bin/activate
-        mkdir -p rocprof_output
-        rocprof --stats --timestamp on --hip-trace --roctx-trace \
-          -o rocprof_output/results.csv \
-          python "${{ github.event.inputs.filename }}" > training.log 2>&1
+        python "${{ github.event.inputs.filename }}" > training.log 2>&1
 
     - name: Upload training artifacts
       uses: actions/upload-artifact@v3
@@ -53,4 +48,3 @@ jobs:
         path: |
           training.log
           ${{ github.event.inputs.filename }}
-          # rocprof_output/results.csv
