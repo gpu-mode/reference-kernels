@@ -46,20 +46,9 @@ jobs:
           pip install triton
         fi
 
-    - name: Set up NSight permissions
+    - name: Run script
       run: |
-        sudo sh -c 'echo -1 >/proc/sys/kernel/perf_event_paranoid'
-        sudo sh -c 'echo "options nvidia NVreg_RestrictProfilingToAdminUsers=0" > /etc/modprobe.d/nvidia.conf'
-        sudo modprobe -r nvidia_uvm nvidia_drm nvidia_modeset nvidia
-        sudo modprobe nvidia
-
-    - name: Run script with NSight Compute profiling
-      run: |
-        # First run normally and capture output
         python "${{ github.event.inputs.filename }}" > training.log 2>&1
-        
-        # Then run with NSight Compute profiling
-        ncu --set full --export ncu_profile $(which python) "${{ github.event.inputs.filename }}"
 
     - name: Upload training artifacts
       uses: actions/upload-artifact@v3
@@ -69,14 +58,5 @@ jobs:
         path: |
           training.log
           ${{ github.event.inputs.filename }}
-
-    - name: Upload NSight Compute artifacts
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: ncu-artifacts
-        path: |
-          ncu.log
-          ncu_profile.ncu-rep
       env:
         CUDA_VISIBLE_DEVICES: 0 # Make sure only one GPU is used for testing
