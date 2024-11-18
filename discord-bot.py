@@ -177,7 +177,7 @@ async def check_workflow_status(run_id, thread):
                 return run.conclusion, logs, run.html_url
             
             await thread.send(f"Workflow still running... Status: {run.status}\nLive view: {run.html_url}")
-            await asyncio.sleep(30)
+            await asyncio.sleep(60)
         except Exception as e:
             logger.error(f"Error in check_workflow_status: {str(e)}", exc_info=True)
             return "error", str(e), None
@@ -234,7 +234,7 @@ async def on_message(message):
                         await asyncio.sleep(10)
                         
                         if run_id:
-                            logger.info(f"Successfully triggered {gpu_type.name} workflow with run ID: {run_id}")
+                            logger.info(f"Succ      essfully triggered {gpu_type.name} workflow with run ID: {run_id}")
                             await thread.send(f"GitHub Action triggered successfully on {gpu_type.name}! Run ID: {run_id}\nMonitoring progress...")
                             
                             # Monitor the workflow
