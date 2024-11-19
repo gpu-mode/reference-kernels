@@ -1,15 +1,14 @@
 // To run
-// npm install discord.js
+// npm install discord.js dotenv
 // node nuke_commands.js
 
 const { REST, Routes } = require('discord.js');
-
-// Bot IDs, Guild ID, and tokens
 require('dotenv').config();
 
-const clientId_staging_bot = process.env.DISCORD_DEBUG_TOKEN.split('.')[0];
-const clientId_prod_bot = process.env.DISCORD_TOKEN.split('.')[0];
-const guildId = process.env.DISCORD_MARK_STAGING_ID;
+// Bot IDs, Guild ID, and tokens from environment variables
+const clientId_staging_bot = process.env.DISCORD_STAGING_CLIENT_ID;
+const clientId_prod_bot = process.env.DISCORD_PROD_CLIENT_ID;
+const guildId = process.env.GUILD_ID;
 
 const stagingToken = process.env.DISCORD_DEBUG_TOKEN;
 const prodToken = process.env.DISCORD_TOKEN;
