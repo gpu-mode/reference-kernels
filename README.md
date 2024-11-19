@@ -21,7 +21,10 @@ Right now the bot is running on my macbook but will some more permanent location
 
 ## Usage instructions
 
-`@Cluster-bot NVIDIA/AMD/MODAL` depending on which scheduleer you want to use. MODAL is configured by default to use T4 because that's cheap but it works with any GPU
+* `/run modal <gpu_type>` which you can use to pick a specific gpu, right now defaults to T4
+* `/run github <NVIDIA/AMD>` which picks one of two workflow files 
+* `/resync` to clear all the commands and resync them
+* `/ping` to check if the bot is online
 
 ## Why Github Actions
 
