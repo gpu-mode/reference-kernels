@@ -15,6 +15,7 @@ on:
 jobs:
   train:
     runs-on: [gpumode-nvidia-arc]
+    timeout-minutes: 10
     container:
       image: nvidia/cuda:12.4.0-devel-ubuntu22.04
     steps:

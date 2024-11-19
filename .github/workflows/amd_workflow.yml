@@ -15,6 +15,7 @@ on:
 jobs:
   train:
     runs-on: [amdgpu-mi250-x86-64]
+    timeout-minutes: 10
     env:
       VENV_DIR: /groups/aig_sharks/pytorch_venv
     steps:
