@@ -31,14 +31,10 @@ jobs:
 
     - name: Install dependencies
       run: |
-        if grep -rE "(import numpy|from numpy)" "${{ github.event.inputs.filename }}"; then
-          echo "Numpy detected, installing numpy"
-          pip install numpy
-        fi
         # Check if 'import torch' is in any Python file
         if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
           echo "PyTorch detected, installing torch"
-          pip install torch
+          pip install numpy torch
         fi
         # Check if 'import triton' is in any Python file
         if grep -rE "(import triton|from triton)" "${{ github.event.inputs.filename }}"; then
