@@ -1,6 +1,6 @@
 # discord-cluster-manager
 
-This is the code for the Discord bot we'll be using to queue jobs to a cluster of GPUs that our generous sponsors have provided.
+This is the code for the Discord bot we'll be using to queue jobs to a cluster of GPUs that our generous sponsors have provided. Our goal is to be able to queue kernels that can run end to end in seconds that way things feel interactive and social.
 
 The key idea is that we're using Github Actions as a job scheduling engine and primarily making the Discord bot interact with the cluster via issuing Github Actions and and monitoring their status and while we're focused on having a nice user experience on discord.gg/gpumode, we're happy to accept PRs that make it easier for other Discord communities to hook GPUs.
 
@@ -8,8 +8,7 @@ The key idea is that we're using Github Actions as a job scheduling engine and p
 
 1. Install dependencies with `pip install -r requirements.txt`
 2. Create a `.env` file
-3. `python discord-bot.py`
-4. In the staging channel @Cluster-bot with a sample `train.py`
+3. `python discord-bot.py --debug`
 
 Right now the bot is running on my macbook but will some more permanent location
 
