@@ -45,7 +45,7 @@ jobs:
     - name: Run script with profiler
       run: |
         # Run the script with NSight Compute profiler and save to CSV
-        ncu --csv --output-file=profile_results.csv python "${{ github.event.inputs.filename }}"
+        ncu --csv python "${{ github.event.inputs.filename }}" > profile_results.csv 2>&1
         # Also keep regular output in training.log
         python "${{ github.event.inputs.filename }}" > training.log 2>&1
 
