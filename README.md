@@ -13,6 +13,16 @@ The key idea is that we're using Github Actions as a job scheduling engine and p
 
 Right now the bot is running on my macbook but will some more permanent location
 
+## Supported schedulers
+
+* GitHub Actions
+* Modal
+* Slurm (not implemented yet)
+
+## Usage instructions
+
+`@Cluster-bot NVIDIA/AMD/MODAL` depending on which scheduleer you want to use. MODAL is configured by default to use T4 because that's cheap but it works with any GPU
+
 ## Why Github Actions
 
 Every triggered job is containerized so we don't have to worry too much about security. We are exploring a K8 like setup but it's just harder to finish in a reasonable timeframe

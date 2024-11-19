@@ -11,6 +11,7 @@ import zipfile
 import subprocess
 import argparse
 from enum import Enum
+import modal
 
 # Configure logging
 def setup_logging():
@@ -37,6 +38,13 @@ class GPUType(Enum):
     NVIDIA = "nvidia_workflow.yml"
     AMD = "amd_workflow.yml"
 
+# Scheduler types enum
+class SchedulerType(Enum):
+    """Enum defining supported scheduler types"""
+    GITHUB = "github"
+    MODAL = "modal"
+    SLURM = "slurm" # For future implementation
+
 def get_gpu_type(message_content):
     """
     Determine GPU type based on message content
@@ -44,6 +52,14 @@ def get_gpu_type(message_content):
     if "AMD" in message_content.upper():
         return GPUType.AMD
     return GPUType.NVIDIA  # Default to NVIDIA if not specified
+
+def get_scheduler_type(message_content):
+    """
+    Determine scheduler type based on message content
+    """
+    if "MODAL" in message_content.upper():
+        return SchedulerType.MODAL
+    return SchedulerType.GITHUB # Default to GitHub Actions
 
 def get_github_branch_name():
     """
@@ -76,6 +92,21 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
+async def trigger_modal_run(script_content: str, filename: str) -> str:
+    """
+    Triggers a Modal run with the provided script
+    """
+    logger.info("Attempting to trigger Modal run")
+    try:
+        from modal_runner import run_script, modal_app
+        with modal.enable_output():
+            with modal_app.run():
+                result = run_script.remote(script_content)
+            return result
+    except Exception as e:
+        logger.error(f"Error in trigger_modal_run: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+    
 async def trigger_github_action(script_content, filename, gpu_type):
     """
     Triggers the GitHub action with custom script contents and filename
@@ -217,18 +248,19 @@ async def on_message(message):
             for attachment in message.attachments:
                 logger.info(f"Processing attachment: {attachment.filename}")
                 if attachment.filename.endswith('.py'):
-                    # Determine GPU type from message
+                    # Determine GPU type and scheduler type from message
                     gpu_type = get_gpu_type(message.content)
-                    logger.info(f"Selected {gpu_type.name} GPU for processing")
+                    scheduler_type = get_scheduler_type(message.content)
+                    logger.info(f"Selected {gpu_type.name} GPU with {scheduler_type.value} scheduler")
                     
                     # Create a thread directly from the original message
                     thread = await message.create_thread(
-                        name=f"{gpu_type.name} Training Job - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                        name=f"{scheduler_type.value.capitalize()} Job - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
                         auto_archive_duration=1440  # Archive after 24 hours of inactivity
                     )
                     
                     # Send initial message in the thread
-                    await thread.send(f"Found {attachment.filename}! Starting training process on {gpu_type.name} GPU...")
+                    await thread.send(f"Found `{attachment.filename}`! Starting process on {scheduler_type.value}...")
                     
                     try:
                         # Download the file content
@@ -237,34 +269,43 @@ async def on_message(message):
                         script_content = script_content.decode('utf-8')
                         logger.info(f"Successfully read {attachment.filename} content")
                         
-                        # Trigger GitHub Action
-                        run_id = await trigger_github_action(script_content, attachment.filename, gpu_type)
+                        if scheduler_type == SchedulerType.MODAL:
+                            # Run on Modal
+                            await thread.send("Running on Modal...")
+                            print("Script content:")
+                            print(script_content)
+                            print("Filename:")
+                            print(attachment.filename)
+                            result = await trigger_modal_run(script_content, attachment.filename)
+                            await thread.send(f"```\nModal execution result:\n{result}\n```")
                         
-                        await asyncio.sleep(10)
-                        
-                        if run_id:
-                            logger.info(f"Successfully triggered {gpu_type.name} workflow with run ID: {run_id}")
-                            await thread.send(f"GitHub Action triggered successfully on {gpu_type.name}! Run ID: {run_id}\nMonitoring progress...")
+                        elif scheduler_type == SchedulerType.GITHUB:
+                            # Run on GitHub Actions
+                            run_id = await trigger_github_action(script_content, attachment.filename, gpu_type)
                             
-                            # Monitor the workflow
-                            status, logs, url = await check_workflow_status(run_id, thread)
-                            
-                            # Send results back to Discord thread
-                            await thread.send(f"Training completed with status: {status}")
-                            
-                            # Split logs if they're too long for Discord's message limit
-                            if len(logs) > 1900:
-                                chunks = [logs[i:i+1900] for i in range(0, len(logs), 1900)]
-                                for i, chunk in enumerate(chunks):
-                                    await thread.send(f"```\nLogs (part {i+1}/{len(chunks)}):\n{chunk}\n```")
+                            if run_id:
+                                logger.info(f"Successfully triggered GitHub workflow with run ID: {run_id}")
+                                await thread.send(f"GitHub Action triggered successfully! Run ID: {run_id}\nMonitoring progress...")
+                                
+                                # Monitor the workflow
+                                status, logs, url = await check_workflow_status(run_id, thread)
+                                
+                                # Send results back to Discord thread
+                                await thread.send(f"Training completed with status: {status}")
+                                
+                                # Split logs if they're too long for Discord's message limit
+                                if len(logs) > 1900:
+                                    chunks = [logs[i:i+1900] for i in range(0, len(logs), 1900)]
+                                    for i, chunk in enumerate(chunks):
+                                        await thread.send(f"```\nLogs (part {i+1}/{len(chunks)}):\n{chunk}\n```")
+                                else:
+                                    await thread.send(f"```\nLogs:\n{logs}\n```")
+                                
+                                if url:
+                                    await thread.send(f"View the full run at: {url}")
                             else:
-                                await thread.send(f"```\nLogs:\n{logs}\n```")
-                            
-                            if url:
-                                await thread.send(f"View the full run at: {url}")
-                        else:
-                            logger.error(f"Missing run_id. Failed to trigger GitHub Action for {gpu_type.name}")
-                            await thread.send(f"Failed to trigger GitHub Action for {gpu_type.name}. Please check the configuration.")
+                                logger.error(f"Missing run_id. Failed to trigger GitHub Action")
+                                await thread.send("Failed to trigger GitHub Action. Please check the configuration.")
                     
                     except Exception as e:
                         logger.error(f"Error processing request: {str(e)}", exc_info=True)
@@ -273,7 +314,7 @@ async def on_message(message):
                     break
 
             if not any(att.filename.endswith('.py') for att in message.attachments):
-                await message.reply("Please attach a Python file to your message. Include 'AMD' in your message to use AMD GPU, otherwise NVIDIA will be used.")
+                await message.reply("Please attach a Python file to your message. Include 'AMD' in your message to use AMD GPU, otherwise NVIDIA will be used. Include 'MODAL' to use Modal instead of GitHub Actions.")
 
 # Run the bot
 if __name__ == "__main__":
