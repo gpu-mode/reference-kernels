@@ -14,14 +14,15 @@ Before submitting this PR, ensure the following steps have been completed:
   - Start a training run by with the slash command `/run`.
     You may need to exercise some judgement about the script and GPU type.
   - Wait for the training run to complete.
-  - Copy the URL for your `/run` message:
-      - Click on the 3 dots (`...`) to the right of the message.
+  - Copy the URL for the thread started by the cluster bot in response to
+    your `/run` message ("Cluster Bot started a thread: ..."):
+      - Click on the 3 dots (`...`) to the cluster bot's message.
       - Select *Copy Message Link*.
   - Using the copied URL, run the smoke test:
     ```bash
     python discord-bot-smoke-test.py copied_url
     ```
-  - Verify that the smoke tests script responds with:
+  - Verify that the smoke test script responds with:
     ```
     All tests passed!
     ```
