@@ -18,34 +18,30 @@ jobs:
     container:
       image: nvidia/cuda:12.4.0-devel-ubuntu22.04
     steps:
-      # Create script using shell echo
-      - name: Create script file
-        run: |
-          cat << 'EOF' > ${{ github.event.inputs.filename }}
-          ${{ github.event.inputs.script_content }}
-          EOF
-
-      - name: Setup Python environment
-        if: endsWith(github.event.inputs.filename, '.py')
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-
+          
       - name: Install uv
-        if: endsWith(github.event.inputs.filename, '.py')
         uses: astral-sh/setup-uv@v3
         with:
           version: "latest"
-
-      - name: Setup Python venv
-        if: endsWith(github.event.inputs.filename, '.py')
+          
+      - name: Setup Python environment
         run: |
           uv venv .venv
           echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
-
+          
+      - name: Create script file
+        run: |
+          python3 -c "
+          with open('${{ github.event.inputs.filename }}', 'w') as f:
+              f.write('''${{ github.event.inputs.script_content }}''')
+          "
+          
       - name: Install dependencies
-        if: endsWith(github.event.inputs.filename, '.py')
         run: |
           if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
             echo "PyTorch detected, installing torch"
@@ -59,13 +55,14 @@ jobs:
       - name: Run script
         run: |
           if [[ "${{ github.event.inputs.filename }}" == *.cu ]]; then
-            # Compile and run CUDA file
+            echo "Compiling and running CUDA file..."
             nvcc "${{ github.event.inputs.filename }}" -o cuda_program
             ./cuda_program > training.log 2>&1
           else
-            # Run Python file
+            echo "Running Python file..."
             python3 "${{ github.event.inputs.filename }}" > training.log 2>&1
           fi
+          cat training.log  # Debug: show output
 
       - name: Upload training artifacts
         uses: actions/upload-artifact@v4
@@ -77,4 +74,4 @@ jobs:
             ${{ github.event.inputs.filename }}
 
     env:
-      CUDA_VISIBLE_DEVICES: 0  # Make sure only one GPU is used for testing
+      CUDA_VISIBLE_DEVICES: 0
