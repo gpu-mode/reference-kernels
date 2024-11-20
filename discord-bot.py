@@ -75,22 +75,20 @@ class ClusterBot(discord.Client):
         async def resync(interaction: discord.Interaction):
             if interaction.user.guild_permissions.administrator:
                 try:
-                    await interaction.response.defer(ephemeral=True)
+                    await interaction.response.defer()
                     # Clear and resync
                     self.tree.clear_commands(guild=interaction.guild)
                     await self.tree.sync(guild=interaction.guild)
                     commands = await self.tree.fetch_commands(guild=interaction.guild)
                     await interaction.followup.send(
                         f"Resynced commands:\n" + 
-                        "\n".join([f"- /{cmd.name}" for cmd in commands]),
-                        ephemeral=True
+                        "\n".join([f"- /{cmd.name}" for cmd in commands])
                     )
                 except Exception as e:
-                    await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+                    await interaction.followup.send(f"Error: {str(e)}")
             else:
                 await interaction.response.send_message(
-                    "You need administrator permissions to use this command",
-                    ephemeral=True
+                    "You need administrator permissions to use this command"
                 )
 
         # Create the run command group
@@ -114,15 +112,16 @@ class ClusterBot(discord.Client):
             gpu_type: app_commands.Choice[str]
         ):
             if not script.filename.endswith('.py'):
-                await interaction.response.send_message("Please provide a Python (.py) file", ephemeral=True)
+                await interaction.response.send_message("Please provide a Python (.py) file")
                 return
 
             thread = await interaction.channel.create_thread(
                 name=f"Modal Job ({gpu_type.name}) - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                type=discord.ChannelType.public_thread,
                 auto_archive_duration=1440
             )
 
-            await interaction.response.send_message(f"Created thread {thread.mention} for your Modal job", ephemeral=True)
+            await interaction.response.send_message(f"Created thread {thread.mention} for your Modal job")
             await thread.send(f"Processing `{script.filename}` with {gpu_type.name}...")
 
             try:
@@ -152,15 +151,16 @@ class ClusterBot(discord.Client):
             gpu_type: app_commands.Choice[str]
         ):
             if not script.filename.endswith('.py'):
-                await interaction.response.send_message("Please provide a Python (.py) file", ephemeral=True)
+                await interaction.response.send_message("Please provide a Python (.py) file")
                 return
 
             thread = await interaction.channel.create_thread(
                 name=f"GitHub Job ({gpu_type.name}) - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                type=discord.ChannelType.public_thread,
                 auto_archive_duration=1440
             )
 
-            await interaction.response.send_message(f"Created thread {thread.mention} for your GitHub job", ephemeral=True)
+            await interaction.response.send_message(f"Created thread {thread.mention} for your GitHub job")
             await thread.send(f"Processing `{script.filename}` with {gpu_type.name}...")
 
             try:
