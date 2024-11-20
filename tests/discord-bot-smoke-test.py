@@ -30,7 +30,10 @@ parser = argparse.ArgumentParser(
       python {os.path.basename(__file__)} https://discord.com/channels/123/456/789
     The URL is the message link for some message that triggered the cluster bot.
     To find this URL: click the 3 dots (...) to the right of the message,
-    then click 'Copy Message Link'.""",
+    then click 'Copy Message Link'.
+    
+    Limitations:
+    - The smoke test does not yet work for Modal runs.""",
     formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('message_url', type=str, help='Discord message URL to test')
 args = parser.parse_args()
@@ -59,8 +62,8 @@ async def verify_thread_messages():
     global thread_tests_passed
 
     required_strings = [
-        "Found train.py! Starting training process",
-        "GitHub Action triggered successfully! Run ID:",
+        "Processing `.*` with",
+        "GitHub Action triggered! Run ID:",
         "Training completed with status: success",
         ".*```\nLogs.*:",
         "View the full run at:",
