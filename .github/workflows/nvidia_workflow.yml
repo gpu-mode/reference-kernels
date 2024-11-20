@@ -1,19 +1,18 @@
-name: NVIDIA PyTorch Job
-
+name: NVIDIA PyTorch/CUDA Job
 on:
   workflow_dispatch:
     inputs:
       script_content:
-        description: 'Content of Python script'
+        description: 'Content of script (Python or CUDA)'
         required: true
         type: string
       filename:
-        description: 'Name of Python script'
+        description: 'Name of script (supports .py and .cu files)'
         required: true
         type: string
 
 jobs:
-  train:
+  build-and-train:
     runs-on: [gpumode-nvidia-arc]
     timeout-minutes: 10
     container:
@@ -23,24 +22,24 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-
+        
     - name: Install uv
       uses: astral-sh/setup-uv@v3
       with:
         version: "latest"
-
+        
     - name: Setup Python environment
       run: |
         uv venv .venv
         echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
         echo "$PWD/.venv/bin" >> $GITHUB_PATH
-
+        
     - name: Create script
       shell: python
       run: |
         with open('${{ github.event.inputs.filename }}', 'w') as f:
             f.write('''${{ github.event.inputs.script_content }}''')
-
+            
     - name: Install dependencies
       run: |
         # Check if 'import torch' is in any Python file
@@ -53,22 +52,31 @@ jobs:
           echo "Triton detected, installing triton"
           uv pip install triton
         fi
-
+        
+    - name: Compile CUDA if needed
+      run: |
+        if [[ "${{ github.event.inputs.filename }}" == *.cu ]]; then
+          echo "Compiling CUDA file..."
+          nvcc "${{ github.event.inputs.filename }}" -o cuda_program
+        fi
+        
     - name: Run script with profiler
       run: |
-        # Run the script with NSight Compute profiler and save to CSV
-        # ncu --csv python "${{ github.event.inputs.filename }}" > profile_results.csv 2>&1
-        # Also keep regular output in training.log
-        python "${{ github.event.inputs.filename }}" > training.log 2>&1
-
-    - name: Upload training artifacts
+        if [[ "${{ github.event.inputs.filename }}" == *.cu ]]; then
+          # Run compiled CUDA program
+          ./cuda_program > output.log 2>&1
+        else
+          # Run Python script
+          python "${{ github.event.inputs.filename }}" > output.log 2>&1
+        fi
+        
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: training-artifacts
+        name: run-artifacts
         path: |
-          training.log
-          # profile_results.csv
+          output.log
           ${{ github.event.inputs.filename }}
       env:
         CUDA_VISIBLE_DEVICES: 0 # Make sure only one GPU is used for testing
