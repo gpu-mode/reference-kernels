@@ -36,6 +36,7 @@ parser = argparse.ArgumentParser(
     - The smoke test does not yet work for Modal runs.""",
     formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('message_url', type=str, help='Discord message URL to test')
+parser.add_argument('--debug', action='store_true', help='Run in debug/staging mode')
 args = parser.parse_args()
 
 message_id = int(args.message_url.split('/')[-1])
@@ -134,10 +135,14 @@ async def on_ready():
 if __name__ == '__main__':
     logger.info("Running smoke tests...")
 
-    token = os.getenv('DISCORD_TOKEN')
-    if not token:
-        logger.error('DISCORD_TOKEN environment variable not set.')
-        exit(1)
+    if args.debug:
+        token = os.getenv('DISCORD_DEBUG_TOKEN')
+        if not token:
+            raise ValueError("DISCORD_DEBUG_TOKEN not found")
+    else:
+        token = os.getenv('DISCORD_TOKEN')
+        if not token:
+            raise ValueError("DISCORD_TOKEN not found")
 
     client.run(token)
 
