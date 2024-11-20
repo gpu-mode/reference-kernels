@@ -24,6 +24,17 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Setup Python environment
+      run: |
+        uv venv .venv
+        echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
+        echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
     - name: Create script
       shell: python
       run: |
@@ -35,12 +46,12 @@ jobs:
         # Check if 'import torch' is in any Python file
         if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
           echo "PyTorch detected, installing torch"
-          pip install numpy torch
+          uv pip install numpy torch
         fi
         # Check if 'import triton' is in any Python file
         if grep -rE "(import triton|from triton)" "${{ github.event.inputs.filename }}"; then
           echo "Triton detected, installing triton"
-          pip install triton
+          uv pip install triton
         fi
 
     - name: Run script with profiler
@@ -51,7 +62,7 @@ jobs:
         python "${{ github.event.inputs.filename }}" > training.log 2>&1
 
     - name: Upload training artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: training-artifacts

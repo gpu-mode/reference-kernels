@@ -42,7 +42,7 @@ jobs:
         python "${{ github.event.inputs.filename }}" > training.log 2>&1
 
     - name: Upload training artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: training-artifacts
