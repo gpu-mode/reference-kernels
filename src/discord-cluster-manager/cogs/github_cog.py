@@ -7,32 +7,17 @@ import requests
 import zipfile
 import os
 from github import Github
-from utils import setup_logging
+from utils import setup_logging, get_github_branch_name
 from consts import GPUType, GITHUB_TOKEN, GITHUB_REPO
-import subprocess
 
 logger = setup_logging()
-
-
-def get_github_branch_name():
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip().split("/", 1)[1]
-    except subprocess.CalledProcessError:
-        return "main"
 
 
 class GitHubCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.run_github = bot.run_group.command(
-            name="github",
-            description="Run a script using GitHub Actions"
+            name="github", description="Run a script using GitHub Actions"
         )(self.run_github)
 
     @app_commands.describe(

@@ -3,8 +3,6 @@ from discord import app_commands
 from discord.ext import commands
 import modal
 from utils import setup_logging
-import signal
-from contextlib import contextmanager
 
 logger = setup_logging()
 
@@ -57,7 +55,7 @@ class ModalCog(commands.Cog):
     async def trigger_modal_run(self, script_content: str, filename: str) -> str:
         logger.info("Attempting to trigger Modal run")
 
-        from utils import modal_app, run_script
+        from modal_runner import modal_app, run_script
 
         try:
             with modal.enable_output():

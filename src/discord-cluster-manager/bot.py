@@ -3,7 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 import argparse
 from utils import setup_logging
-from cogs.misc_cog import MiscCog
+from cogs.misc_cog import BotManagerCog
 from datetime import datetime
 from consts import (
     init_environment,
@@ -37,7 +37,7 @@ class ClusterBot(commands.Bot):
             # Load cogs
             await self.add_cog(ModalCog(self))
             await self.add_cog(GitHubCog(self))
-            await self.add_cog(MiscCog(self))
+            await self.add_cog(BotManagerCog(self))
 
             guild_id = (
                 DISCORD_CLUSTER_STAGING_ID

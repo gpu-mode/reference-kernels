@@ -2,10 +2,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils import setup_logging
+
 logger = setup_logging()
 
 
-class MiscCog(commands.Cog):
+class BotManagerCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 

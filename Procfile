@@ -1,2 +1,2 @@
 # Procfile
-worker: python discord-bot.py
+worker: python src/discord-cluster-manager/bot.py
