@@ -26,9 +26,8 @@ After this, you should be able to create a `.env` file with the following enviro
 - `DISCORD_DEBUG_CLUSTER_STAGING_ID` : The ID of the staging server you want to connect to
 - `GITHUB_TOKEN` : A Github token with permissions to trigger workflows, for now only new branches from [discord-cluster-manager](https://github.com/gpu-mode/discord-cluster-manager) are tested, since the bot triggers workflows on your behalf
 
-[!NOTE]
+> [!NOTE]
 To test functionality of the Modal runner, you also need to be authenticated with Modal. Modal provides free credits to get started.
-After doing that, you can add a new environment variable called `DISCORD_DEBUG_TOKEN` to your `.env` file and set it to the bot token you got from the Discord Developer Portal, then also set `DISCORD_DEBUG_CLUSTER_STAGING_ID` to the ID of the staging server you want to connect to.
 
 ### How to run the bot
 
