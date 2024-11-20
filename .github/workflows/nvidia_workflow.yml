@@ -37,9 +37,12 @@ jobs:
       - name: Create script file
         run: |
           python3 -c "
+          import textwrap
+          content = textwrap.dedent('''${{ github.event.inputs.script_content }}''')
           with open('${{ github.event.inputs.filename }}', 'w') as f:
-              f.write('''${{ github.event.inputs.script_content }}''')
+              f.write(content)
           "
+          cat ${{ github.event.inputs.filename }}  # Debug: show file contents
           
       - name: Install dependencies
         run: |
