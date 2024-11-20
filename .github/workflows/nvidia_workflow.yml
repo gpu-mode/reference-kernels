@@ -23,8 +23,7 @@ jobs:
       run: |
         echo '${{ github.event.inputs.script_content }}' > '${{ github.event.inputs.filename }}'
             
-    - name: Setup Python if needed
-      if: endsWith(github.event.inputs.filename, '.py')
+    - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
