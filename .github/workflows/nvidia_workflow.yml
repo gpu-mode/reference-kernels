@@ -1,48 +1,47 @@
-name: NVIDIA PyTorch/CUDA Job
+name: NVIDIA PyTorch Job
+
 on:
   workflow_dispatch:
     inputs:
       script_content:
-        description: 'Content of script (Python or CUDA)'
+        description: 'Content of Python script'
         required: true
         type: string
       filename:
-        description: 'Name of script (supports .py and .cu files)'
+        description: 'Name of Python script'
         required: true
         type: string
 
 jobs:
-  build-and-train:
+  train:
     runs-on: [gpumode-nvidia-arc]
     timeout-minutes: 10
     container:
       image: nvidia/cuda:12.4.0-devel-ubuntu22.04
     steps:
-    - name: Create script
-      shell: bash
-      run: |
-        echo '${{ github.event.inputs.script_content }}' > '${{ github.event.inputs.filename }}'
-            
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-        
-    - name: Install uv if Python
-      if: endsWith(github.event.inputs.filename, '.py')
+
+    - name: Install uv
       uses: astral-sh/setup-uv@v3
       with:
         version: "latest"
-        
-    - name: Setup Python environment if needed
-      if: endsWith(github.event.inputs.filename, '.py')
+
+    - name: Setup Python environment
       run: |
         uv venv .venv
         echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
         echo "$PWD/.venv/bin" >> $GITHUB_PATH
-            
-    - name: Install Python dependencies if needed
-      if: endsWith(github.event.inputs.filename, '.py')
+
+    - name: Create script
+      shell: python
+      run: |
+        with open('${{ github.event.inputs.filename }}', 'w') as f:
+            f.write('''${{ github.event.inputs.script_content }}''')
+
+    - name: Install dependencies
       run: |
         # Check if 'import torch' is in any Python file
         if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
@@ -54,28 +53,22 @@ jobs:
           echo "Triton detected, installing triton"
           uv pip install triton
         fi
-        
-    - name: Compile CUDA if needed
-      if: endsWith(github.event.inputs.filename, '.cu')
+
+    - name: Run script with profiler
       run: |
-        echo "Compiling CUDA file..."
-        nvcc "${{ github.event.inputs.filename }}" -o cuda_program
-        
-    - name: Run script
-      run: |
-        if [[ "${{ github.event.inputs.filename }}" == *.cu ]]; then
-          ./cuda_program > output.log 2>&1
-        else
-          python "${{ github.event.inputs.filename }}" > output.log 2>&1
-        fi
-        
-    - name: Upload artifacts
+        # Run the script with NSight Compute profiler and save to CSV
+        # ncu --csv python "${{ github.event.inputs.filename }}" > profile_results.csv 2>&1
+        # Also keep regular output in training.log
+        python "${{ github.event.inputs.filename }}" > training.log 2>&1
+
+    - name: Upload training artifacts
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: run-artifacts
+        name: training-artifacts
         path: |
-          output.log
+          training.log
+          # profile_results.csv
           ${{ github.event.inputs.filename }}
       env:
-        CUDA_VISIBLE_DEVICES: 0
+        CUDA_VISIBLE_DEVICES: 0 # Make sure only one GPU is used for testing
