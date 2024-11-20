@@ -18,11 +18,21 @@ jobs:
     container:
       image: nvidia/cuda:12.4.0-devel-ubuntu22.04
     steps:
-      - name: Create script
+      # Create script using shell echo
+      - name: Create script file
         run: |
-          echo '${{ github.event.inputs.script_content }}' > ${{ github.event.inputs.filename }}
+          cat << 'EOF' > ${{ github.event.inputs.filename }}
+          ${{ github.event.inputs.script_content }}
+          EOF
 
-      - name: Setup Python
+      # Only set up Python if it's a Python file
+      - name: Install Python and pip for Python files
+        if: endsWith(github.event.inputs.filename, '.py')
+        run: |
+          apt-get update
+          apt-get install -y python3 python3-pip
+
+      - name: Setup Python environment
         if: endsWith(github.event.inputs.filename, '.py')
         uses: actions/setup-python@v4
         with:
@@ -34,7 +44,7 @@ jobs:
         with:
           version: "latest"
 
-      - name: Setup Python environment
+      - name: Setup Python venv
         if: endsWith(github.event.inputs.filename, '.py')
         run: |
           uv venv .venv
@@ -61,7 +71,7 @@ jobs:
             ./cuda_program > training.log 2>&1
           else
             # Run Python file
-            python "${{ github.event.inputs.filename }}" > training.log 2>&1
+            python3 "${{ github.event.inputs.filename }}" > training.log 2>&1
           fi
 
       - name: Upload training artifacts
