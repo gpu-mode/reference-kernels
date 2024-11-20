@@ -73,6 +73,5 @@ jobs:
             training.log
             # profile_results.csv
             ${{ github.event.inputs.filename }}
-            cuda_program*
         env:
           CUDA_VISIBLE_DEVICES: 0  # Make sure only one GPU is used for testing
