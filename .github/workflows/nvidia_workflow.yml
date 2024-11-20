@@ -10,6 +10,7 @@ on:
         description: 'Name of script (supports .py or .cu)'
         required: true
         type: string
+
 jobs:
   train:
     runs-on: [gpumode-nvidia-arc]
@@ -17,43 +18,42 @@ jobs:
     container:
       image: nvidia/cuda:12.4.0-devel-ubuntu22.04
     steps:
+      - name: Create script
+        run: |
+          echo '${{ github.event.inputs.script_content }}' > ${{ github.event.inputs.filename }}
+
       - name: Setup Python
+        if: endsWith(github.event.inputs.filename, '.py')
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      
+
       - name: Install uv
+        if: endsWith(github.event.inputs.filename, '.py')
         uses: astral-sh/setup-uv@v3
         with:
           version: "latest"
-      
+
       - name: Setup Python environment
+        if: endsWith(github.event.inputs.filename, '.py')
         run: |
           uv venv .venv
           echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
-      
-      - name: Create script
-        shell: python
+
+      - name: Install dependencies
+        if: endsWith(github.event.inputs.filename, '.py')
         run: |
-          with open('${{ github.event.inputs.filename }}', 'w') as f:
-            f.write('''${{ github.event.inputs.script_content }}''')
-      
-      - name: Install dependencies and setup NVCC
-        run: |          
-          # Check for PyTorch
           if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
             echo "PyTorch detected, installing torch"
             uv pip install numpy torch
           fi
-          
-          # Check for Triton
           if grep -rE "(import triton|from triton)" "${{ github.event.inputs.filename }}"; then
             echo "Triton detected, installing triton"
             uv pip install triton
           fi
-      
-      - name: Run script with profiler
+
+      - name: Run script
         run: |
           if [[ "${{ github.event.inputs.filename }}" == *.cu ]]; then
             # Compile and run CUDA file
@@ -63,7 +63,7 @@ jobs:
             # Run Python file
             python "${{ github.event.inputs.filename }}" > training.log 2>&1
           fi
-      
+
       - name: Upload training artifacts
         uses: actions/upload-artifact@v4
         if: always()
@@ -71,7 +71,7 @@ jobs:
           name: training-artifacts
           path: |
             training.log
-            # profile_results.csv
             ${{ github.event.inputs.filename }}
-        env:
-          CUDA_VISIBLE_DEVICES: 0  # Make sure only one GPU is used for testing
+
+    env:
+      CUDA_VISIBLE_DEVICES: 0  # Make sure only one GPU is used for testing
