@@ -7,7 +7,7 @@ The key idea is that we're using Github Actions as a job scheduling engine and p
 ## How to run the bot locally
 
 1. Install dependencies with `pip install -r requirements.txt`
-2. Create a `.env` file
+2. Create an `.env` file
 3. `python discord-bot.py --debug`
 
 Right now the bot is running on my macbook but will some more permanent location
