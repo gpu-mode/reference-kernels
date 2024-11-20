@@ -36,12 +36,9 @@ jobs:
           
       - name: Create script file
         run: |
-          python3 -c "
-          import textwrap
-          content = textwrap.dedent('''${{ github.event.inputs.script_content }}''')
-          with open('${{ github.event.inputs.filename }}', 'w') as f:
-              f.write(content)
-          "
+          cat << 'EOL' > ${{ github.event.inputs.filename }}
+          ${{ github.event.inputs.script_content }}
+          EOL
           cat ${{ github.event.inputs.filename }}  # Debug: show file contents
           
       - name: Install dependencies
