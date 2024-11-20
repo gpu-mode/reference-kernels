@@ -150,8 +150,8 @@ class ClusterBot(discord.Client):
             script: discord.Attachment,
             gpu_type: app_commands.Choice[str]
         ):
-            if not script.filename.endswith('.py'):
-                await interaction.response.send_message("Please provide a Python (.py) file")
+            if not script.filename.endswith('.py') and not script.filename.endswith('.cu'):
+                await interaction.response.send_message("Please provide a Python (.py) or CUDA (.cu) file")
                 return
 
             thread = await interaction.channel.create_thread(
