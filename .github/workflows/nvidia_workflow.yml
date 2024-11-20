@@ -53,6 +53,7 @@ jobs:
           fi
 
       - name: Run script
+        shell: bash
         run: |
           if [[ "${{ github.event.inputs.filename }}" == *.cu ]]; then
             echo "Compiling and running CUDA file..."
