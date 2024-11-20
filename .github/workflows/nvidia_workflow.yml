@@ -18,29 +18,32 @@ jobs:
     container:
       image: nvidia/cuda:12.4.0-devel-ubuntu22.04
     steps:
-    - name: Setup Python
+    - name: Create script
+      shell: bash
+      run: |
+        echo '${{ github.event.inputs.script_content }}' > '${{ github.event.inputs.filename }}'
+            
+    - name: Setup Python if needed
+      if: endsWith(github.event.inputs.filename, '.py')
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
         
-    - name: Install uv
+    - name: Install uv if Python
+      if: endsWith(github.event.inputs.filename, '.py')
       uses: astral-sh/setup-uv@v3
       with:
         version: "latest"
         
-    - name: Setup Python environment
+    - name: Setup Python environment if needed
+      if: endsWith(github.event.inputs.filename, '.py')
       run: |
         uv venv .venv
         echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
         echo "$PWD/.venv/bin" >> $GITHUB_PATH
-        
-    - name: Create script
-      shell: python
-      run: |
-        with open('${{ github.event.inputs.filename }}', 'w') as f:
-            f.write('''${{ github.event.inputs.script_content }}''')
             
-    - name: Install dependencies
+    - name: Install Python dependencies if needed
+      if: endsWith(github.event.inputs.filename, '.py')
       run: |
         # Check if 'import torch' is in any Python file
         if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
@@ -54,19 +57,16 @@ jobs:
         fi
         
     - name: Compile CUDA if needed
+      if: endsWith(github.event.inputs.filename, '.cu')
       run: |
-        if [[ "${{ github.event.inputs.filename }}" == *.cu ]]; then
-          echo "Compiling CUDA file..."
-          nvcc "${{ github.event.inputs.filename }}" -o cuda_program
-        fi
+        echo "Compiling CUDA file..."
+        nvcc "${{ github.event.inputs.filename }}" -o cuda_program
         
-    - name: Run script with profiler
+    - name: Run script
       run: |
         if [[ "${{ github.event.inputs.filename }}" == *.cu ]]; then
-          # Run compiled CUDA program
           ./cuda_program > output.log 2>&1
         else
-          # Run Python script
           python "${{ github.event.inputs.filename }}" > output.log 2>&1
         fi
         
@@ -79,4 +79,4 @@ jobs:
           output.log
           ${{ github.event.inputs.filename }}
       env:
-        CUDA_VISIBLE_DEVICES: 0 # Make sure only one GPU is used for testing
+        CUDA_VISIBLE_DEVICES: 0
