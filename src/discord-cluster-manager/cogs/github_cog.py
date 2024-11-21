@@ -70,7 +70,7 @@ class GitHubCog(commands.Cog):
                     await thread.send(f"```\nLogs:\n{logs}\n```")
 
                 if url:
-                    await thread.send(f"View the full run at: {url}")
+                    await thread.send(f"View the full run at: <{url}>")
             else:
                 await thread.send(
                     "Failed to trigger GitHub Action. Please check the configuration."
@@ -122,7 +122,7 @@ class GitHubCog(commands.Cog):
                     return run.conclusion, logs, run.html_url
 
                 await thread.send(
-                    f"Workflow still running... Status: {run.status}\nLive view: {run.html_url}"
+                    f"Workflow still running... Status: {run.status}\nLive view: <{run.html_url}>"
                 )
                 await asyncio.sleep(60)
             except Exception as e:
