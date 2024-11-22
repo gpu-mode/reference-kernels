@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio
 import requests
 import zipfile
@@ -112,17 +112,36 @@ class GitHubCog(commands.Cog):
         logger.info(f"Starting to monitor workflow status for run {run_id}")
         gh = Github(GITHUB_TOKEN)
         repo = gh.get_repo(GITHUB_REPO)
+        start_time = datetime.now(timezone.utc)
+        timeout_minutes = 5
+        timeout = timedelta(minutes=timeout_minutes)
 
         while True:
             try:
                 run = repo.get_workflow_run(run_id)
+                elapsed_time = datetime.now(timezone.utc) - start_time
+
+                if elapsed_time > timeout:
+                    try:
+                        run.cancel()
+                        # Wait briefly to ensure cancellation is processed and Verify the run was actually cancelled
+                        await asyncio.sleep(5)
+                        run = repo.get_workflow_run(run_id)
+                        if run.status != "completed":
+                            logger.warning(f"Failed to cancel workflow run {run_id}")
+                    except Exception as e:
+                        logger.error(f"Error cancelling workflow: {str(e)}")
+                    
+                    await thread.send(f"Workflow cancelled - exceeded {timeout_minutes} minute timeout")
+                    return "cancelled", f"Workflow exceeded {timeout_minutes} minute timeout", run.html_url
 
                 if run.status == "completed":
                     logs = await self.download_artifact(run_id)
                     return run.conclusion, logs, run.html_url
 
                 await thread.send(
-                    f"Workflow still running... Status: {run.status}\nLive view: <{run.html_url}>"
+                    f"Workflow: {run.status} running for {elapsed_time.total_seconds():.2f} seconds\n"
+                    f"Live view: <{run.html_url}>"
                 )
                 await asyncio.sleep(60)
             except Exception as e:
