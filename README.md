@@ -4,9 +4,7 @@ This is the code for the Discord bot we'll be using to queue jobs to a cluster o
 
 The key idea is that we're using Github Actions as a job scheduling engine and primarily making the Discord bot interact with the cluster via issuing Github Actions and and monitoring their status and while we're focused on having a nice user experience on discord.gg/gpumode, we're happy to accept PRs that make it easier for other Discord communities to hook GPUs.
 
-## Why Github Actions
-
-Every triggered job is containerized so we don't have to worry too much about security. We are exploring a K8 like setup but it's just harder to finish in a reasonable timeframe
+[Demo!](https://www.youtube.com/watch?v=-u7kX_vpLfk)
 
 ## Supported schedulers
 
