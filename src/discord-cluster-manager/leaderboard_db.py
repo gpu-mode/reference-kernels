@@ -1,7 +1,7 @@
 import psycopg2
 from psycopg2 import Error
 from typing import Optional
-from utils import LeaderboardItem
+from utils import LeaderboardItem, SubmissionItem
 
 
 class LeaderboardDB:
@@ -52,6 +52,7 @@ class LeaderboardDB:
         CREATE TABLE IF NOT EXISTS submissions (
             id SERIAL PRIMARY KEY,
             leaderboard_id BIGINT NOT NULL,
+            submission_name VARCHAR(255) NOT NULL,
             user_id BIGINT NOT NULL,
             submission_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             code TEXT NOT NULL,
@@ -96,3 +97,25 @@ class LeaderboardDB:
             LeaderboardItem(id=lb[0], name=lb[1], deadline=lb[2], template_code=lb[3])
             for lb in self.cursor.fetchall()
         ]
+
+    def get_leaderboard_submissions(self, leaderboard_id: int) -> list[SubmissionItem]:
+        self.cursor.execute(
+            "SELECT * FROM submissions WHERE leaderboard_id = %s", (leaderboard_id,)
+        )
+
+        return [
+            SubmissionItem(
+                submission_name=submission[2],
+                submission_time=submission[3],
+                code=submission[4],
+                user_id=submission[5],
+            )
+            for submission in self.cursor.fetchall()
+        ]
+
+    def get_leaderboard_id(self, leaderboard_name: str) -> int | None:
+        self.cursor.execute("SELECT * FROM leaderboard", (leaderboard_name,))
+
+        res = self.cursor.fetchone()
+
+        return res[0] if res else None

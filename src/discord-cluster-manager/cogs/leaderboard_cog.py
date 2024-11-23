@@ -19,6 +19,10 @@ class LeaderboardCog(commands.Cog):
             name="create", description="Create a new leaderboard"
         )(self.leaderboard_create)
 
+        self.get_leaderboard_submissions = bot.leaderboard_group.command(
+            name="submissions", description="Get all submissions for a leaderboard"
+        )(self.get_leaderboard_submissions)
+
     async def get_leaderboards(self, interaction: discord.Interaction):
         """Display all leaderboards in a table format"""
         await interaction.response.defer()
@@ -83,3 +87,37 @@ class LeaderboardCog(commands.Cog):
                 "Invalid date format. Please use YYYY-MM-DD or YYYY-MM-DD HH:MM",
                 ephemeral=True,
             )
+
+    @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
+    async def get_leaderboard_submissions(
+        self, interaction: discord.Interaction, leaderboard_name: str
+    ):
+        with self.bot.leaderboard_db as db:
+            leaderboard_id = db.get_leaderboard_id(leaderboard_name)
+            if not leaderboard_id:
+                await interaction.response.send_message(
+                    "Leaderboard not found.", ephemeral=True
+                )
+                return
+
+            submissions = db.get_leaderboard_submissions(leaderboard_id)
+
+        if not submissions:
+            await interaction.response.send_message(
+                "No submissions found.", ephemeral=True
+            )
+            return
+
+        # Create embed
+        embed = discord.Embed(
+            title="Leaderboard Submissions", color=discord.Color.blue()
+        )
+
+        for submission in submissions:
+            embed.add_field(
+                name=f"{submission['user_id']}: submission['submission_name']",
+                value=f"Submission time: {submission["submission_time"]}",
+                inline=False,
+            )
+
+        await interaction.response.send_message(embed=embed)

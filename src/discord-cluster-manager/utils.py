@@ -41,3 +41,10 @@ class LeaderboardItem(TypedDict):
     name: str
     deadline: datetime.datetime
     template_code: str
+
+
+class SubmissionItem(TypedDict):
+    submission_name: str
+    submission_time: datetime.datetime
+    code: str
+    user_id: int
