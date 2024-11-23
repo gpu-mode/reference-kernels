@@ -10,6 +10,7 @@ on:
         description: 'Name of script (supports .py or .cu)'
         required: true
         type: string
+
 jobs:
   train:
     runs-on: [gpumode-nvidia-arc]
@@ -18,21 +19,28 @@ jobs:
       image: nvidia/cuda:12.4.0-devel-ubuntu22.04
     steps:
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+          
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
           version: "latest"
+          
       - name: Setup Python environment
         run: |
           uv venv .venv
           echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
+          
       - name: Create script file
         run: |
           cat << 'EOL' > ${{ github.event.inputs.filename }}
+          ${{ github.event.inputs.script_content }}
+          EOL
+          cat ${{ github.event.inputs.filename }}  # Debug: show file contents
+          
       - name: Install dependencies
         run: |
           if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
@@ -43,6 +51,7 @@ jobs:
             echo "Triton detected, installing triton"
             uv pip install triton
           fi
+
       - name: Run script
         shell: bash
         run: |
@@ -50,15 +59,12 @@ jobs:
             echo "Compiling and running CUDA file..."
             nvcc "${{ github.event.inputs.filename }}" -o cuda_program
             ./cuda_program > training.log 2>&1
-            echo "Profiling with NCU..."
-            ncu --csv --set full -o profile ./cuda_program
           else
             echo "Running Python file..."
             python3 "${{ github.event.inputs.filename }}" > training.log 2>&1
-            echo "Profiling with NCU..."
-            ncu --csv --set full -o profile python3 "${{ github.event.inputs.filename }}"
           fi
-          cat training.log
+          cat training.log  # Debug: show output
+
       - name: Upload training artifacts
         uses: actions/upload-artifact@v4
         if: always()
@@ -67,6 +73,6 @@ jobs:
           path: |
             training.log
             ${{ github.event.inputs.filename }}
-            profile.csv
+
     env:
       CUDA_VISIBLE_DEVICES: 0
