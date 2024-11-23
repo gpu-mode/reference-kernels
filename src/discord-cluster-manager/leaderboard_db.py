@@ -1,16 +1,20 @@
 import psycopg2
 from psycopg2 import Error
 from typing import Optional
+from utils import LeaderboardItem
+
 
 class LeaderboardDB:
-    def __init__(self, host: str, database: str, user: str, password: str, port: str = "5432"):
+    def __init__(
+        self, host: str, database: str, user: str, password: str, port: str = "5432"
+    ):
         """Initialize database connection parameters"""
         self.connection_params = {
             "host": host,
             "database": database,
             "user": user,
             "password": password,
-            "port": port
+            "port": port,
         }
         self.connection: Optional[psycopg2.extensions.connection] = None
         self.cursor: Optional[psycopg2.extensions.cursor] = None
@@ -37,9 +41,8 @@ class LeaderboardDB:
         """Create necessary tables if they don't exist"""
         create_table_query = """
         CREATE TABLE IF NOT EXISTS leaderboard (
-            id BIGINT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             deadline TIMESTAMP NOT NULL,
             template_code TEXT NOT NULL
         );
@@ -47,7 +50,7 @@ class LeaderboardDB:
 
         create_submission_table_query = """
         CREATE TABLE IF NOT EXISTS submissions (
-            id BIGINT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             leaderboard_id BIGINT NOT NULL,
             user_id BIGINT NOT NULL,
             submission_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -71,3 +74,25 @@ class LeaderboardDB:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit"""
         self.disconnect()
+
+    def create_leaderboard(self, leaderboard: LeaderboardItem):
+        self.cursor.execute(
+            """
+            INSERT INTO leaderboard (name, deadline, template_code)
+            VALUES (%s, %s, %s)
+            """,
+            (
+                leaderboard["name"],
+                leaderboard["deadline"],
+                leaderboard["template_code"],
+            ),
+        )
+        self.connection.commit()
+
+    def get_leaderboards(self) -> list[LeaderboardItem]:
+        self.cursor.execute("SELECT * FROM leaderboard")
+
+        return [
+            LeaderboardItem(id=lb[0], name=lb[1], deadline=lb[2], template_code=lb[3])
+            for lb in self.cursor.fetchall()
+        ]

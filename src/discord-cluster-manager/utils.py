@@ -1,5 +1,8 @@
 import logging
 import subprocess
+import datetime
+from typing import TypedDict
+
 
 def setup_logging():
     """Configure and setup logging for the application"""
@@ -20,6 +23,7 @@ def setup_logging():
 
     return logger
 
+
 def get_github_branch_name():
     try:
         result = subprocess.run(
@@ -31,3 +35,9 @@ def get_github_branch_name():
         return result.stdout.strip().split("/", 1)[1]
     except subprocess.CalledProcessError:
         return "main"
+
+
+class LeaderboardItem(TypedDict):
+    name: str
+    deadline: datetime.datetime
+    template_code: str

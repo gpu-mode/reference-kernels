@@ -11,10 +11,17 @@ from consts import (
     DISCORD_DEBUG_TOKEN,
     DISCORD_CLUSTER_STAGING_ID,
     DISCORD_DEBUG_CLUSTER_STAGING_ID,
+
+    POSTGRES_USER,
+    POSTGRES_PASSWORD,
+    POSTGRES_HOST,
+    POSTGRES_PORT,
+    POSTGRES_DATABASE,
 )
 from cogs.modal_cog import ModalCog
 from cogs.github_cog import GitHubCog
 from cogs.leaderboard_cog import LeaderboardCog
+from leaderboard_db import LeaderboardDB
 
 logger = setup_logging()
 
@@ -36,6 +43,10 @@ class ClusterBot(commands.Bot):
             name="leaderboard", description="Leaderboard commands"
         )
         self.tree.add_command(self.leaderboard_group)
+
+        self.leaderboard_db = LeaderboardDB(
+            POSTGRES_HOST, POSTGRES_DATABASE, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_PORT
+        )
 
     async def setup_hook(self):
         logger.info(f"Syncing commands for staging guild {DISCORD_CLUSTER_STAGING_ID}")
