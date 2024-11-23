@@ -5,3 +5,4 @@ audioop-lts # discord.py imports using * syntax
 python-dotenv
 requests
 modal
+psycopg2-binary

@@ -14,6 +14,7 @@ from consts import (
 )
 from cogs.modal_cog import ModalCog
 from cogs.github_cog import GitHubCog
+from cogs.leaderboard_cog import LeaderboardCog
 
 logger = setup_logging()
 
@@ -31,6 +32,11 @@ class ClusterBot(commands.Bot):
         )
         self.tree.add_command(self.run_group)
 
+        self.leaderboard_group = app_commands.Group(
+            name="leaderboard", description="Leaderboard commands"
+        )
+        self.tree.add_command(self.leaderboard_group)
+
     async def setup_hook(self):
         logger.info(f"Syncing commands for staging guild {DISCORD_CLUSTER_STAGING_ID}")
         try:
@@ -38,6 +44,7 @@ class ClusterBot(commands.Bot):
             await self.add_cog(ModalCog(self))
             await self.add_cog(GitHubCog(self))
             await self.add_cog(BotManagerCog(self))
+            await self.add_cog(LeaderboardCog(self))
 
             guild_id = (
                 DISCORD_CLUSTER_STAGING_ID
