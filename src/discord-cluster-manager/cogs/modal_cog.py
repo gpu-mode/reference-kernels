@@ -30,9 +30,9 @@ class ModalCog(commands.Cog):
         script: discord.Attachment,
         gpu_type: app_commands.Choice[str],
     ):
-        if not script.filename.endswith(".py"):
+        if not script.filename.endswith(".py") and not script.filename.endswith(".cu"):
             await interaction.response.send_message(
-                "Please provide a Python (.py) file"
+                "Please provide a Python (.py) or CUDA (.cu) file"
             )
             return
 
@@ -55,12 +55,19 @@ class ModalCog(commands.Cog):
     async def trigger_modal_run(self, script_content: str, filename: str) -> str:
         logger.info("Attempting to trigger Modal run")
 
-        from modal_runner import modal_app, run_script
+        from modal_runner import modal_app
 
         try:
+            print(f"Running {filename} with Modal")
             with modal.enable_output():
                 with modal_app.run():
-                    result = run_script.remote(script_content)
+                    if filename.endswith(".py"):
+                        from modal_runner import run_script
+
+                        result = run_script.remote(script_content)
+                    elif filename.endswith(".cu"):
+                        from modal_runner import run_cuda_script
+                        result = run_cuda_script.remote(script_content)
                 return result
         except Exception as e:
             logger.error(f"Error in trigger_modal_run: {str(e)}", exc_info=True)
