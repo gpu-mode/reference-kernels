@@ -17,7 +17,7 @@ modal_app = modal.App("discord-bot-runner")
     image=modal.Image.debian_slim(python_version="3.12")
         .pip_install(["torch"])
 )
-async def run_script_on_modal():
+async def run_pytorch_script_on_modal():
     """
     Runs a Python script on Modal with GPU
     """
@@ -43,5 +43,5 @@ print(a + b)
 # Run the function
 if __name__ == "__main__":
     with modal_app.run():
-        result = run_script_on_modal.remote()
+        result = run_pytorch_script_on_modal.remote()
         print(result)
