@@ -9,6 +9,65 @@ if TYPE_CHECKING:
     from bot import ClusterBot
 
 
+class LeaderboardSubmitCog(discord.app_commands.Group):
+    def __init__(self):
+        super().__init__(name="submit", description="Submit leaderboard data")
+
+    # Parent command that defines global options
+    @discord.app_commands.command(name="submit", description="Submit leaderboard data")
+    @discord.app_commands.describe(
+        global_arg="A global argument that will propagate to subcommands"
+    )
+    async def submit(
+        self,
+        interaction: discord.Interaction,
+        global_arg: str,  # Global argument for the parent command
+    ):
+        pass
+
+    ## MODAL SUBCOMMAND
+    @discord.app_commands.command(
+        name="modal", description="Submit leaderboard data for modal"
+    )
+    @discord.app_commands.describe(
+        modal_x="Value for field X",
+        modal_y="Value for field Y",
+        modal_z="Value for field Z",
+    )
+    async def modal(
+        self,
+        interaction: discord.Interaction,
+        global_arg: str,
+        modal_x: str,
+        modal_y: str,
+        modal_z: str,
+    ):
+        await interaction.response.send_message(
+            f"Submitted modal data: X={modal_x}, Y={modal_y}, Z={modal_z}"
+        )
+
+    ### GITHUB SUBCOMMAND
+    @discord.app_commands.command(
+        name="github", description="Submit leaderboard data for GitHub"
+    )
+    @discord.app_commands.describe(
+        github_x="Value for field X",
+        github_yint="Value for field Y",
+        github_z="Value for field Z",
+    )
+    async def github(
+        self,
+        interaction: discord.Interaction,
+        global_arg: str,
+        github_x: str,
+        github_yint: int,
+        github_z: str,
+    ):
+        await interaction.response.send_message(
+            f"Submitted GitHub data: X={github_x}, Y_int={github_yint}, Z={github_z}]"
+        )
+
+
 class LeaderboardCog(commands.Cog):
     def __init__(self, bot):
         self.bot: ClusterBot = bot
@@ -18,6 +77,12 @@ class LeaderboardCog(commands.Cog):
         self.leaderboard_create = bot.leaderboard_group.command(
             name="create", description="Create a new leaderboard"
         )(self.leaderboard_create)
+
+        # self.leaderboard_submit = bot.leaderboard_group.command(
+        #     name="submit", description="Submit a file to the leaderboard"
+        # )(self.leaderboard_submit)
+
+        bot.leaderboard_group.add_command(LeaderboardSubmitCog())
 
         self.get_leaderboard_submissions = bot.leaderboard_group.command(
             name="submissions", description="Get all submissions for a leaderboard"
@@ -70,13 +135,11 @@ class LeaderboardCog(commands.Cog):
             template_content = await template_file.read()
 
             with self.bot.leaderboard_db as db:
-                db.create_leaderboard(
-                    {
-                        "name": name,
-                        "deadline": date_value,
-                        "template_code": template_content.decode("utf-8"),
-                    }
-                )
+                db.create_leaderboard({
+                    "name": name,
+                    "deadline": date_value,
+                    "template_code": template_content.decode("utf-8"),
+                })
 
             await interaction.response.send_message(
                 f"Leaderboard '{name}'. Submission deadline: {date_value}",
@@ -116,7 +179,7 @@ class LeaderboardCog(commands.Cog):
         for submission in submissions:
             embed.add_field(
                 name=f"{submission['user_id']}: submission['submission_name']",
-                value=f"Submission time: {submission["submission_time"]}",
+                value=f"Submission time: {submission['submission_time']}",
                 inline=False,
             )
 
