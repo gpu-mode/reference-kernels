@@ -1,70 +1,81 @@
 import discord
+from discord import app_commands
+from discord.ext import commands
 from datetime import datetime
 
-from discord.ext import commands
-
 from typing import TYPE_CHECKING
+from consts import GitHubGPU, ModalGPU
 
 if TYPE_CHECKING:
     from bot import ClusterBot
 
 
-class LeaderboardSubmitCog(discord.app_commands.Group):
+class LeaderboardSubmitCog(app_commands.Group):
     def __init__(self):
         super().__init__(name="submit", description="Submit leaderboard data")
 
     # Parent command that defines global options
-    @discord.app_commands.command(name="submit", description="Submit leaderboard data")
-    @discord.app_commands.describe(
-        global_arg="A global argument that will propagate to subcommands"
+    @app_commands.describe(
+        leaderboard_name="Name of the competition / kernel to optimize",
+        script="The Python / CUDA script file to run",
+        dtype="dtype (e.g. FP32, BF16, FP4) that the input and output expects.",
+        shape="Data input shape as a tuple",
     )
     async def submit(
         self,
         interaction: discord.Interaction,
-        global_arg: str,  # Global argument for the parent command
+        leaderboard_name: str,
+        script: discord.Attachment,
+        dtype: app_commands.Choice[str] = None,
+        shape: app_commands.Choice[str] = None,
     ):
         pass
 
-    ## MODAL SUBCOMMAND
-    @discord.app_commands.command(
-        name="modal", description="Submit leaderboard data for modal"
+    @app_commands.command(name="modal", description="Submit leaderboard data for modal")
+    @app_commands.describe(
+        gpu_type="Choose the GPU type for Modal",
     )
-    @discord.app_commands.describe(
-        modal_x="Value for field X",
-        modal_y="Value for field Y",
-        modal_z="Value for field Z",
+    @app_commands.choices(
+        gpu_type=[
+            app_commands.Choice(name=gpu.value, value=gpu.value) for gpu in ModalGPU
+        ]
     )
     async def modal(
         self,
         interaction: discord.Interaction,
-        global_arg: str,
-        modal_x: str,
-        modal_y: str,
-        modal_z: str,
+        leaderboard_name: str,
+        script: discord.Attachment,
+        gpu_type: app_commands.Choice[str],
+        dtype: app_commands.Choice[str] = "fp32",
+        shape: app_commands.Choice[str] = None,
     ):
         await interaction.response.send_message(
-            f"Submitted modal data: X={modal_x}, Y={modal_y}, Z={modal_z}"
+            f"Submitted modal data: GPU Type={gpu_type}"
         )
 
     ### GITHUB SUBCOMMAND
-    @discord.app_commands.command(
+    @app_commands.command(
         name="github", description="Submit leaderboard data for GitHub"
     )
-    @discord.app_commands.describe(
-        github_x="Value for field X",
-        github_yint="Value for field Y",
-        github_z="Value for field Z",
+    @app_commands.describe(
+        gpu_type="Choose the GPU type for Github Runners",
+    )
+    @app_commands.choices(
+        gpu_type=[
+            app_commands.Choice(name=gpu.value, value=gpu.value) for gpu in GitHubGPU
+        ]
     )
     async def github(
         self,
         interaction: discord.Interaction,
-        global_arg: str,
-        github_x: str,
-        github_yint: int,
-        github_z: str,
+        leaderboard_name: str,
+        script: discord.Attachment,
+        gpu_type: app_commands.Choice[str],
+        dtype: app_commands.Choice[str] = "fp32",
+        shape: app_commands.Choice[str] = None,
     ):
         await interaction.response.send_message(
-            f"Submitted GitHub data: X={github_x}, Y_int={github_yint}, Z={github_z}]"
+            f"Submitted GitHub data: GPU Type={gpu_type}"
         )
 
 
@@ -112,37 +123,37 @@ class LeaderboardCog(commands.Cog):
         await interaction.followup.send(embed=embed)
 
     @discord.app_commands.describe(
-        name="Name of the leaderboard",
-        date="Date in YYYY-MM-DD format (time HH:MM is optional)",
-        template_file="Template file to upload",
+        leaderboard_name="Name of the leaderboard",
+        deadline="Competition deadline in the form: 'Y-m-d'",
+        reference_code="Reference implementation of kernel. Also includes eval code.",
     )
     async def leaderboard_create(
         self,
         interaction: discord.Interaction,
-        name: str,
-        date: str,
-        template_file: discord.Attachment,
+        leaderboard_name: str,
+        deadline: str,
+        reference_code: discord.Attachment,
     ):
         try:
             # Try parsing with time first
             try:
-                date_value = datetime.strptime(date, "%Y-%m-%d %H:%M")
+                date_value = datetime.strptime(deadline, "%Y-%m-%d %H:%M")
             except ValueError:
                 # If that fails, try parsing just the date (will set time to 00:00)
-                date_value = datetime.strptime(date, "%Y-%m-%d")
+                date_value = datetime.strptime(deadline, "%Y-%m-%d")
 
             # Read the template file
-            template_content = await template_file.read()
+            template_content = await reference_code.read()
 
             with self.bot.leaderboard_db as db:
                 db.create_leaderboard({
-                    "name": name,
+                    "name": leaderboard_name,
                     "deadline": date_value,
-                    "template_code": template_content.decode("utf-8"),
+                    "reference_code": template_content.decode("utf-8"),
                 })
 
             await interaction.response.send_message(
-                f"Leaderboard '{name}'. Submission deadline: {date_value}",
+                f"Leaderboard '{leaderboard_name}'. Submission deadline: {date_value}",
                 ephemeral=True,
             )
         except ValueError:
@@ -153,7 +164,10 @@ class LeaderboardCog(commands.Cog):
 
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
     async def get_leaderboard_submissions(
-        self, interaction: discord.Interaction, leaderboard_name: str
+        self,
+        interaction: discord.Interaction,
+        leaderboard_name: str,
+        dtype: app_commands.Choice[str] = "fp32",
     ):
         with self.bot.leaderboard_db as db:
             leaderboard_id = db.get_leaderboard_id(leaderboard_name)
@@ -163,7 +177,7 @@ class LeaderboardCog(commands.Cog):
                 )
                 return
 
-            submissions = db.get_leaderboard_submissions(leaderboard_id)
+            submissions = db.get_leaderboard_submissions(leaderboard_id)  # Add dtype
 
         if not submissions:
             await interaction.response.send_message(

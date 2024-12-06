@@ -24,6 +24,17 @@ class SchedulerType(Enum):
     SLURM = "slurm"
 
 
+class GitHubGPU(Enum):
+    T4 = "T4"
+
+
+class ModalGPU(Enum):
+    T4 = "T4"
+    L4 = "L4"
+    A100 = "A100"
+    H100 = "H100"
+
+
 init_environment()
 # Discord-specific constants
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
