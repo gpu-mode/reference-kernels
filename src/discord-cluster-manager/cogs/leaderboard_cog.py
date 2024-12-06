@@ -24,6 +24,8 @@ class LeaderboardSubmitCog(app_commands.Group):
         dtype="dtype (e.g. FP32, BF16, FP4) that the input and output expects.",
         shape="Data input shape as a tuple",
     )
+    # TODO: Modularize this so all the write functionality is in here. Haven't figured
+    # a good way to do this yet.
     async def submit(
         self,
         interaction: discord.Interaction,
@@ -70,7 +72,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 })
 
             await interaction.response.send_message(
-                f"Leaderboard '{leaderboard_name}'. Submission title: {script.filename}. Submission user: {interaction.user.id}. Runtime: {score} ms",
+                f"Ran on Modal. Leaderboard '{leaderboard_name}'. Submission title: {script.filename}. Submission user: {interaction.user.id}. Runtime: {score} ms",
                 ephemeral=True,
             )
         except ValueError:
@@ -100,9 +102,32 @@ class LeaderboardSubmitCog(app_commands.Group):
         dtype: app_commands.Choice[str] = "fp32",
         shape: app_commands.Choice[str] = None,
     ):
-        await interaction.response.send_message(
-            f"Submitted GitHub data: GPU Type={gpu_type}"
-        )
+        try:
+            # Read the template file
+            submission_content = await script.read()
+
+            # Compute eval or submission score, call runner here.
+            score = random.random()
+
+            with self.bot.leaderboard_db as db:
+                db.create_submission({
+                    "submission_name": script.filename,
+                    "submission_time": datetime.now(),
+                    "leaderboard_name": leaderboard_name,
+                    "code": submission_content,
+                    "user_id": interaction.user.id,
+                    "submission_score": score,
+                })
+
+            await interaction.response.send_message(
+                f"Ran on GH. Leaderboard '{leaderboard_name}'. Submission title: {script.filename}. Submission user: {interaction.user.id}. Runtime: {score} ms",
+                ephemeral=True,
+            )
+        except ValueError:
+            await interaction.response.send_message(
+                "Invalid date format. Please use YYYY-MM-DD or YYYY-MM-DD HH:MM",
+                ephemeral=True,
+            )
 
 
 class LeaderboardCog(commands.Cog):
@@ -121,9 +146,9 @@ class LeaderboardCog(commands.Cog):
 
         bot.leaderboard_group.add_command(LeaderboardSubmitCog(bot))
 
-        self.get_leaderboard_show = bot.leaderboard_group.command(
-            name="submissions", description="Get all submissions for a leaderboard"
-        )(self.get_leaderboard_show)
+        self.get_leaderboard_submissions = bot.leaderboard_group.command(
+            name="show", description="Get all submissions for a leaderboard"
+        )(self.get_leaderboard_submissions)
 
     async def get_leaderboards(self, interaction: discord.Interaction):
         """Display all leaderboards in a table format"""
@@ -194,7 +219,7 @@ class LeaderboardCog(commands.Cog):
             )
 
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
-    async def get_leaderboard_show(
+    async def get_leaderboard_submissions(
         self,
         interaction: discord.Interaction,
         leaderboard_name: str,
