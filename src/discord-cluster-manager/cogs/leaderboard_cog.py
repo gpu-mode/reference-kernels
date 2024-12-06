@@ -121,9 +121,9 @@ class LeaderboardCog(commands.Cog):
 
         bot.leaderboard_group.add_command(LeaderboardSubmitCog(bot))
 
-        self.get_leaderboard_submissions = bot.leaderboard_group.command(
+        self.get_leaderboard_show = bot.leaderboard_group.command(
             name="submissions", description="Get all submissions for a leaderboard"
-        )(self.get_leaderboard_submissions)
+        )(self.get_leaderboard_show)
 
     async def get_leaderboards(self, interaction: discord.Interaction):
         """Display all leaderboards in a table format"""
@@ -194,7 +194,7 @@ class LeaderboardCog(commands.Cog):
             )
 
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
-    async def get_leaderboard_submissions(
+    async def get_leaderboard_show(
         self,
         interaction: discord.Interaction,
         leaderboard_name: str,
