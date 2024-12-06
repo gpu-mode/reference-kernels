@@ -11,7 +11,6 @@ from consts import (
     DISCORD_DEBUG_TOKEN,
     DISCORD_CLUSTER_STAGING_ID,
     DISCORD_DEBUG_CLUSTER_STAGING_ID,
-
     POSTGRES_USER,
     POSTGRES_PASSWORD,
     POSTGRES_HOST,
@@ -45,7 +44,11 @@ class ClusterBot(commands.Bot):
         self.tree.add_command(self.leaderboard_group)
 
         self.leaderboard_db = LeaderboardDB(
-            POSTGRES_HOST, POSTGRES_DATABASE, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_PORT
+            POSTGRES_HOST,
+            POSTGRES_DATABASE,
+            POSTGRES_USER,
+            POSTGRES_PASSWORD,
+            POSTGRES_PORT,
         )
 
     async def setup_hook(self):
@@ -114,7 +117,7 @@ class ClusterBot(commands.Bot):
         for i, chunk in enumerate(chunks):
             if code_block:
                 await channel.send(
-                    f"```\nOutput (part {i+1}/{len(chunks)}):\n{chunk}\n```"
+                    f"```\nOutput (part {i + 1}/{len(chunks)}):\n{chunk}\n```"
                 )
             else:
                 await channel.send(chunk)

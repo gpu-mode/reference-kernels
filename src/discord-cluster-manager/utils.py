@@ -40,11 +40,19 @@ def get_github_branch_name():
 class LeaderboardItem(TypedDict):
     name: str
     deadline: datetime.datetime
-    template_code: str
+    reference_code: str
 
 
 class SubmissionItem(TypedDict):
     submission_name: str
     submission_time: datetime.datetime
+    submission_score: float
+    leaderboard_name: str
     code: str
     user_id: int
+
+
+class ProfilingItem(TypedDict):
+    submission_name: str
+    ncu_output: str
+    stdout: str

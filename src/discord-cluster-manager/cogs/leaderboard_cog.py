@@ -6,12 +6,15 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from consts import GitHubGPU, ModalGPU
 
+import random
+
 if TYPE_CHECKING:
     from bot import ClusterBot
 
 
 class LeaderboardSubmitCog(app_commands.Group):
-    def __init__(self):
+    def __init__(self, bot):
+        self.bot: ClusterBot = bot
         super().__init__(name="submit", description="Submit leaderboard data")
 
     # Parent command that defines global options
@@ -49,9 +52,32 @@ class LeaderboardSubmitCog(app_commands.Group):
         dtype: app_commands.Choice[str] = "fp32",
         shape: app_commands.Choice[str] = None,
     ):
-        await interaction.response.send_message(
-            f"Submitted modal data: GPU Type={gpu_type}"
-        )
+        try:
+            # Read the template file
+            submission_content = await script.read()
+
+            # Compute eval or submission score, call runner here.
+            score = random.random()
+
+            with self.bot.leaderboard_db as db:
+                db.create_submission({
+                    "submission_name": script.filename,
+                    "submission_time": datetime.now(),
+                    "leaderboard_name": leaderboard_name,
+                    "code": submission_content,
+                    "user_id": interaction.user.id,
+                    "submission_score": score,
+                })
+
+            await interaction.response.send_message(
+                f"Leaderboard '{leaderboard_name}'. Submission title: {script.filename}. Submission user: {interaction.user.id}. Runtime: {score} ms",
+                ephemeral=True,
+            )
+        except ValueError:
+            await interaction.response.send_message(
+                "Invalid date format. Please use YYYY-MM-DD or YYYY-MM-DD HH:MM",
+                ephemeral=True,
+            )
 
     ### GITHUB SUBCOMMAND
     @app_commands.command(
@@ -93,7 +119,7 @@ class LeaderboardCog(commands.Cog):
         #     name="submit", description="Submit a file to the leaderboard"
         # )(self.leaderboard_submit)
 
-        bot.leaderboard_group.add_command(LeaderboardSubmitCog())
+        bot.leaderboard_group.add_command(LeaderboardSubmitCog(bot))
 
         self.get_leaderboard_submissions = bot.leaderboard_group.command(
             name="submissions", description="Get all submissions for a leaderboard"
@@ -146,6 +172,11 @@ class LeaderboardCog(commands.Cog):
             template_content = await reference_code.read()
 
             with self.bot.leaderboard_db as db:
+                print(
+                    leaderboard_name,
+                    type(date_value),
+                    type(template_content.decode("utf-8")),
+                )
                 db.create_leaderboard({
                     "name": leaderboard_name,
                     "deadline": date_value,
@@ -177,7 +208,8 @@ class LeaderboardCog(commands.Cog):
                 )
                 return
 
-            submissions = db.get_leaderboard_submissions(leaderboard_id)  # Add dtype
+            # submissions = db.get_leaderboard_submissions(leaderboard_id)  # Add dtype
+            submissions = db.get_leaderboard_submissions(leaderboard_name)  # Add dtype
 
         if not submissions:
             await interaction.response.send_message(
@@ -192,8 +224,8 @@ class LeaderboardCog(commands.Cog):
 
         for submission in submissions:
             embed.add_field(
-                name=f"{submission['user_id']}: submission['submission_name']",
-                value=f"Submission time: {submission['submission_time']}",
+                name=f"{submission['user_id']}: {submission['submission_name']}",
+                value=f"Submission speed: {submission['submission_score']}",
                 inline=False,
             )
 
