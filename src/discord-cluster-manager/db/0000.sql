@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS leaderboard.problem (
     id SERIAL PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,
     deadline TIMESTAMP WITH TIME ZONE NOT NULL,
-    reference_code TEXT NOT NULL UNIQUE
+    reference_code TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS leaderboard.submission (
