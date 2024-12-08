@@ -59,16 +59,16 @@ jobs:
           cat ${{ github.event.inputs.filename }}  # Debug: show file contents
 
       - name: Create reference scripts if provided
-        shell: bash
         run: |
           if [[ -n "${{ github.event.inputs.reference_content }}" ]]; then
             echo "Creating reference script..."
-            cat << 'EOL' > ${{ github.event.inputs.reference_filename }}
-            ${{ github.event.inputs.reference_content }}
-            EOL
-            cat ${{ github.event.inputs.reference_filename }}
-          fi
-
+            cat > "${{ github.event.inputs.reference_filename }}" <<EOL
+          ${{ github.event.inputs.reference_content }}
+          EOL
+              cat "${{ github.event.inputs.reference_filename }}"  # Debug: Show file contents
+            else
+                echo "No reference content provided."
+            fi
 
       - name: Create eval scripts if provided
         shell: bash

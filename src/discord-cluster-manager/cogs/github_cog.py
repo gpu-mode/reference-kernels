@@ -62,12 +62,13 @@ class GitHubCog(commands.Cog):
 
             if use_leaderboard_eval:
                 reference_content = (await reference_script.read()).decode("utf-8")
-                # eval_code = py_eval if script.filename.endswith(".py") else cu_eval
+                eval_code = py_eval if script.filename.endswith(".py") else cu_eval
                 run_id = await self.trigger_github_action(
                     script_content,
                     script.filename,
                     selected_gpu,
                     reference_content,
+                    eval_code,
                 )
             else:
                 run_id = await self.trigger_github_action(
@@ -107,6 +108,7 @@ class GitHubCog(commands.Cog):
         filename,
         gpu_type,
         reference_content=None,
+        eval_content=None,
     ):
         logger.info(f"Attempting to trigger GitHub action for {gpu_type.name} GPU")
         gh = Github(GITHUB_TOKEN)
@@ -118,8 +120,10 @@ class GitHubCog(commands.Cog):
             workflow = repo.get_workflow(workflow_file)
 
             if reference_content is None:
-                # eval_filename = "eval.py" if filename.endswith(".py") else "eval.cu"
-                reference_filename = "ref.py" if filename.endswith(".py") else "ref.cu"
+                eval_filename = "eval.py" if filename.endswith(".py") else "eval.cu"
+                reference_filename = (
+                    "reference.py" if filename.endswith(".py") else "reference.cu"
+                )
                 success = workflow.create_dispatch(
                     get_github_branch_name(),
                     {
@@ -127,6 +131,8 @@ class GitHubCog(commands.Cog):
                         "filename": filename,
                         "reference_content": reference_content,
                         "reference_filename": reference_filename,
+                        "eval_content": eval_content,
+                        "eval_filename": eval_filename,
                     },
                 )
             else:
