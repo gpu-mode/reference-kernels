@@ -10,6 +10,14 @@ on:
         description: 'Name of script (supports .py or .cu)'
         required: true
         type: string
+      reference_content:
+        description: 'Content of the reference code script (optional)'
+        required: false
+        type: string
+      reference_filename:
+        description: 'Name of reference script (supports .py or .cu)'
+        required: false
+        type: string
 
 jobs:
   train:
@@ -40,7 +48,16 @@ jobs:
           ${{ github.event.inputs.script_content }}
           EOL
           cat ${{ github.event.inputs.filename }}  # Debug: show file contents
-          
+
+      - name: Create eval and reference scripts if provided
+        run: |
+          if [[ -n "${{ github.event.inputs.reference_content }}" ]]; then
+            echo "Creating reference script..."
+            cat << 'EOL' > ${{ github.event.inputs.reference_filename }}
+            ${{ github.event.inputs.reference_content }}
+            EOL
+            cat ${{ github.event.inputs.reference_filename }}
+          fi
       - name: Install dependencies
         run: |
           if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
@@ -55,15 +72,27 @@ jobs:
       - name: Run script
         shell: bash
         run: |
-          if [[ "${{ github.event.inputs.filename }}" == *.cu ]]; then
-            echo "Compiling and running CUDA file..."
-            nvcc "${{ github.event.inputs.filename }}" -o cuda_program
-            ./cuda_program > training.log 2>&1
+          if [[ -n "${{ github.event.inputs.reference_content }}" ]]; then
+            if [[ "${{ github.event.inputs.reference_filename }}" == *.cu ]]; then
+              echo "Compiling and running CUDA file..."
+              nvcc "${{ github.event.inputs.reference_filename }}" -o cuda_program
+              ./cuda_program > training.log 2>&1
+            else
+              echo "Running Python file..."
+              python3 "${{ github.event.inputs.reference_filename }}" > training.log 2>&1
+            fi
+            cat training.log  # Debug: show output
           else
-            echo "Running Python file..."
-            python3 "${{ github.event.inputs.filename }}" > training.log 2>&1
+            if [[ "${{ github.event.inputs.filename }}" == *.cu ]]; then
+              echo "Compiling and running CUDA file..."
+              nvcc "${{ github.event.inputs.filename }}" -o cuda_program
+              ./cuda_program > training.log 2>&1
+            else
+              echo "Running Python file..."
+              python3 "${{ github.event.inputs.filename }}" > training.log 2>&1
+            fi
+            cat training.log  # Debug: show output
           fi
-          cat training.log  # Debug: show output
 
       - name: Upload training artifacts
         uses: actions/upload-artifact@v4

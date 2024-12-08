@@ -8,13 +8,14 @@ from consts import GitHubGPU, ModalGPU
 
 import random
 
-if TYPE_CHECKING:
-    from bot import ClusterBot
-
 
 class LeaderboardSubmitCog(app_commands.Group):
-    def __init__(self, bot):
-        self.bot: ClusterBot = bot
+    def __init__(
+        self,
+        bot: commands.Bot,
+    ):
+        self.bot: commands.Bot = bot
+
         super().__init__(name="submit", description="Submit leaderboard data")
 
     # Parent command that defines global options
@@ -45,7 +46,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             app_commands.Choice(name=gpu.value, value=gpu.value) for gpu in ModalGPU
         ]
     )
-    async def modal(
+    async def submit_modal(
         self,
         interaction: discord.Interaction,
         leaderboard_name: str,
@@ -57,6 +58,15 @@ class LeaderboardSubmitCog(app_commands.Group):
         try:
             # Read the template file
             submission_content = await script.read()
+
+            # Call Modal runner
+            modal_cog = self.bot.get_cog("ModalCog")
+
+            if not all([modal_cog]):
+                await interaction.response.send_message("❌ Required cogs not found!")
+                return
+
+            modal_command = modal_cog.run_modal
 
             # Compute eval or submission score, call runner here.
             score = random.random()
@@ -93,7 +103,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             app_commands.Choice(name=gpu.value, value=gpu.value) for gpu in GitHubGPU
         ]
     )
-    async def github(
+    async def submit_github(
         self,
         interaction: discord.Interaction,
         leaderboard_name: str,
@@ -105,6 +115,15 @@ class LeaderboardSubmitCog(app_commands.Group):
         try:
             # Read the template file
             submission_content = await script.read()
+
+            # Call GH runner
+            github_cog = self.bot.get_cog("GitHubCog")
+
+            if not all([github_cog]):
+                await interaction.response.send_message("❌ Required cogs not found!")
+                return
+
+            github_command = github_cog.run_github
 
             # Compute eval or submission score, call runner here.
             score = random.random()
@@ -132,7 +151,7 @@ class LeaderboardSubmitCog(app_commands.Group):
 
 class LeaderboardCog(commands.Cog):
     def __init__(self, bot):
-        self.bot: ClusterBot = bot
+        self.bot: commands.Bot = bot
         self.get_leaderboards = bot.leaderboard_group.command(name="get")(
             self.get_leaderboards
         )
