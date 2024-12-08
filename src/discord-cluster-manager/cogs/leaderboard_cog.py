@@ -5,6 +5,7 @@ from datetime import datetime
 
 from typing import TYPE_CHECKING
 from consts import GitHubGPU, ModalGPU
+from utils import extract_score
 
 import random
 
@@ -100,7 +101,7 @@ class LeaderboardSubmitCog(app_commands.Group):
     )
     @app_commands.choices(
         gpu_type=[
-            app_commands.Choice(name=gpu.value, value=gpu.value) for gpu in GitHubGPU
+            app_commands.Choice(name=gpu.name, value=gpu.value) for gpu in GitHubGPU
         ]
     )
     async def submit_github(
@@ -113,8 +114,22 @@ class LeaderboardSubmitCog(app_commands.Group):
         shape: app_commands.Choice[str] = None,
     ):
         try:
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+
             # Read the template file
             submission_content = await script.read()
+
+            # Read and convert reference code
+            reference_code = None
+            with self.bot.leaderboard_db as db:
+                leaderboard_item = db.get_leaderboard(leaderboard_name)
+                if not leaderboard_item:
+                    await interaction.response.send_message(
+                        f"Leaderboard {leaderboard_name} not found.", ephemeral=True
+                    )
+                    return
+                reference_code = leaderboard_item["reference_code"]
 
             # Call GH runner
             github_cog = self.bot.get_cog("GitHubCog")
@@ -124,9 +139,27 @@ class LeaderboardSubmitCog(app_commands.Group):
                 return
 
             github_command = github_cog.run_github
+            print(github_command)
+            try:
+                github_thread = await github_command.callback(
+                    github_cog,
+                    interaction,
+                    script,
+                    gpu_type,
+                    reference_code=reference_code,
+                    use_followup=True,
+                )
+            except discord.errors.NotFound as e:
+                print(f"Webhook not found: {e}")
+                await interaction.followup.send("❌ The webhook was not found.")
+
+            message_contents = [
+                msg.content async for msg in github_thread.history(limit=None)
+            ]
 
             # Compute eval or submission score, call runner here.
-            score = random.random()
+            # TODO: Make this more robust later
+            score = extract_score("".join(message_contents))
 
             with self.bot.leaderboard_db as db:
                 db.create_submission({
@@ -138,9 +171,10 @@ class LeaderboardSubmitCog(app_commands.Group):
                     "submission_score": score,
                 })
 
-            await interaction.response.send_message(
-                f"Ran on GH. Leaderboard '{leaderboard_name}'. Submission title: {script.filename}. Submission user: {interaction.user.id}. Runtime: {score} ms",
-                ephemeral=True,
+            await interaction.followup.send(
+                f""""Ran on GH. Leaderboard '{leaderboard_name}'. 
+                Submission title: {script.filename}. Submission user: {interaction.user.id}. 
+                Runtime: {score} ms""",
             )
         except ValueError:
             await interaction.response.send_message(
@@ -228,7 +262,7 @@ class LeaderboardCog(commands.Cog):
                 })
 
             await interaction.response.send_message(
-                f"Leaderboard '{leaderboard_name}'. Submission deadline: {date_value}",
+                f"Leaderboard '{leaderboard_name}'. Reference code: {reference_code}. Submission deadline: {date_value}",
                 ephemeral=True,
             )
         except ValueError:
@@ -245,7 +279,7 @@ class LeaderboardCog(commands.Cog):
         dtype: app_commands.Choice[str] = "fp32",
     ):
         with self.bot.leaderboard_db as db:
-            leaderboard_id = db.get_leaderboard_id(leaderboard_name)
+            leaderboard_id = db.get_leaderboard(leaderboard_name)["id"]
             if not leaderboard_id:
                 await interaction.response.send_message(
                     "Leaderboard not found.", ephemeral=True

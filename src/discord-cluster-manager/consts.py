@@ -25,7 +25,8 @@ class SchedulerType(Enum):
 
 
 class GitHubGPU(Enum):
-    T4 = "T4"
+    NVIDIA = "nvidia"
+    AMD = "amd"
 
 
 class ModalGPU(Enum):

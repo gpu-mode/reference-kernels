@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           if [[ -n "${{ github.event.inputs.eval_filename }}" ]]; then
-            echo "Creating reference script..."
+            echo "Creating eval script..."
             cat > "${{ github.event.inputs.eval_filename }}" <<EOL
           ${{ github.event.inputs.eval_content }}
           EOL

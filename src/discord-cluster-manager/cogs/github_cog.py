@@ -38,6 +38,7 @@ class GitHubCog(commands.Cog):
         gpu_type: app_commands.Choice[str],
         use_followup: bool = False,
         reference_script: discord.Attachment = None,
+        reference_code: str = None,
     ) -> discord.Thread:
         if not script.filename.endswith(".py") and not script.filename.endswith(".cu"):
             await interaction.response.send_message(
@@ -59,8 +60,12 @@ class GitHubCog(commands.Cog):
             script_content = (await script.read()).decode("utf-8")
             selected_gpu = GPUType.AMD if gpu_type.value == "amd" else GPUType.NVIDIA
 
-            if reference_script is not None:
-                reference_content = (await reference_script.read()).decode("utf-8")
+            if reference_script is not None or reference_code is not None:
+                reference_content = (
+                    reference_code
+                    if reference_code is not None
+                    else (await reference_script.read()).decode("utf-8")
+                )
                 eval_code = py_eval if script.filename.endswith(".py") else cu_eval
 
                 run_id = await self.trigger_github_action(

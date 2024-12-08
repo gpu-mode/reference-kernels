@@ -11,6 +11,22 @@ on:
         description: 'Name of Python script'
         required: true
         type: string
+      reference_content:
+        description: 'Content of the reference code script (optional)'
+        required: false
+        type: string
+      reference_filename:
+        description: 'Name of reference script (supports .py or .cu)'
+        required: false
+        type: string
+      eval_content:
+        description: 'Content of the outer eval code script (optional)'
+        required: false
+        type: string
+      eval_filename:
+        description: 'Name of outer eval script (supports .py or .cu)'
+        required: false
+        type: string
 
 jobs:
   train:
@@ -30,6 +46,32 @@ jobs:
         with open('${{ github.event.inputs.filename }}', 'w') as f:
             f.write('''${{ github.event.inputs.script_content }}''')
 
+    - name: Create reference scripts if provided
+      shell: bash
+      run: |
+        if [[ -n "${{ github.event.inputs.reference_filename }}" ]]; then
+          echo "Creating reference script..."
+          cat > "${{ github.event.inputs.reference_filename }}" <<EOL
+        ${{ github.event.inputs.reference_content }}
+        EOL
+            cat "${{ github.event.inputs.reference_filename }}"  # Debug: Show file contents
+          else
+              echo "No reference content provided."
+          fi
+
+    - name: Create eval scripts if provided
+      shell: bash
+      run: |
+        if [[ -n "${{ github.event.inputs.eval_filename }}" ]]; then
+          echo "Creating reference script..."
+          cat > "${{ github.event.inputs.eval_filename }}" <<EOL
+        ${{ github.event.inputs.eval_content }}
+        EOL
+            cat "${{ github.event.inputs.eval_filename }}"  # Debug: Show file contents
+          else
+              echo "No eval content provided."
+          fi
+
     - name: Setup Virtual Environment and Install Dependencies
       run: |
         python -m venv ${VENV_DIR}
@@ -38,8 +80,26 @@ jobs:
         pip install --pre pytorch-triton-rocm==3.1.0+cf34004b8a torch==2.6.0.dev20241023+rocm6.2 --index-url https://download.pytorch.org/whl/nightly/rocm6.2
 
     - name: Run script
+      shell: bash
       run: |
-        python "${{ github.event.inputs.filename }}" > training.log 2>&1
+        if [[ -n "${{ github.event.inputs.eval_content }}" ]]; then
+          echo "Running Python file..."
+          python3 "${{ github.event.inputs.eval_filename }}" > training.log 2>&1
+          cat training.log  # Debug: show output
+        else
+          echo "Running Python file..."
+          python3 "${{ github.event.inputs.filename }}" > training.log 2>&1
+          cat training.log  # Debug: show output
+        fi
+
+    - name: Extract score
+      shell: bash
+      run: |
+        # Extract only the last occurrence of "score:"
+        score=$(grep -oP 'score:\s*\d+(\.\d+)?' training.log | tail -n 1 | awk '{print $2}')
+
+        echo "Score extracted: $score"
+        echo "::set-output name=score::$score"
 
     - name: Upload training artifacts
       uses: actions/upload-artifact@v4
