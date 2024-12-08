@@ -62,7 +62,12 @@ class GitHubCog(commands.Cog):
 
             if use_leaderboard_eval:
                 reference_content = (await reference_script.read()).decode("utf-8")
+
                 eval_code = py_eval if script.filename.endswith(".py") else cu_eval
+
+                print(reference_content)
+                print(eval_code)
+
                 run_id = await self.trigger_github_action(
                     script_content,
                     script.filename,
@@ -119,7 +124,7 @@ class GitHubCog(commands.Cog):
             workflow_file = gpu_type.value
             workflow = repo.get_workflow(workflow_file)
 
-            if reference_content is None:
+            if reference_content is not None:
                 eval_filename = "eval.py" if filename.endswith(".py") else "eval.cu"
                 reference_filename = (
                     "reference.py" if filename.endswith(".py") else "reference.cu"
