@@ -59,6 +59,7 @@ jobs:
           cat ${{ github.event.inputs.filename }}  # Debug: show file contents
 
       - name: Create reference scripts if provided
+        shell: bash
         run: |
           if [[ -n "${{ github.event.inputs.reference_filename }}" ]]; then
             echo "Creating reference script..."
