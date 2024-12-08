@@ -17,9 +17,13 @@ CREATE TABLE IF NOT EXISTS leaderboard.submission (
     score NUMERIC NOT NULL
 );
 
+CREATE INDEX ON leaderboard.submission (problem_id);
+
 CREATE TABLE IF NOT EXISTS leaderboard.runinfo (
     id SERIAL PRIMARY KEY,
     submission_id INTEGER NOT NULL REFERENCES leaderboard.submission(id),
     stdout TEXT,
     ncu_output TEXT
 );
+
+CREATE INDEX ON leaderboard.runinfo (submission_id);
