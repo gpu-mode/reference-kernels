@@ -1,7 +1,9 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+import psycopg2
 from utils import setup_logging
+from consts import DATABASE_URL
 
 logger = setup_logging()
 
@@ -36,3 +38,27 @@ class BotManagerCog(commands.Cog):
             await interaction.response.send_message(
                 "You need administrator permissions to use this command"
             )
+
+    @app_commands.command(name="verifydb")
+    async def verify_db(self, interaction: discord.Interaction):
+        """Command to verify database connectivity"""
+        if not DATABASE_URL:
+            message = "DATABASE_URL not set."
+            logger.error(message)
+            await interaction.response.send_message(message)
+            return
+
+        try:
+            with psycopg2.connect(DATABASE_URL, sslmode='require') as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT RANDOM()")
+                    result = cursor.fetchone()
+                    if result:
+                        random_value = result[0]
+                        await interaction.response.send_message(f"Your lucky number is {random_value}.")
+                    else:
+                        await interaction.response.send_message("No result returned.")
+        except Exception as e:
+            message = "Error interacting with the database"
+            logger.error(f"{message}: {str(e)}", exc_info=True)
+            await interaction.response.send_message(f"{message}.")
