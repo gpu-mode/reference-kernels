@@ -39,6 +39,7 @@ def get_github_branch_name():
 
 
 def get_user_from_id(id, interaction, bot):
+    # This currently doesn't work.
     if interaction.guild:
         # In a guild, try to get the member by ID
         member = interaction.guild.get_member(id)

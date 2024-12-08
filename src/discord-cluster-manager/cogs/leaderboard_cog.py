@@ -5,7 +5,7 @@ from datetime import datetime
 
 from typing import TYPE_CHECKING
 from consts import GitHubGPU, ModalGPU
-from utils import extract_score
+from utils import extract_score, get_user_from_id
 
 import random
 
@@ -171,9 +171,10 @@ class LeaderboardSubmitCog(app_commands.Group):
                     "submission_score": score,
                 })
 
+            user_id = get_user_from_id(interaction.user.id, interaction, self.bot)
             await interaction.followup.send(
                 f""""Ran on GH. Leaderboard '{leaderboard_name}'. 
-                Submission title: {script.filename}. Submission user: {interaction.user.id}. 
+                Submission title: {script.filename}. Submission user: {user_id}. 
                 Runtime: {score} ms""",
             )
         except ValueError:
@@ -301,8 +302,9 @@ class LeaderboardCog(commands.Cog):
         )
 
         for submission in submissions:
+            user_id = get_user_from_id(submission["user_id"], interaction, self.bot)
             embed.add_field(
-                name=f"{submission['user_id']}: {submission['submission_name']}",
+                name=f"{user_id}: {submission['submission_name']}",
                 value=f"Submission speed: {submission['submission_score']}",
                 inline=False,
             )
