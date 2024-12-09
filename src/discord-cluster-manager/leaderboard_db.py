@@ -8,6 +8,7 @@ from consts import (
     POSTGRES_HOST,
     POSTGRES_PORT,
     POSTGRES_DATABASE,
+    DATABASE_URL,
 )
 
 
@@ -29,7 +30,11 @@ class LeaderboardDB:
     def connect(self) -> bool:
         """Establish connection to the database"""
         try:
-            self.connection = psycopg2.connect(**self.connection_params)
+            self.connection = (
+                psycopg2.connect(DATABASE_URL, sslmode="require")
+                if DATABASE_URL
+                else psycopg2.connect(**self.connection_params)
+            )
             self.cursor = self.connection.cursor()
             self._create_tables()
             return True
