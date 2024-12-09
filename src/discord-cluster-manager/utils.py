@@ -1,6 +1,7 @@
 import logging
 import subprocess
 import datetime
+import re
 from typing import TypedDict
 
 
@@ -35,6 +36,37 @@ def get_github_branch_name():
         return result.stdout.strip().split("/", 1)[1]
     except subprocess.CalledProcessError:
         return "main"
+
+
+def get_user_from_id(id, interaction, bot):
+    # This currently doesn't work.
+    if interaction.guild:
+        # In a guild, try to get the member by ID
+        member = interaction.guild.get_member(id)
+        if member:
+            username = member.name
+            return username
+        else:
+            return id
+    else:
+        # If the interaction is in DMs, we can get the user directly
+        user = bot.get_user(id)
+        if user:
+            username = user.name
+            return username
+        else:
+            return id
+
+
+def extract_score(score_str: str) -> float:
+    """
+    Extract score from output logs and push to DB (kind of hacky).
+    """
+    match = re.search(r"score:\s*(-?\d+\.\d+)", score_str)
+    if match:
+        return float(match.group(1))
+    else:
+        return None
 
 
 class LeaderboardItem(TypedDict):
