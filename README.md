@@ -18,7 +18,7 @@ To run and develop the bot locally, you need to add it to your own server. Follo
 
 Here is a visual walk-through of the steps (after clicking on the New Application button):
 
-- The bot needs the `Message Content Intent` permission.
+- The bot needs the `Message Content Intent` and `Server Members Intent` permissions turned on.
   <details>
     <summary>Click here for visual.</summary>
     <img width="1440" alt="Screenshot 2024-11-24 at 10 44 46 AM" src="https://github.com/user-attachments/assets/7c873a9d-55b8-4aea-8c9a-9d2909405f03">
