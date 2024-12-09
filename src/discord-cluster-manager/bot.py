@@ -29,6 +29,7 @@ logger = setup_logging()
 class ClusterBot(commands.Bot):
     def __init__(self, debug_mode=False):
         intents = discord.Intents.default()
+        intents.members = True
         intents.message_content = True
         super().__init__(intents=intents, command_prefix="!")
         self.debug_mode = debug_mode

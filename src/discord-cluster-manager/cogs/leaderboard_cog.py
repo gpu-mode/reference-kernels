@@ -171,11 +171,13 @@ class LeaderboardSubmitCog(app_commands.Group):
                     "submission_score": score,
                 })
 
-            user_id = get_user_from_id(interaction.user.id, interaction, self.bot)
+            user_id = interaction.user.name
             await interaction.followup.send(
-                f""""Ran on GH. Leaderboard '{leaderboard_name}'. 
-                Submission title: {script.filename}. Submission user: {user_id}. 
-                Runtime: {score} ms""",
+                "Successfully ran on GitHub runners!\n"
+                + f"Leaderboard '{leaderboard_name}'.\n"
+                + f"Submission title: {script.filename}.\n"
+                + f"Submission user: {user_id}\n"
+                + f"Runtime: {score} ms\n",
             )
         except ValueError:
             await interaction.response.send_message(
@@ -193,10 +195,6 @@ class LeaderboardCog(commands.Cog):
         self.leaderboard_create = bot.leaderboard_group.command(
             name="create", description="Create a new leaderboard"
         )(self.leaderboard_create)
-
-        # self.leaderboard_submit = bot.leaderboard_group.command(
-        #     name="submit", description="Submit a file to the leaderboard"
-        # )(self.leaderboard_submit)
 
         bot.leaderboard_group.add_command(LeaderboardSubmitCog(bot))
 
@@ -298,11 +296,17 @@ class LeaderboardCog(commands.Cog):
 
         # Create embed
         embed = discord.Embed(
-            title="Leaderboard Submissions", color=discord.Color.blue()
+            title=f'Leaderboard Submissions for "{leaderboard_name}"',
+            color=discord.Color.blue(),
         )
 
         for submission in submissions:
-            user_id = get_user_from_id(submission["user_id"], interaction, self.bot)
+            user_id = await get_user_from_id(
+                submission["user_id"], interaction, self.bot
+            )
+            print("members", interaction.guild.members)
+            print(user_id)
+
             embed.add_field(
                 name=f"{user_id}: {submission['submission_name']}",
                 value=f"Submission speed: {submission['submission_score']}",

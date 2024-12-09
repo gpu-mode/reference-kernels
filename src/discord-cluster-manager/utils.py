@@ -38,21 +38,21 @@ def get_github_branch_name():
         return "main"
 
 
-def get_user_from_id(id, interaction, bot):
+async def get_user_from_id(id, interaction, bot):
     # This currently doesn't work.
     if interaction.guild:
         # In a guild, try to get the member by ID
-        member = interaction.guild.get_member(id)
+        member = await interaction.guild.fetch_member(id)
         if member:
-            username = member.name
+            username = member.global_name if member.nick is None else member.nick
             return username
         else:
             return id
     else:
         # If the interaction is in DMs, we can get the user directly
-        user = bot.get_user(id)
+        user = await bot.fetch_user(id)
         if user:
-            username = user.name
+            username = user.global_name if member.nick is None else member.nick
             return username
         else:
             return id
