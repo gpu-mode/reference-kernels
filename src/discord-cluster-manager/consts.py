@@ -25,7 +25,8 @@ class SchedulerType(Enum):
 
 
 class GitHubGPU(Enum):
-    T4 = "T4"
+    NVIDIA = "nvidia"
+    AMD = "amd"
 
 
 class ModalGPU(Enum):
@@ -52,3 +53,4 @@ POSTGRES_DATABASE = os.getenv("POSTGRES_DATABASE")
 POSTGRES_USER = os.getenv("POSTGRES_USER")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
 POSTGRES_PORT = os.getenv("POSTGRES_PORT")
+DATABASE_URL = os.getenv("DATABASE_URL")

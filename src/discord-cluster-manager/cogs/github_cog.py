@@ -9,6 +9,7 @@ import os
 from github import Github
 from utils import setup_logging, get_github_branch_name
 from consts import GPUType, GITHUB_TOKEN, GITHUB_REPO
+from leaderboard_eval import py_eval, cu_eval
 
 logger = setup_logging()
 
@@ -35,7 +36,9 @@ class GitHubCog(commands.Cog):
         interaction: discord.Interaction,
         script: discord.Attachment,
         gpu_type: app_commands.Choice[str],
-        use_followup: bool = False
+        use_followup: bool = False,
+        reference_script: discord.Attachment = None,
+        reference_code: str = None,
     ) -> discord.Thread:
         if not script.filename.endswith(".py") and not script.filename.endswith(".cu"):
             await interaction.response.send_message(
@@ -56,9 +59,26 @@ class GitHubCog(commands.Cog):
         try:
             script_content = (await script.read()).decode("utf-8")
             selected_gpu = GPUType.AMD if gpu_type.value == "amd" else GPUType.NVIDIA
-            run_id = await self.trigger_github_action(
-                script_content, script.filename, selected_gpu
-            )
+
+            if reference_script is not None or reference_code is not None:
+                reference_content = (
+                    reference_code
+                    if reference_code is not None
+                    else (await reference_script.read()).decode("utf-8")
+                )
+                eval_code = py_eval if script.filename.endswith(".py") else cu_eval
+
+                run_id = await self.trigger_github_action(
+                    script_content,
+                    script.filename,
+                    selected_gpu,
+                    reference_content,
+                    eval_code,
+                )
+            else:
+                run_id = await self.trigger_github_action(
+                    script_content, script.filename, selected_gpu
+                )
 
             if run_id:
                 await thread.send(
@@ -87,7 +107,14 @@ class GitHubCog(commands.Cog):
         finally:
             return thread
 
-    async def trigger_github_action(self, script_content, filename, gpu_type):
+    async def trigger_github_action(
+        self,
+        script_content,
+        filename,
+        gpu_type,
+        reference_content=None,
+        eval_content=None,
+    ):
         logger.info(f"Attempting to trigger GitHub action for {gpu_type.name} GPU")
         gh = Github(GITHUB_TOKEN)
         repo = gh.get_repo(GITHUB_REPO)
@@ -97,10 +124,27 @@ class GitHubCog(commands.Cog):
             workflow_file = gpu_type.value
             workflow = repo.get_workflow(workflow_file)
 
-            success = workflow.create_dispatch(
-                get_github_branch_name(),
-                {"script_content": script_content, "filename": filename},
-            )
+            if reference_content is not None:
+                eval_filename = "eval.py" if filename.endswith(".py") else "eval.cu"
+                reference_filename = (
+                    "reference.py" if filename.endswith(".py") else "reference.cu"
+                )
+                success = workflow.create_dispatch(
+                    get_github_branch_name(),
+                    {
+                        "script_content": script_content,
+                        "filename": filename,
+                        "reference_content": reference_content,
+                        "reference_filename": reference_filename,
+                        "eval_content": eval_content,
+                        "eval_filename": eval_filename,
+                    },
+                )
+            else:
+                success = workflow.create_dispatch(
+                    get_github_branch_name(),
+                    {"script_content": script_content, "filename": filename},
+                )
 
             if success:
                 await asyncio.sleep(2)
@@ -138,9 +182,15 @@ class GitHubCog(commands.Cog):
                             logger.warning(f"Failed to cancel workflow run {run_id}")
                     except Exception as e:
                         logger.error(f"Error cancelling workflow: {str(e)}")
-                    
-                    await thread.send(f"Workflow cancelled - exceeded {timeout_minutes} minute timeout")
-                    return "cancelled", f"Workflow exceeded {timeout_minutes} minute timeout", run.html_url
+
+                    await thread.send(
+                        f"Workflow cancelled - exceeded {timeout_minutes} minute timeout"
+                    )
+                    return (
+                        "cancelled",
+                        f"Workflow exceeded {timeout_minutes} minute timeout",
+                        run.html_url,
+                    )
 
                 if run.status == "completed":
                     logs = await self.download_artifact(run_id)

@@ -141,6 +141,20 @@ class LeaderboardDB:
             for lb in self.cursor.fetchall()
         ]
 
+    def get_leaderboard(self, leaderboard_name: str) -> int | None:
+        self.cursor.execute(
+            "SELECT * FROM leaderboard WHERE name = %s", (leaderboard_name,)
+        )
+
+        res = self.cursor.fetchone()
+
+        if res:
+            return LeaderboardItem(
+                id=res[0], name=res[1], deadline=res[2], reference_code=res[3]
+            )
+        else:
+            return None
+
     def get_leaderboard_submissions(
         self, leaderboard_name: str
     ) -> list[SubmissionItem]:
@@ -163,13 +177,6 @@ class LeaderboardDB:
             )
             for submission in self.cursor.fetchall()
         ]
-
-    def get_leaderboard_id(self, leaderboard_name: str) -> int | None:
-        self.cursor.execute("SELECT * FROM leaderboard", (leaderboard_name,))
-
-        res = self.cursor.fetchone()
-
-        return res[0] if res else None
 
 
 if __name__ == "__main__":
