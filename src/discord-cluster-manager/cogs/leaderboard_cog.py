@@ -171,7 +171,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     "submission_score": score,
                 })
 
-            user_id = interaction.user.name
+            user_id = interaction.user.global_name if interaction.user.nick is None else interaction.user.nick
             await interaction.followup.send(
                 "Successfully ran on GitHub runners!\n"
                 + f"Leaderboard '{leaderboard_name}'.\n"
