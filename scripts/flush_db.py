@@ -9,25 +9,16 @@ def flush_database():
     # Load environment variables
     load_dotenv()
     
-    # Get database connection parameters from environment
-    connection_params = {
-        "host": os.getenv("POSTGRES_HOST"),
-        "database": os.getenv("POSTGRES_DATABASE"),
-        "user": os.getenv("POSTGRES_USER"),
-        "password": os.getenv("POSTGRES_PASSWORD"),
-        "port": os.getenv("POSTGRES_PORT", "5432")
-    }
-
-    # Verify all parameters are present
-    missing_params = [k for k, v in connection_params.items() if not v]
-    if missing_params:
-        print(f"❌ Missing environment variables: {', '.join(missing_params)}")
+    DATABASE_URL = os.getenv('DATABASE_URL')
+    
+    if DATABASE_URL is None:
+        print(f"❌ Missing DATABASE_URL environment variable")
         return
 
     try:
         # Connect to database
         print("📡 Connecting to database...")
-        connection = psycopg2.connect(**connection_params)
+        connection = psycopg2.connect(DATABASE_URL, sslmode='require')
         cursor = connection.cursor()
 
         # Drop existing tables
@@ -35,6 +26,12 @@ def flush_database():
         drop_tables_query = """
         DROP TABLE IF EXISTS submissions CASCADE;
         DROP TABLE IF EXISTS leaderboard CASCADE;
+        DROP TABLE IF EXISTS runinfo CASCADE;
+        DROP TABLE IF EXISTS _yoyo_log CASCADE;
+        DROP TABLE IF EXISTS _yoyo_migration CASCADE;
+        DROP TABLE IF EXISTS _yoyo_version CASCADE;
+        DROP TABLE IF EXISTS yoyo_lock CASCADE;
+        DROP SCHEMA IF EXISTS leaderboard CASCADE;
         """
         cursor.execute(drop_tables_query)
         # Commit changes
