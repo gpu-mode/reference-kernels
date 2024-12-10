@@ -18,7 +18,7 @@ To run and develop the bot locally, you need to add it to your own server. Follo
 
 Here is a visual walk-through of the steps (after clicking on the New Application button):
 
-- The bot needs the `Message Content Intent` permission.
+- The bot needs the `Message Content Intent` and `Server Members Intent` permissions turned on.
   <details>
     <summary>Click here for visual.</summary>
     <img width="1440" alt="Screenshot 2024-11-24 at 10 44 46 AM" src="https://github.com/user-attachments/assets/7c873a9d-55b8-4aea-8c9a-9d2909405f03">
@@ -43,13 +43,68 @@ Finally, generate an invite link for the bot and enter it into any browser.
 > [!NOTE]
 > Bot permissions involving threads/mentions/messages should suffice, but you can naively give it `Administrator` since it's just a test bot in your own testing Discord server.  
 
+### Database
+
+The leaderboard persists information in a Postgres database. To develop locally, set Postgres up on your machine. Then start a Postgres shell with `psql`, and create a database:
+
+```
+$ psql -U postgres
+Password for user postgres: ********
+psql (16.6 (Ubuntu 16.6-1.pgdg22.04+1))
+Type "help" for help.
+
+postgres=# CREATE DATABASE clusterdev;
+```
+
+We are using [Yoyo Migrations](https://ollycope.com/software/yoyo/) to manage tables, indexes, etc. in our database. To create tables in your local database, apply the migrations in `src/discord-cluster-manager/migrations` with the following command line:
+
+```
+yoyo apply src/discord-cluster-manager/migrations \
+  -d postgresql://user:password@localhost/clusterdev
+```
+
+  <details>
+    <summary>Click here for a transcript of a yoyo apply session</summary>
+
+    $ yoyo apply . -d postgresql://user:password@localhost/clusterdev
+
+    [20241208_01_p3yuR-initial-leaderboard-schema]
+    Shall I apply this migration? [Ynvdaqjk?]: y
+
+    Selected 1 migration:
+      [20241208_01_p3yuR-initial-leaderboard-schema]
+    Apply this migration to postgresql://user:password@localhost/clusterdev [Yn]: y
+    Save migration configuration to yoyo.ini?
+    This is saved in plain text and contains your database password.
+
+    Answering 'y' means you do not have to specify the migration source or database connection for future runs [yn]: n
+  </details>
+
+Applying migrations to our staging and prod environments also happens using `yoyo apply`, just with a different database URL.
+
+To make changes to the structure of the database, create a new migration:
+
+```
+yoyo new src/discord-cluster-manager/migrations -m "short_description"
+```
+
+...and then edit the generated file. Please do not edit existing migration files: the existing migration files form a sort of changelog that is supposed to be immutable, and so yoyo will refuse to reapply the changes.
+
+We are following an expand/migrate/contract pattern to allow database migrations without downtime. When you want to make a change to the structure of the database, first determine if it is expansive or contractive.
+- _Expansive changes_ are those that have no possibility of breaking a running application. Examples include: adding a new nullable column, adding a non-null column with a default value, adding an index, adding a table, etc.
+- _Contractive changes_ are those that could break a running application. Examples include: dropping a table, dropping a column, adding a not null constraint to a column, adding a unique index, etc.
+
+After an expansive phase, data gets migrated to the newly added elements. Code also begins using the newly added elements. This is the migration step. Finally, when all code is no longer using elements that are obsolete, these can be removed. (Or, if adding a unique or not null constraint, after checking that the data satisfies the constraint, then the constraint can be safely added.)
+
+Expand, migrate, and contract steps may all be written using yoyo.
+
 ### Environment Variables
 After this, you should be able to create a `.env` file with the following environment variables:
 
 - `DISCORD_DEBUG_TOKEN` : The token of the bot you want to run locally
 - `DISCORD_DEBUG_CLUSTER_STAGING_ID` : The ID of the staging server you want to connect to
 - `GITHUB_TOKEN` : A Github token with permissions to trigger workflows, for now only new branches from [discord-cluster-manager](https://github.com/gpu-mode/discord-cluster-manager) are tested, since the bot triggers workflows on your behalf
-
+- `DATABASE_URL` : The URL you use to connect to Postgres.
 
 Below is where to find these environment variables:
 - **`DISCORD_DEBUG_TOKEN` or `DISCORD_TOKEN`**: Found in your bot's page within the [Discord Developer Portal](https://discord.com/developers/applications/):
@@ -67,6 +122,8 @@ Below is where to find these environment variables:
   </details>
   
 - **`GITHUB_TOKEN`**: Found in Settings -> Developer Settings (or [here](https://github.com/settings/tokens?type=beta)).
+
+- **`DATABASE_URL`**: This contains the connection details for your local database, and has the form `postgresql://user:password@localhost/clusterdev`.
 
 ### How to run the bot
 

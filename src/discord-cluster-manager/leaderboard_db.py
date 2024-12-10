@@ -8,6 +8,7 @@ from consts import (
     POSTGRES_HOST,
     POSTGRES_PORT,
     POSTGRES_DATABASE,
+    DATABASE_URL,
 )
 
 
@@ -29,7 +30,11 @@ class LeaderboardDB:
     def connect(self) -> bool:
         """Establish connection to the database"""
         try:
-            self.connection = psycopg2.connect(**self.connection_params)
+            self.connection = (
+                psycopg2.connect(DATABASE_URL, sslmode="require")
+                if DATABASE_URL
+                else psycopg2.connect(**self.connection_params)
+            )
             self.cursor = self.connection.cursor()
             self._create_tables()
             return True
@@ -141,6 +146,20 @@ class LeaderboardDB:
             for lb in self.cursor.fetchall()
         ]
 
+    def get_leaderboard(self, leaderboard_name: str) -> int | None:
+        self.cursor.execute(
+            "SELECT * FROM leaderboard WHERE name = %s", (leaderboard_name,)
+        )
+
+        res = self.cursor.fetchone()
+
+        if res:
+            return LeaderboardItem(
+                id=res[0], name=res[1], deadline=res[2], reference_code=res[3]
+            )
+        else:
+            return None
+
     def get_leaderboard_submissions(
         self, leaderboard_name: str
     ) -> list[SubmissionItem]:
@@ -163,13 +182,6 @@ class LeaderboardDB:
             )
             for submission in self.cursor.fetchall()
         ]
-
-    def get_leaderboard_id(self, leaderboard_name: str) -> int | None:
-        self.cursor.execute("SELECT * FROM leaderboard", (leaderboard_name,))
-
-        res = self.cursor.fetchone()
-
-        return res[0] if res else None
 
 
 if __name__ == "__main__":

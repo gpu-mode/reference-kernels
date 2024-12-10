@@ -5,16 +5,18 @@ from datetime import datetime
 
 from typing import TYPE_CHECKING
 from consts import GitHubGPU, ModalGPU
+from utils import extract_score, get_user_from_id
 
 import random
 
-if TYPE_CHECKING:
-    from bot import ClusterBot
-
 
 class LeaderboardSubmitCog(app_commands.Group):
-    def __init__(self, bot):
-        self.bot: ClusterBot = bot
+    def __init__(
+        self,
+        bot: commands.Bot,
+    ):
+        self.bot: commands.Bot = bot
+
         super().__init__(name="submit", description="Submit leaderboard data")
 
     # Parent command that defines global options
@@ -45,7 +47,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             app_commands.Choice(name=gpu.value, value=gpu.value) for gpu in ModalGPU
         ]
     )
-    async def modal(
+    async def submit_modal(
         self,
         interaction: discord.Interaction,
         leaderboard_name: str,
@@ -57,6 +59,15 @@ class LeaderboardSubmitCog(app_commands.Group):
         try:
             # Read the template file
             submission_content = await script.read()
+
+            # Call Modal runner
+            modal_cog = self.bot.get_cog("ModalCog")
+
+            if not all([modal_cog]):
+                await interaction.response.send_message("❌ Required cogs not found!")
+                return
+
+            modal_command = modal_cog.run_modal
 
             # Compute eval or submission score, call runner here.
             score = random.random()
@@ -90,10 +101,10 @@ class LeaderboardSubmitCog(app_commands.Group):
     )
     @app_commands.choices(
         gpu_type=[
-            app_commands.Choice(name=gpu.value, value=gpu.value) for gpu in GitHubGPU
+            app_commands.Choice(name=gpu.name, value=gpu.value) for gpu in GitHubGPU
         ]
     )
-    async def github(
+    async def submit_github(
         self,
         interaction: discord.Interaction,
         leaderboard_name: str,
@@ -103,11 +114,52 @@ class LeaderboardSubmitCog(app_commands.Group):
         shape: app_commands.Choice[str] = None,
     ):
         try:
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+
             # Read the template file
             submission_content = await script.read()
 
+            # Read and convert reference code
+            reference_code = None
+            with self.bot.leaderboard_db as db:
+                leaderboard_item = db.get_leaderboard(leaderboard_name)
+                if not leaderboard_item:
+                    await interaction.response.send_message(
+                        f"Leaderboard {leaderboard_name} not found.", ephemeral=True
+                    )
+                    return
+                reference_code = leaderboard_item["reference_code"]
+
+            # Call GH runner
+            github_cog = self.bot.get_cog("GitHubCog")
+
+            if not all([github_cog]):
+                await interaction.response.send_message("❌ Required cogs not found!")
+                return
+
+            github_command = github_cog.run_github
+            print(github_command)
+            try:
+                github_thread = await github_command.callback(
+                    github_cog,
+                    interaction,
+                    script,
+                    gpu_type,
+                    reference_code=reference_code,
+                    use_followup=True,
+                )
+            except discord.errors.NotFound as e:
+                print(f"Webhook not found: {e}")
+                await interaction.followup.send("❌ The webhook was not found.")
+
+            message_contents = [
+                msg.content async for msg in github_thread.history(limit=None)
+            ]
+
             # Compute eval or submission score, call runner here.
-            score = random.random()
+            # TODO: Make this more robust later
+            score = extract_score("".join(message_contents))
 
             with self.bot.leaderboard_db as db:
                 db.create_submission({
@@ -119,9 +171,13 @@ class LeaderboardSubmitCog(app_commands.Group):
                     "submission_score": score,
                 })
 
-            await interaction.response.send_message(
-                f"Ran on GH. Leaderboard '{leaderboard_name}'. Submission title: {script.filename}. Submission user: {interaction.user.id}. Runtime: {score} ms",
-                ephemeral=True,
+            user_id = interaction.user.global_name if interaction.user.nick is None else interaction.user.nick
+            await interaction.followup.send(
+                "Successfully ran on GitHub runners!\n"
+                + f"Leaderboard '{leaderboard_name}'.\n"
+                + f"Submission title: {script.filename}.\n"
+                + f"Submission user: {user_id}\n"
+                + f"Runtime: {score} ms\n",
             )
         except ValueError:
             await interaction.response.send_message(
@@ -132,17 +188,13 @@ class LeaderboardSubmitCog(app_commands.Group):
 
 class LeaderboardCog(commands.Cog):
     def __init__(self, bot):
-        self.bot: ClusterBot = bot
+        self.bot: commands.Bot = bot
         self.get_leaderboards = bot.leaderboard_group.command(name="get")(
             self.get_leaderboards
         )
         self.leaderboard_create = bot.leaderboard_group.command(
             name="create", description="Create a new leaderboard"
         )(self.leaderboard_create)
-
-        # self.leaderboard_submit = bot.leaderboard_group.command(
-        #     name="submit", description="Submit a file to the leaderboard"
-        # )(self.leaderboard_submit)
 
         bot.leaderboard_group.add_command(LeaderboardSubmitCog(bot))
 
@@ -209,7 +261,7 @@ class LeaderboardCog(commands.Cog):
                 })
 
             await interaction.response.send_message(
-                f"Leaderboard '{leaderboard_name}'. Submission deadline: {date_value}",
+                f"Leaderboard '{leaderboard_name}'. Reference code: {reference_code}. Submission deadline: {date_value}",
                 ephemeral=True,
             )
         except ValueError:
@@ -226,7 +278,7 @@ class LeaderboardCog(commands.Cog):
         dtype: app_commands.Choice[str] = "fp32",
     ):
         with self.bot.leaderboard_db as db:
-            leaderboard_id = db.get_leaderboard_id(leaderboard_name)
+            leaderboard_id = db.get_leaderboard(leaderboard_name)["id"]
             if not leaderboard_id:
                 await interaction.response.send_message(
                     "Leaderboard not found.", ephemeral=True
@@ -244,12 +296,19 @@ class LeaderboardCog(commands.Cog):
 
         # Create embed
         embed = discord.Embed(
-            title="Leaderboard Submissions", color=discord.Color.blue()
+            title=f'Leaderboard Submissions for "{leaderboard_name}"',
+            color=discord.Color.blue(),
         )
 
         for submission in submissions:
+            user_id = await get_user_from_id(
+                submission["user_id"], interaction, self.bot
+            )
+            print("members", interaction.guild.members)
+            print(user_id)
+
             embed.add_field(
-                name=f"{submission['user_id']}: {submission['submission_name']}",
+                name=f"{user_id}: {submission['submission_name']}",
                 value=f"Submission speed: {submission['submission_score']}",
                 inline=False,
             )
