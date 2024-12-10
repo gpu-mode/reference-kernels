@@ -45,10 +45,15 @@ Finally, generate an invite link for the bot and enter it into any browser.
 
 ### Database
 
-The leaderboard persists information in a Postgres database. To develop locally, set Postgres up on your machine. Then create a database with:
+The leaderboard persists information in a Postgres database. To develop locally, set Postgres up on your machine. Then start a Postgres shell with `psql`, and create a database:
 
 ```
-CREATE DATABASE clusterdev;
+$ psql -U postgres
+Password for user postgres: ********
+psql (16.6 (Ubuntu 16.6-1.pgdg22.04+1))
+Type "help" for help.
+
+postgres=# CREATE DATABASE clusterdev;
 ```
 
 We are using [Yoyo Migrations](https://ollycope.com/software/yoyo/) to manage tables, indexes, etc. in our database. To create tables in your local database, apply the migrations in `src/discord-cluster-manager/migrations` with the following command line:
