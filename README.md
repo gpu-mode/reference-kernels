@@ -146,7 +146,7 @@ Below is where to find these environment variables:
 
 ## How to test the bot
 
-The smoke test script in `tests/discord-bot-smoke-test.py` should be run to verify basic functionality of the cluster bot. For usage information, run with `python tests/discord-bot-smoke-test.py -h`. Run it against your own server.
+Use the `/verifyruns` command to test basic functionality of the cluster bot. To check database connectivity, use the `/verifydb` command.
 
 [!IMPORTANT]
 You need to have multiple environment variables set to run the bot on your own server:
