@@ -123,6 +123,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             # Read and convert reference code
             reference_code = None
             with self.bot.leaderboard_db as db:
+                # TODO: query that gets reference code given leaderboard name
                 leaderboard_item = db.get_leaderboard(leaderboard_name)
                 if not leaderboard_item:
                     await interaction.response.send_message(
@@ -278,6 +279,7 @@ class LeaderboardCog(commands.Cog):
         dtype: app_commands.Choice[str] = "fp32",
     ):
         with self.bot.leaderboard_db as db:
+            # TODO: query that gets leaderboard id given leaderboard name
             leaderboard_id = db.get_leaderboard(leaderboard_name)["id"]
             if not leaderboard_id:
                 await interaction.response.send_message(

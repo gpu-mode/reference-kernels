@@ -103,7 +103,7 @@ class LeaderboardDB:
         try:
             self.cursor.execute(
                 """
-                INSERT INTO leaderboard (name, deadline, reference_code)
+                INSERT INTO leaderboard.problem (name, deadline, reference_code)
                 VALUES (%s, %s, %s)
                 """,
                 (
@@ -121,15 +121,15 @@ class LeaderboardDB:
         try:
             self.cursor.execute(
                 """
-                INSERT INTO submissions (submission_name, submission_time, leaderboard_id, code, user_id, submission_score)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO leaderboard.submission (problem_id, name, user_id, code, submission_time, score)
+                VALUES ((SELECT id FROM leaderboard.problem WHERE name = %s), %s, %s, %s, %s, %s)
                 """,
                 (
-                    submission["submission_name"],
-                    submission["submission_time"],
                     submission["leaderboard_name"],
-                    submission["code"],
+                    submission["submission_name"],
                     submission["user_id"],
+                    submission["code"],
+                    submission["submission_time"],
                     submission["submission_score"],
                 ),
             )
@@ -139,7 +139,7 @@ class LeaderboardDB:
             self.connection.rollback()  # Ensure rollback if error occurs
 
     def get_leaderboards(self) -> list[LeaderboardItem]:
-        self.cursor.execute("SELECT * FROM leaderboard")
+        self.cursor.execute("SELECT id, name, deadline, reference_code FROM leaderboard.problem")
 
         return [
             LeaderboardItem(id=lb[0], name=lb[1], deadline=lb[2], reference_code=lb[3])
@@ -148,7 +148,8 @@ class LeaderboardDB:
 
     def get_leaderboard(self, leaderboard_name: str) -> int | None:
         self.cursor.execute(
-            "SELECT * FROM leaderboard WHERE name = %s", (leaderboard_name,)
+            "SELECT id, name, deadline, reference_code FROM leaderboard.problem WHERE name = %s",
+            (leaderboard_name,)
         )
 
         res = self.cursor.fetchone()
@@ -163,22 +164,26 @@ class LeaderboardDB:
     def get_leaderboard_submissions(
         self, leaderboard_name: str
     ) -> list[SubmissionItem]:
-        """
-        TODO: Change these all to be IDs instead
-        """
         self.cursor.execute(
-            "SELECT * FROM submissions WHERE leaderboard_id = %s ORDER BY submission_score ASC",
+            """
+            SELECT s.name, s.user_id, s.code, s.submission_time, s.score
+            FROM leaderboard.submission s
+            JOIN leaderboard.problem p
+            ON s.problem_id = p.id
+            WHERE p.name = %s
+            ORDER BY s.score ASC
+            """,
             (leaderboard_name,),
         )
 
         return [
             SubmissionItem(
-                leaderboard_name=submission[1],
-                submission_name=submission[2],
-                user_id=submission[3],
-                code=submission[4],
-                submission_time=submission[5],
-                submission_score=submission[6],
+                leaderboard_name=leaderboard_name,
+                submission_name=submission[0],
+                user_id=submission[1],
+                code=submission[2],
+                submission_time=submission[3],
+                submission_score=submission[4],
             )
             for submission in self.cursor.fetchall()
         ]
