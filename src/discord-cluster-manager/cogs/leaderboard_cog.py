@@ -126,7 +126,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 # TODO: query that gets reference code given leaderboard name
                 leaderboard_item = db.get_leaderboard(leaderboard_name)
                 if not leaderboard_item:
-                    await interaction.response.send_message(
+                    await interaction.followup.send(
                         f"Leaderboard {leaderboard_name} not found.", ephemeral=True
                     )
                     return
@@ -136,7 +136,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             github_cog = self.bot.get_cog("GitHubCog")
 
             if not all([github_cog]):
-                await interaction.response.send_message("❌ Required cogs not found!")
+                await interaction.followup.send("❌ Required cogs not found!")
                 return
 
             github_command = github_cog.run_github
@@ -181,7 +181,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 + f"Runtime: {score} ms\n",
             )
         except ValueError:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Invalid date format. Please use YYYY-MM-DD or YYYY-MM-DD HH:MM",
                 ephemeral=True,
             )
