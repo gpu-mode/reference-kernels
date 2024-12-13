@@ -113,24 +113,32 @@ class LeaderboardSubmitCog(app_commands.Group):
         dtype: app_commands.Choice[str] = "fp32",
         shape: app_commands.Choice[str] = None,
     ):
+        # Read the template file
+        submission_content = await script.read()
+
         try:
-            if not interaction.response.is_done():
-                await interaction.response.defer()
+            submission_content = submission_content.decode()
+        except UnicodeError:
+            await interaction.response.send_message(
+                "Could not decode your file. Is it UTF-8?", ephemeral=True
+            )
+            return
 
-            # Read the template file
-            submission_content = await script.read()
-
+        try:
             # Read and convert reference code
             reference_code = None
             with self.bot.leaderboard_db as db:
                 # TODO: query that gets reference code given leaderboard name
                 leaderboard_item = db.get_leaderboard(leaderboard_name)
                 if not leaderboard_item:
-                    await interaction.followup.send(
+                    await interaction.response.send_message(
                         f"Leaderboard {leaderboard_name} not found.", ephemeral=True
                     )
                     return
                 reference_code = leaderboard_item["reference_code"]
+
+            if not interaction.response.is_done():
+                await interaction.response.defer()
 
             # Call GH runner
             github_cog = self.bot.get_cog("GitHubCog")
