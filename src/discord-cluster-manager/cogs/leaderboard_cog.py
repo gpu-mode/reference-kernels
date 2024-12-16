@@ -3,7 +3,7 @@ from datetime import datetime
 
 import discord
 from consts import GitHubGPU, ModalGPU
-from discord import app_commands
+from discord import Interaction, SelectOption, app_commands, ui
 from discord.ext import commands
 from utils import extract_score, get_user_from_id
 
@@ -179,7 +179,11 @@ class LeaderboardSubmitCog(app_commands.Group):
                     "submission_score": score,
                 })
 
-            user_id = interaction.user.global_name if interaction.user.nick is None else interaction.user.nick
+            user_id = (
+                interaction.user.global_name
+                if interaction.user.nick is None
+                else interaction.user.nick
+            )
             await interaction.followup.send(
                 "Successfully ran on GitHub runners!\n"
                 + f"Leaderboard '{leaderboard_name}'.\n"
@@ -192,6 +196,31 @@ class LeaderboardSubmitCog(app_commands.Group):
                 "Invalid date format. Please use YYYY-MM-DD or YYYY-MM-DD HH:MM",
                 ephemeral=True,
             )
+
+
+class GPUSelectionView(ui.View):
+    def __init__(self, available_gpus: list[str]):
+        super().__init__()
+
+        # Add the Select Menu with the list of GPU options
+        select = ui.Select(
+            placeholder="Select GPUs for this leaderboard...",
+            options=[SelectOption(label=gpu, value=gpu) for gpu in available_gpus],
+            min_values=1,  # Minimum number of selections
+            max_values=len(available_gpus),  # Maximum number of selections
+        )
+        select.callback = self.select_callback
+        self.add_item(select)
+
+    async def select_callback(self, interaction: Interaction):
+        # Retrieve the selected options
+        select = interaction.data["values"]
+        self.selected_gpus = select
+        await interaction.response.send_message(
+            f"Selected GPUs: {', '.join(self.selected_gpus)}",
+            ephemeral=True,
+        )
+        self.stop()
 
 
 class LeaderboardCog(commands.Cog):
@@ -256,6 +285,24 @@ class LeaderboardCog(commands.Cog):
             # Read the template file
             template_content = await reference_code.read()
 
+            # Ask the user to select GPUs
+            view = GPUSelectionView([gpu.name for gpu in GitHubGPU])
+
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    "Please select GPUs for this leaderboard.",
+                    view=view,
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    "Please select GPUs for this leaderboard.",
+                    view=view,
+                    ephemeral=True,
+                )
+
+            await view.wait()
+
             with self.bot.leaderboard_db as db:
                 print(
                     leaderboard_name,
@@ -268,12 +315,20 @@ class LeaderboardCog(commands.Cog):
                     "reference_code": template_content.decode("utf-8"),
                 })
 
-            await interaction.response.send_message(
-                f"Leaderboard '{leaderboard_name}' created.\n"
-                + f"Reference code: {reference_code}.\n"
-                + f"Submission deadline: {date_value}",
-                ephemeral=True,
-            )
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    f"Leaderboard '{leaderboard_name}' created.\n"
+                    + f"Reference code: {reference_code}.\n"
+                    + f"Submission deadline: {date_value}",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    f"Leaderboard '{leaderboard_name}' created.\n"
+                    + f"Reference code: {reference_code}.\n"
+                    + f"Submission deadline: {date_value}",
+                    ephemeral=True,
+                )
         except ValueError:
             await interaction.response.send_message(
                 "Invalid date format. Please use YYYY-MM-DD or YYYY-MM-DD HH:MM",
