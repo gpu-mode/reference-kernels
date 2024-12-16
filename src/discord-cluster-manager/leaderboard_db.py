@@ -36,7 +36,6 @@ class LeaderboardDB:
                 else psycopg2.connect(**self.connection_params)
             )
             self.cursor = self.connection.cursor()
-            self._create_tables()
             return True
         except Error as e:
             print(f"Error connecting to PostgreSQL: {e}")
@@ -48,47 +47,6 @@ class LeaderboardDB:
             self.cursor.close()
         if self.connection:
             self.connection.close()
-
-    def _create_tables(self):
-        """Create necessary tables if they don't exist"""
-        create_table_query = """
-        CREATE TABLE IF NOT EXISTS leaderboard (
-            id SERIAL PRIMARY KEY,
-            name TEXT UNIQUE NOT NULL,
-            deadline TIMESTAMP NOT NULL,
-            reference_code TEXT NOT NULL
-        );
-        """
-
-        create_submission_table_query = """
-        CREATE TABLE IF NOT EXISTS submissions (
-            submission_id SERIAL PRIMARY KEY,
-            leaderboard_id TEXT NOT NULL,
-            submission_name VARCHAR(255) NOT NULL,
-            user_id TEXT NOT NULL,
-            code TEXT NOT NULL,
-            submission_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            submission_score DOUBLE PRECISION NOT NULL,
-            FOREIGN KEY (leaderboard_id) REFERENCES leaderboard(name)
-        );
-        """
-
-        create_run_information_table_query = """
-        CREATE TABLE IF NOT EXISTS runinfo (
-            submission_id INTEGER NOT NULL,
-            stdout TEXT,
-            ncu_output TEXT,
-            FOREIGN KEY (submission_id) REFERENCES submissions(submission_id)
-        );
-        """
-
-        try:
-            self.cursor.execute(create_table_query)
-            self.cursor.execute(create_submission_table_query)
-            self.cursor.execute(create_run_information_table_query)
-            self.connection.commit()
-        except Error as e:
-            print(f"Error creating table: {e}")
 
     def __enter__(self):
         """Context manager entry"""
