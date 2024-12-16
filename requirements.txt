@@ -7,3 +7,4 @@ requests
 modal
 psycopg2-binary
 yoyo-migrations
+ruff
