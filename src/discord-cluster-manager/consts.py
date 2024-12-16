@@ -1,6 +1,7 @@
-from dotenv import load_dotenv
 import os
 from enum import Enum
+
+from dotenv import load_dotenv
 
 
 def init_environment():

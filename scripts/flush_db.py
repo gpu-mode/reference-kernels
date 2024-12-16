@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 
-import psycopg2
-from psycopg2 import Error
-from dotenv import load_dotenv
 import os
+
+import psycopg2
+from dotenv import load_dotenv
+from psycopg2 import Error
+
 
 def flush_database():
     # Load environment variables
     load_dotenv()
-    
+
     DATABASE_URL = os.getenv('DATABASE_URL')
-    
+
     if DATABASE_URL is None:
-        print(f"❌ Missing DATABASE_URL environment variable")
+        print("❌ Missing DATABASE_URL environment variable")
         return
 
     try:
@@ -47,4 +49,4 @@ def flush_database():
             print("🔌 Database connection closed")
 
 if __name__ == "__main__":
-    flush_database() 
+    flush_database()

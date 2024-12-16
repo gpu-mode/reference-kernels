@@ -1,6 +1,7 @@
-from modal import App, Image
-from contextlib import contextmanager
 import signal
+from contextlib import contextmanager
+
+from modal import App, Image
 
 # Create a stub for the Modal app
 # IMPORTANT: This has to stay in separate file or modal breaks
@@ -31,7 +32,7 @@ def timeout(seconds: int):
 
 
 @modal_app.function(
-    gpu="T4", 
+    gpu="T4",
     image=Image.debian_slim(python_version="3.10").pip_install(["torch"])
 )
 def run_pytorch_script(script_content: str, timeout_seconds: int = 300) -> tuple[str, float]:
@@ -48,8 +49,8 @@ def run_pytorch_script(script_content: str, timeout_seconds: int = 300) -> tuple
     NOTE: Modal execution time is not programmatically accessible, so we manually calculate it
     """
     import sys
-    from io import StringIO
     import time
+    from io import StringIO
 
     # Capture stdout
     output = StringIO()
@@ -59,7 +60,7 @@ def run_pytorch_script(script_content: str, timeout_seconds: int = 300) -> tuple
         with timeout(timeout_seconds):
             # Create a new dictionary for local variables to avoid polluting the global namespace
             local_vars = {}
-            
+
             execution_start_time = time.perf_counter()
 
             # Execute the script in the isolated namespace
@@ -98,11 +99,11 @@ def run_cuda_script(script_content: str, timeout_seconds: int = 600) -> tuple[st
 
     NOTE: Modal execution time is not programmatically accessible, so we manually calculate it
     """
-    import sys
-    from io import StringIO
-    import subprocess
     import os
+    import subprocess
+    import sys
     import time
+    from io import StringIO
 
     # Capture stdout
     output = StringIO()

@@ -1,12 +1,13 @@
-import re
 import asyncio
+import re
+from unittest.mock import AsyncMock
+
 import discord
+from cogs.github_cog import GitHubCog
+from cogs.modal_cog import ModalCog
 from discord import app_commands
 from discord.ext import commands
-from unittest.mock import AsyncMock
 from utils import setup_logging
-from cogs.modal_cog import ModalCog
-from cogs.github_cog import GitHubCog
 
 logger = setup_logging()
 
@@ -56,7 +57,7 @@ class VerifyRunCog(commands.Cog):
 
         all_patterns_found = all(
             any(
-                re.search(pattern, content, re.DOTALL) != None
+                re.search(pattern, content, re.DOTALL) is not None
                 for content in message_contents
             )
             for pattern in required_patterns
@@ -69,7 +70,7 @@ class VerifyRunCog(commands.Cog):
         else:
             missing_patterns = [
                 pattern for pattern in required_patterns
-                if not any(re.search(pattern, content, re.DOTALL) 
+                if not any(re.search(pattern, content, re.DOTALL)
                            for content in message_contents)
             ]
             await interaction.followup.send(
@@ -98,7 +99,7 @@ class VerifyRunCog(commands.Cog):
         ]
 
         all_patterns_found = all(
-            any(re.search(pattern, content, re.DOTALL) != None
+            any(re.search(pattern, content, re.DOTALL) is not None
                  for content in message_contents)
             for pattern in required_patterns
         )
@@ -141,7 +142,7 @@ class VerifyRunCog(commands.Cog):
                 self.verify_github_run(github_cog, nvidia, interaction),
                 self.verify_github_run(github_cog, amd, interaction),
                 self.verify_modal_run(modal_cog, interaction))
-            
+
             if all(results):
                 await interaction.followup.send("✅ All runs completed successfully!")
             else:

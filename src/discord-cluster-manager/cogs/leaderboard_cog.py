@@ -1,13 +1,11 @@
-import discord
-from discord import app_commands
-from discord.ext import commands
+import random
 from datetime import datetime
 
-from typing import TYPE_CHECKING
+import discord
 from consts import GitHubGPU, ModalGPU
+from discord import app_commands
+from discord.ext import commands
 from utils import extract_score, get_user_from_id
-
-import random
 
 
 class LeaderboardSubmitCog(app_commands.Group):
@@ -67,8 +65,6 @@ class LeaderboardSubmitCog(app_commands.Group):
                 await interaction.response.send_message("❌ Required cogs not found!")
                 return
 
-            modal_command = modal_cog.run_modal
-
             # Compute eval or submission score, call runner here.
             score = random.random()
 
@@ -83,7 +79,10 @@ class LeaderboardSubmitCog(app_commands.Group):
                 })
 
             await interaction.response.send_message(
-                f"Ran on Modal. Leaderboard '{leaderboard_name}'. Submission title: {script.filename}. Submission user: {interaction.user.id}. Runtime: {score} ms",
+                f"Ran on Modal. Leaderboard '{leaderboard_name}'.\n"
+                + f"Submission title: {script.filename}.\n"
+                + f"Submission user: {interaction.user.id}.\n"
+                + f"Runtime: {score} ms",
                 ephemeral=True,
             )
         except ValueError:
@@ -270,7 +269,9 @@ class LeaderboardCog(commands.Cog):
                 })
 
             await interaction.response.send_message(
-                f"Leaderboard '{leaderboard_name}'. Reference code: {reference_code}. Submission deadline: {date_value}",
+                f"Leaderboard '{leaderboard_name}' created.\n"
+                + f"Reference code: {reference_code}.\n"
+                + f"Submission deadline: {date_value}",
                 ephemeral=True,
             )
         except ValueError:

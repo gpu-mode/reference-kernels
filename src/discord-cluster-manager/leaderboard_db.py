@@ -1,15 +1,16 @@
-import psycopg2
-from psycopg2 import Error
 from typing import Optional
-from utils import LeaderboardItem, SubmissionItem
+
+import psycopg2
 from consts import (
-    POSTGRES_USER,
-    POSTGRES_PASSWORD,
-    POSTGRES_HOST,
-    POSTGRES_PORT,
-    POSTGRES_DATABASE,
     DATABASE_URL,
+    POSTGRES_DATABASE,
+    POSTGRES_HOST,
+    POSTGRES_PASSWORD,
+    POSTGRES_PORT,
+    POSTGRES_USER,
 )
+from psycopg2 import Error
+from utils import LeaderboardItem, SubmissionItem
 
 
 class LeaderboardDB:

@@ -1,27 +1,28 @@
-import discord
-from discord import app_commands
-from discord.ext import commands
 import argparse
-from utils import setup_logging
-from cogs.misc_cog import BotManagerCog
 from datetime import datetime
-from consts import (
-    init_environment,
-    DISCORD_TOKEN,
-    DISCORD_DEBUG_TOKEN,
-    DISCORD_CLUSTER_STAGING_ID,
-    DISCORD_DEBUG_CLUSTER_STAGING_ID,
-    POSTGRES_USER,
-    POSTGRES_PASSWORD,
-    POSTGRES_HOST,
-    POSTGRES_PORT,
-    POSTGRES_DATABASE,
-)
-from cogs.modal_cog import ModalCog
+
+import discord
 from cogs.github_cog import GitHubCog
 from cogs.leaderboard_cog import LeaderboardCog
-from leaderboard_db import LeaderboardDB
+from cogs.misc_cog import BotManagerCog
+from cogs.modal_cog import ModalCog
 from cogs.verify_run_cog import VerifyRunCog
+from consts import (
+    DISCORD_CLUSTER_STAGING_ID,
+    DISCORD_DEBUG_CLUSTER_STAGING_ID,
+    DISCORD_DEBUG_TOKEN,
+    DISCORD_TOKEN,
+    POSTGRES_DATABASE,
+    POSTGRES_HOST,
+    POSTGRES_PASSWORD,
+    POSTGRES_PORT,
+    POSTGRES_USER,
+    init_environment,
+)
+from discord import app_commands
+from discord.ext import commands
+from leaderboard_db import LeaderboardDB
+from utils import setup_logging
 
 logger = setup_logging()
 

@@ -1,8 +1,9 @@
+import time
+
 import discord
+import modal
 from discord import app_commands
 from discord.ext import commands
-import modal
-import time
 from utils import setup_logging
 
 logger = setup_logging()
@@ -32,32 +33,33 @@ class ModalCog(commands.Cog):
         gpu_type: app_commands.Choice[str],
         use_followup: bool = False
     ) -> discord.Thread:
-        if not script.filename.endswith(".py") and not script.filename.endswith(".cu"):
-            await interaction.response.send_message(
-                "Please provide a Python (.py) or CUDA (.cu) file"
-            )
-            return None
-
-        thread = await self.bot.create_thread(interaction, gpu_type.name, "Modal Job")
-        queue_start_time = time.perf_counter()
-        message = f"Created thread {thread.mention} for your Modal job"
-
-        if use_followup:
-            await interaction.followup.send(message)
-        else:
-            await interaction.response.send_message(message)
-
-        await thread.send(f"**Processing `{script.filename}` with {gpu_type.name}...**")
-
+        thread = None
         try:
+            if not script.filename.endswith(".py") and not script.filename.endswith(".cu"):
+                await interaction.response.send_message(
+                    "Please provide a Python (.py) or CUDA (.cu) file"
+                )
+                return None
+
+            thread = await self.bot.create_thread(interaction, gpu_type.name, "Modal Job")
+            queue_start_time = time.perf_counter()
+            message = f"Created thread {thread.mention} for your Modal job"
+
+            if use_followup:
+                await interaction.followup.send(message)
+            else:
+                await interaction.response.send_message(message)
+
+            await thread.send(f"**Processing `{script.filename}` with {gpu_type.name}...**")
+
             script_content = (await script.read()).decode("utf-8")
             status_msg = await thread.send("**Running on Modal...**\n> ⏳ Waiting for available GPU...")
 
             result, execution_time_ms = await self.trigger_modal_run(script_content, script.filename)
-            
+
             # Update status message to show completion
             await status_msg.edit(content="**Running on Modal...**\n> ✅ Job completed!")
-            
+
             queue_end_time = time.perf_counter()
             queue_time_ms = (queue_end_time - queue_start_time) * 1000
 
@@ -67,14 +69,15 @@ class ModalCog(commands.Cog):
             await thread.send(f"**Execution time:** {execution_time_ms:.3f} ms\n")
             await thread.send(f"**Modal execution result:**\n```\n{result}\n```")
 
+            return thread
+
         except Exception as e:
             logger.error(f"Error processing request: {str(e)}", exc_info=True)
-            # Update status message to show error
-            await status_msg.edit(content="**Running on Modal...**\n> ❌ Job failed!")
-            await thread.send(f"**Error:** {str(e)}")
-
-        finally:
-            return thread
+            if thread:
+                # Update status message to show error
+                await status_msg.edit(content="**Running on Modal...**\n> ❌ Job failed!")
+                await thread.send(f"**Error:** {str(e)}")
+            raise
 
     async def trigger_modal_run(self, script_content: str, filename: str) -> tuple[str, float]:
         logger.info("Attempting to trigger Modal run")
@@ -82,7 +85,7 @@ class ModalCog(commands.Cog):
         from modal_runner import modal_app
 
         try:
-            print(f"Running {filename} with Modal")            
+            print(f"Running {filename} with Modal")
             with modal.enable_output():
                 with modal_app.run():
                     if filename.endswith(".py"):
@@ -93,7 +96,7 @@ class ModalCog(commands.Cog):
                         result, execution_time_ms = run_cuda_script.remote(script_content)
 
             return result, execution_time_ms
-            
+
         except Exception as e:
             logger.error(f"Error in trigger_modal_run: {str(e)}", exc_info=True)
             return f"Error: {str(e)}", 0

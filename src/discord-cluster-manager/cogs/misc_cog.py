@@ -1,9 +1,9 @@
 import discord
+import psycopg2
+from consts import DATABASE_URL
 from discord import app_commands
 from discord.ext import commands
-import psycopg2
 from utils import setup_logging
-from consts import DATABASE_URL
 
 logger = setup_logging()
 

@@ -1,15 +1,16 @@
+import asyncio
+import os
+import zipfile
+from datetime import datetime, timedelta, timezone
+
 import discord
+import requests
+from consts import GITHUB_REPO, GITHUB_TOKEN, GPUType
 from discord import app_commands
 from discord.ext import commands
-from datetime import datetime, timezone, timedelta
-import asyncio
-import requests
-import zipfile
-import os
 from github import Github
-from utils import setup_logging, get_github_branch_name
-from consts import GPUType, GITHUB_TOKEN, GITHUB_REPO
-from leaderboard_eval import py_eval, cu_eval
+from leaderboard_eval import cu_eval, py_eval
+from utils import get_github_branch_name, setup_logging
 
 logger = setup_logging()
 
@@ -100,12 +101,13 @@ class GitHubCog(commands.Cog):
                     "Failed to trigger GitHub Action. Please check the configuration."
                 )
 
+            return thread
+
         except Exception as e:
             logger.error(f"Error processing request: {str(e)}", exc_info=True)
-            await thread.send(f"Error processing request: {str(e)}")
-
-        finally:
-            return thread
+            if thread:
+                await thread.send(f"Error processing request: {str(e)}")
+            raise
 
     async def trigger_github_action(
         self,
@@ -175,7 +177,8 @@ class GitHubCog(commands.Cog):
                 if elapsed_time > timeout:
                     try:
                         run.cancel()
-                        # Wait briefly to ensure cancellation is processed and Verify the run was actually cancelled
+                        # Wait briefly to ensure cancellation is processed
+                        # And Verify the run was actually cancelled
                         await asyncio.sleep(5)
                         run = repo.get_workflow_run(run_id)
                         if run.status != "completed":
