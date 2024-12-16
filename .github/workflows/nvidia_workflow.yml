@@ -120,15 +120,6 @@ jobs:
             cat training.log  # Debug: show output
           fi
 
-      - name: Extract score
-        shell: bash
-        run: |
-          # Extract only the last occurrence of "score:"
-          score=$(grep -oP 'score:\s*\d+(\.\d+)?' training.log | tail -n 1 | awk '{print $2}')
-
-          echo "Score extracted: $score"
-          echo "::set-output name=score::$score"
-
       - name: Upload training artifacts
         uses: actions/upload-artifact@v4
         if: always()
