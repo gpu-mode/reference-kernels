@@ -58,7 +58,7 @@ class LeaderboardDB:
         """Context manager exit"""
         self.disconnect()
 
-    def create_leaderboard(self, leaderboard: LeaderboardItem):
+    def create_leaderboard(self, leaderboard: LeaderboardItem) -> Optional[None]:
         try:
             self.cursor.execute(
                 """
@@ -73,8 +73,9 @@ class LeaderboardDB:
             )
             self.connection.commit()
         except psycopg2.Error as e:
-            print(f"Error during leaderboard creation: {e}")
             self.connection.rollback()  # Ensure rollback if error occurs
+            return f"Error during leaderboard creation: {e}"
+        return None
 
     def create_submission(self, submission: SubmissionItem):
         try:
@@ -98,7 +99,9 @@ class LeaderboardDB:
             self.connection.rollback()  # Ensure rollback if error occurs
 
     def get_leaderboards(self) -> list[LeaderboardItem]:
-        self.cursor.execute("SELECT id, name, deadline, reference_code FROM leaderboard.problem")
+        self.cursor.execute(
+            "SELECT id, name, deadline, reference_code FROM leaderboard.problem"
+        )
 
         return [
             LeaderboardItem(id=lb[0], name=lb[1], deadline=lb[2], reference_code=lb[3])
@@ -108,7 +111,7 @@ class LeaderboardDB:
     def get_leaderboard(self, leaderboard_name: str) -> int | None:
         self.cursor.execute(
             "SELECT id, name, deadline, reference_code FROM leaderboard.problem WHERE name = %s",
-            (leaderboard_name,)
+            (leaderboard_name,),
         )
 
         res = self.cursor.fetchone()
