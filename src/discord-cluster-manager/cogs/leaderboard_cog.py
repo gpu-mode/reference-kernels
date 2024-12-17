@@ -219,7 +219,7 @@ class GPUSelectionView(ui.View):
 class LeaderboardCog(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
-        self.get_leaderboards = bot.leaderboard_group.command(name="get")(
+        self.get_leaderboards = bot.leaderboard_group.command(name="list")(
             self.get_leaderboards
         )
         self.leaderboard_create = bot.leaderboard_group.command(
