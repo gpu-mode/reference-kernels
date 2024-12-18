@@ -7,7 +7,7 @@ from cogs.github_cog import GitHubCog
 from cogs.modal_cog import ModalCog
 from discord import app_commands
 from discord.ext import commands
-from utils import setup_logging
+from utils import send_discord_message, setup_logging
 
 logger = setup_logging()
 
@@ -48,7 +48,7 @@ class VerifyRunCog(commands.Cog):
     ) -> bool:
         github_command = github_cog.run_github
         github_thread = await github_command.callback(
-            github_cog, interaction, script_file, choice, use_followup=True
+            github_cog, interaction, script_file, choice
         )
 
         message_contents = [
@@ -72,8 +72,9 @@ class VerifyRunCog(commands.Cog):
         )
 
         if all_patterns_found:
-            await interaction.followup.send(
-                f"✅ GitHub run ({choice.name}) completed successfully - all expected messages found!"
+            send_discord_message(
+                interaction,
+                f"✅ GitHub run ({choice.name}) completed successfully - all expected messages found!",
             )
             return True
         else:
@@ -85,9 +86,10 @@ class VerifyRunCog(commands.Cog):
                     for content in message_contents
                 )
             ]
-            await interaction.followup.send(
+            send_discord_message(
+                interaction,
                 f"❌ GitHub run ({choice.name}) verification failed. Missing expected messages:\n"
-                + "\n".join(f"- {pattern}" for pattern in missing_patterns)
+                + "\n".join(f"- {pattern}" for pattern in missing_patterns),
             )
             return False
 
@@ -98,7 +100,7 @@ class VerifyRunCog(commands.Cog):
         modal_command = modal_cog.run_modal
 
         modal_thread = await modal_command.callback(
-            modal_cog, interaction, script_file, t4, use_followup=True
+            modal_cog, interaction, script_file, t4
         )
 
         message_contents = [
@@ -120,8 +122,9 @@ class VerifyRunCog(commands.Cog):
         )
 
         if all_patterns_found:
-            await interaction.followup.send(
-                "✅ Modal run completed successfully - all expected messages found!"
+            send_discord_message(
+                interaction,
+                "✅ Modal run completed successfully - all expected messages found!",
             )
             return True
         else:
@@ -133,9 +136,10 @@ class VerifyRunCog(commands.Cog):
                     for content in message_contents
                 )
             ]
-            await interaction.followup.send(
+            send_discord_message(
+                interaction,
                 "❌ Modal run verification failed. Missing expected messages:\n"
-                + "\n".join(f"- {pattern}" for pattern in missing_patterns)
+                + "\n".join(f"- {pattern}" for pattern in missing_patterns),
             )
             return False
 
@@ -151,7 +155,7 @@ class VerifyRunCog(commands.Cog):
             github_cog = self.bot.get_cog("GitHubCog")
 
             if not all([modal_cog, github_cog]):
-                await interaction.response.send_message("❌ Required cogs not found!")
+                await send_discord_message(interaction, "❌ Required cogs not found!")
                 return
 
             nvidia = app_commands.Choice(name="NVIDIA", value="nvidia")
@@ -164,14 +168,15 @@ class VerifyRunCog(commands.Cog):
             )
 
             if all(results):
-                await interaction.followup.send("✅ All runs completed successfully!")
+                send_discord_message(interaction, "✅ All runs completed successfully!")
             else:
-                await interaction.followup.send(
-                    "❌ Some runs failed! Consult messages above for details."
+                send_discord_message(
+                    interaction,
+                    "❌ Some runs failed! Consult messages above for details.",
                 )
 
         except Exception as e:
             logger.error(f"Error starting verification runs: {e}", exc_info=True)
-            await interaction.followup.send(
-                f"❌ Problem performing verification runs: {str(e)}"
+            send_discord_message(
+                interaction, f"❌ Problem performing verification runs: {str(e)}"
             )

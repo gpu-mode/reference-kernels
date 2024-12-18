@@ -3,7 +3,7 @@ import psycopg2
 from consts import DATABASE_URL
 from discord import app_commands
 from discord.ext import commands
-from utils import setup_logging
+from utils import send_discord_message, setup_logging
 
 logger = setup_logging()
 
@@ -15,7 +15,7 @@ class BotManagerCog(commands.Cog):
     @app_commands.command(name="ping")
     async def ping(self, interaction: discord.Interaction):
         """Simple ping command to check if the bot is responsive"""
-        await interaction.response.send_message("pong")
+        await send_discord_message(interaction, "pong")
 
     @app_commands.command(name="resync")
     async def resync(self, interaction: discord.Interaction):
@@ -27,16 +27,17 @@ class BotManagerCog(commands.Cog):
                 self.bot.tree.clear_commands(guild=interaction.guild)
                 await self.bot.tree.sync(guild=interaction.guild)
                 commands = await self.bot.tree.fetch_commands(guild=interaction.guild)
-                await interaction.followup.send(
+                send_discord_message(
+                    interaction,
                     "Resynced commands:\n"
-                    + "\n".join([f"- /{cmd.name}" for cmd in commands])
+                    + "\n".join([f"- /{cmd.name}" for cmd in commands]),
                 )
             except Exception as e:
                 logger.error(f"Error in resync command: {str(e)}", exc_info=True)
-                await interaction.followup.send(f"Error: {str(e)}")
+                send_discord_message(interaction, f"Error: {str(e)}")
         else:
-            await interaction.response.send_message(
-                "You need administrator permissions to use this command"
+            await send_discord_message(
+                interaction, "You need administrator permissions to use this command"
             )
 
     @app_commands.command(name="verifydb")
@@ -45,20 +46,22 @@ class BotManagerCog(commands.Cog):
         if not DATABASE_URL:
             message = "DATABASE_URL not set."
             logger.error(message)
-            await interaction.response.send_message(message)
+            await send_discord_message(interaction, message)
             return
 
         try:
-            with psycopg2.connect(DATABASE_URL, sslmode='require') as conn:
+            with psycopg2.connect(DATABASE_URL, sslmode="require") as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT RANDOM()")
                     result = cursor.fetchone()
                     if result:
                         random_value = result[0]
-                        await interaction.response.send_message(f"Your lucky number is {random_value}.")
+                        await send_discord_message(
+                            interaction, f"Your lucky number is {random_value}."
+                        )
                     else:
-                        await interaction.response.send_message("No result returned.")
+                        await send_discord_message(interaction, "No result returned.")
         except Exception as e:
             message = "Error interacting with the database"
             logger.error(f"{message}: {str(e)}", exc_info=True)
-            await interaction.response.send_message(f"{message}.")
+            await send_discord_message(interaction, f"{message}.")

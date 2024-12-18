@@ -10,7 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 from github import Github
 from leaderboard_eval import cu_eval, py_eval
-from utils import get_github_branch_name, setup_logging
+from utils import get_github_branch_name, send_discord_message, setup_logging
 
 logger = setup_logging()
 
@@ -37,24 +37,19 @@ class GitHubCog(commands.Cog):
         interaction: discord.Interaction,
         script: discord.Attachment,
         gpu_type: app_commands.Choice[str],
-        use_followup: bool = False,
         reference_script: discord.Attachment = None,
         reference_code: str = None,
     ) -> discord.Thread:
         if not script.filename.endswith(".py") and not script.filename.endswith(".cu"):
-            await interaction.response.send_message(
-                "Please provide a Python (.py) or CUDA (.cu) file"
+            await send_discord_message(
+                interaction, "Please provide a Python (.py) or CUDA (.cu) file"
             )
             return None
 
         thread = await self.bot.create_thread(interaction, gpu_type.name, "GitHub Job")
         message = f"Created thread {thread.mention} for your GitHub job"
 
-        if use_followup:
-            await interaction.followup.send(message)
-        else:
-            await interaction.response.send_message(message)
-
+        await send_discord_message(interaction, message)
         await thread.send(f"Processing `{script.filename}` with {gpu_type.name}...")
 
         try:
