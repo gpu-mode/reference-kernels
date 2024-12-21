@@ -195,7 +195,8 @@ class GitHubCog(commands.Cog):
                     return run.conclusion, logs, run.html_url
 
                 await thread.send(
-                    f"Workflow: {run.status} running for {elapsed_time.total_seconds():.2f} seconds\n"
+                    f"Workflow: {run.status} running for "
+                    f"{elapsed_time.total_seconds():.2f} seconds\n"
                     f"Live view: <{run.html_url}>"
                 )
                 await asyncio.sleep(60)

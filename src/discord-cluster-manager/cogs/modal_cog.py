@@ -49,9 +49,11 @@ class ModalCog(commands.Cog):
             await thread.send(f"**Processing `{script.filename}` with {gpu_type.name}...**")
 
             script_content = (await script.read()).decode("utf-8")
-            status_msg = await thread.send("**Running on Modal...**\n> ⏳ Waiting for available GPU...")
+            status_msg = await thread.send(
+                "**Running on Modal...**\n> ⏳ Waiting for available GPU...")
 
-            result, execution_time_ms = await self.trigger_modal_run(script_content, script.filename)
+            result, execution_time_ms = await self.trigger_modal_run(
+                script_content, script.filename)
 
             # Update status message to show completion
             await status_msg.edit(content="**Running on Modal...**\n> ✅ Job completed!")

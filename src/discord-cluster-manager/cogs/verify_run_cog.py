@@ -72,9 +72,10 @@ class VerifyRunCog(commands.Cog):
         )
 
         if all_patterns_found:
-            send_discord_message(
+            await send_discord_message(
                 interaction,
-                f"✅ GitHub run ({choice.name}) completed successfully - all expected messages found!",
+                f"✅ GitHub run ({choice.name}) completed successfully - "
+                "all expected messages found!",
             )
             return True
         else:
@@ -86,7 +87,7 @@ class VerifyRunCog(commands.Cog):
                     for content in message_contents
                 )
             ]
-            send_discord_message(
+            await send_discord_message(
                 interaction,
                 f"❌ GitHub run ({choice.name}) verification failed. Missing expected messages:\n"
                 + "\n".join(f"- {pattern}" for pattern in missing_patterns),
@@ -122,7 +123,7 @@ class VerifyRunCog(commands.Cog):
         )
 
         if all_patterns_found:
-            send_discord_message(
+            await send_discord_message(
                 interaction,
                 "✅ Modal run completed successfully - all expected messages found!",
             )
@@ -136,7 +137,7 @@ class VerifyRunCog(commands.Cog):
                     for content in message_contents
                 )
             ]
-            send_discord_message(
+            await send_discord_message(
                 interaction,
                 "❌ Modal run verification failed. Missing expected messages:\n"
                 + "\n".join(f"- {pattern}" for pattern in missing_patterns),
@@ -168,15 +169,15 @@ class VerifyRunCog(commands.Cog):
             )
 
             if all(results):
-                send_discord_message(interaction, "✅ All runs completed successfully!")
+                await send_discord_message(interaction, "✅ All runs completed successfully!")
             else:
-                send_discord_message(
+                await send_discord_message(
                     interaction,
                     "❌ Some runs failed! Consult messages above for details.",
                 )
 
         except Exception as e:
             logger.error(f"Error starting verification runs: {e}", exc_info=True)
-            send_discord_message(
+            await send_discord_message(
                 interaction, f"❌ Problem performing verification runs: {str(e)}"
             )

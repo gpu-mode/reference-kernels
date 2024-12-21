@@ -1,4 +1,4 @@
-line-length = 110 # ideally I want this to be less than 100 but don't wanna test and change the sql stuff
+line-length = 100 # ideally I want this to be less than 100 but don't wanna test and change files with longer lines
 target-version = "py310"
 lint.select = [
     "E",   # pycodestyle errors

@@ -15,7 +15,12 @@ from utils import LeaderboardItem, SubmissionItem
 
 class LeaderboardDB:
     def __init__(
-        self, host: str, database: str, user: str, password: str, port: str = "5432"
+        self,
+        host: str,
+        database: str,
+        user: str,
+        password: str,
+        port: str = "5432"
     ):
         """Initialize database connection parameters"""
         self.connection_params = {
@@ -58,7 +63,10 @@ class LeaderboardDB:
         """Context manager exit"""
         self.disconnect()
 
-    def create_leaderboard(self, leaderboard: LeaderboardItem) -> Optional[None]:
+    def create_leaderboard(
+        self,
+        leaderboard: LeaderboardItem
+    ) -> Optional[None]:
         try:
             self.cursor.execute(
                 """
@@ -81,8 +89,10 @@ class LeaderboardDB:
         try:
             self.cursor.execute(
                 """
-                INSERT INTO leaderboard.submission (problem_id, name, user_id, code, submission_time, score)
-                VALUES ((SELECT id FROM leaderboard.problem WHERE name = %s), %s, %s, %s, %s, %s)
+                INSERT INTO leaderboard.submission (problem_id, name, user_id,
+                    code, submission_time, score)
+                VALUES ((SELECT id FROM leaderboard.problem WHERE name = %s),
+                    %s, %s, %s, %s, %s)
                 """,
                 (
                     submission["leaderboard_name"],
@@ -110,7 +120,11 @@ class LeaderboardDB:
 
     def get_leaderboard(self, leaderboard_name: str) -> int | None:
         self.cursor.execute(
-            "SELECT id, name, deadline, reference_code FROM leaderboard.problem WHERE name = %s",
+            """
+            SELECT id, name, deadline, reference_code
+            FROM leaderboard.problem
+            WHERE name = %s
+            """,
             (leaderboard_name,),
         )
 

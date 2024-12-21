@@ -318,7 +318,8 @@ class LeaderboardCog(commands.Cog):
                     if "duplicate key" in err:
                         await send_discord_message(
                             interaction,
-                            f'Error: Tried to create a leaderboard "{leaderboard_name}" that already exists.',
+                            'Error: Tried to create a leaderboard '
+                            f'"{leaderboard_name}" that already exists.',
                             ephemeral=True,
                         )
                     else:
