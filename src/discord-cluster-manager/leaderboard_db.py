@@ -70,7 +70,7 @@ class LeaderboardDB:
         try:
             self.cursor.execute(
                 """
-                INSERT INTO leaderboard.problem (name, deadline, reference_code)
+                INSERT INTO leaderboard.leaderboard (name, deadline, reference_code)
                 VALUES (%s, %s, %s)
                 """,
                 (
@@ -89,9 +89,10 @@ class LeaderboardDB:
         try:
             self.cursor.execute(
                 """
-                INSERT INTO leaderboard.submission (problem_id, name, user_id,
-                    code, submission_time, score)
-                VALUES ((SELECT id FROM leaderboard.problem WHERE name = %s),
+                INSERT INTO leaderboard.submission (leaderboard_id, name,
+                    user_id, code, submission_time, score)
+                VALUES (
+                    (SELECT id FROM leaderboard.leaderboard WHERE name = %s),
                     %s, %s, %s, %s, %s)
                 """,
                 (
@@ -110,7 +111,10 @@ class LeaderboardDB:
 
     def get_leaderboards(self) -> list[LeaderboardItem]:
         self.cursor.execute(
-            "SELECT id, name, deadline, reference_code FROM leaderboard.problem"
+            """
+            SELECT id, name, deadline, reference_code
+            FROM leaderboard.leaderboard
+            """
         )
 
         return [
@@ -122,7 +126,7 @@ class LeaderboardDB:
         self.cursor.execute(
             """
             SELECT id, name, deadline, reference_code
-            FROM leaderboard.problem
+            FROM leaderboard.leaderboard
             WHERE name = %s
             """,
             (leaderboard_name,),
@@ -144,9 +148,9 @@ class LeaderboardDB:
             """
             SELECT s.name, s.user_id, s.code, s.submission_time, s.score
             FROM leaderboard.submission s
-            JOIN leaderboard.problem p
-            ON s.problem_id = p.id
-            WHERE p.name = %s
+            JOIN leaderboard.leaderboard l
+            ON s.leaderboard_id = l.id
+            WHERE l.name = %s
             ORDER BY s.score ASC
             """,
             (leaderboard_name,),
