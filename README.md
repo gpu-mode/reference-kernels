@@ -21,7 +21,7 @@ Here is a visual walk-through of the steps (after clicking on the New Applicatio
 - The bot needs the `Message Content Intent` and `Server Members Intent` permissions turned on.
   <details>
     <summary>Click here for visual.</summary>
-    <img width="1440" alt="Screenshot 2024-11-24 at 10 44 46 AM" src="https://github.com/user-attachments/assets/7c873a9d-55b8-4aea-8c9a-9d2909405f03">
+    <img width="1440" alt="DCS_bot_perms" src="https://github.com/user-attachments/assets/31ee441a-f8a9-4a2f-89d1-fda171947bfd" />
   </details>
 
 - The bot also needs `applications.commands` and `bot` scopes.
