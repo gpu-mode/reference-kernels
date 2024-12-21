@@ -99,7 +99,7 @@ jobs:
         shell: bash
         run: |
           if [[ -n "${{ github.event.inputs.eval_content }}" ]]; then
-            if [[ "${{ github.event.inputs.eval_content }}" == *.cu ]]; then
+            if [[ "${{ github.event.inputs.eval_filename }}" == *.cu ]]; then
               echo "Compiling and running CUDA file..."
               nvcc "${{ github.event.inputs.eval_filename }}" -o cuda_program
               ./cuda_program > training.log 2>&1

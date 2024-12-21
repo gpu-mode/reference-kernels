@@ -39,9 +39,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         gpu_type="Choose the GPU type for Modal",
     )
     @app_commands.choices(
-        gpu_type=[
-            app_commands.Choice(name=gpu.value, value=gpu.value) for gpu in ModalGPU
-        ]
+        gpu_type=[app_commands.Choice(name=gpu.value, value=gpu.value) for gpu in ModalGPU]
     )
     async def submit_modal(
         self,
@@ -79,7 +77,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 f"Ran on Modal. Leaderboard '{leaderboard_name}'.\n"
                 + f"Submission title: {script.filename}.\n"
                 + f"Submission user: {interaction.user.id}.\n"
-                + f"Runtime: {score} ms",
+                + f"Runtime: {score:.9f} seconds.",
                 ephemeral=True,
             )
         except ValueError:
@@ -90,16 +88,12 @@ class LeaderboardSubmitCog(app_commands.Group):
             )
 
     ### GITHUB SUBCOMMAND
-    @app_commands.command(
-        name="github", description="Submit leaderboard data for GitHub"
-    )
+    @app_commands.command(name="github", description="Submit leaderboard data for GitHub")
     @app_commands.describe(
         gpu_type="Choose the GPU type for Github Runners",
     )
     @app_commands.choices(
-        gpu_type=[
-            app_commands.Choice(name=gpu.name, value=gpu.value) for gpu in GitHubGPU
-        ]
+        gpu_type=[app_commands.Choice(name=gpu.name, value=gpu.value) for gpu in GitHubGPU]
     )
     async def submit_github(
         self,
@@ -157,9 +151,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 print(f"Webhook not found: {e}")
                 await send_discord_message(interaction, "❌ The webhook was not found.")
 
-            message_contents = [
-                msg.content async for msg in github_thread.history(limit=None)
-            ]
+            message_contents = [msg.content async for msg in github_thread.history(limit=None)]
 
             # Compute eval or submission score, call runner here.
             # TODO: Make this more robust later
@@ -180,14 +172,17 @@ class LeaderboardSubmitCog(app_commands.Group):
                 if interaction.user.nick is None
                 else interaction.user.nick
             )
+
             await send_discord_message(
                 interaction,
                 "Successfully ran on GitHub runners!\n"
                 + f"Leaderboard '{leaderboard_name}'.\n"
                 + f"Submission title: {script.filename}.\n"
-                + f"Submission user: {user_id}\n"
-                + f"Runtime: {score} ms\n",
+                + f"Submission user: {user_id}.\n"
+                + f"Runtime: {score:.9f} seconds.",
+                ephemeral=True,
             )
+
         except ValueError:
             await send_discord_message(
                 interaction,
@@ -225,9 +220,7 @@ class GPUSelectionView(ui.View):
 class LeaderboardCog(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
-        self.get_leaderboards = bot.leaderboard_group.command(name="list")(
-            self.get_leaderboards
-        )
+        self.get_leaderboards = bot.leaderboard_group.command(name="list")(self.get_leaderboards)
         self.leaderboard_create = bot.leaderboard_group.command(
             name="create", description="Create a new leaderboard"
         )(self.leaderboard_create)
@@ -246,9 +239,7 @@ class LeaderboardCog(commands.Cog):
             leaderboards = db.get_leaderboards()
 
         if not leaderboards:
-            await send_discord_message(
-                interaction, "No leaderboards found.", ephemeral=True
-            )
+            await send_discord_message(interaction, "No leaderboards found.", ephemeral=True)
             return
 
         # Create embed
@@ -257,9 +248,7 @@ class LeaderboardCog(commands.Cog):
         # Add fields for each leaderboard
         for lb in leaderboards:
             deadline_str = lb["deadline"].strftime("%Y-%m-%d %H:%M")
-            embed.add_field(
-                name=lb["name"], value=f"Deadline: {deadline_str}", inline=False
-            )
+            embed.add_field(name=lb["name"], value=f"Deadline: {deadline_str}", inline=False)
 
         await interaction.followup.send(interaction, embed=embed)
 
@@ -318,7 +307,7 @@ class LeaderboardCog(commands.Cog):
                     if "duplicate key" in err:
                         await send_discord_message(
                             interaction,
-                            'Error: Tried to create a leaderboard '
+                            "Error: Tried to create a leaderboard "
                             f'"{leaderboard_name}" that already exists.',
                             ephemeral=True,
                         )
@@ -383,9 +372,7 @@ class LeaderboardCog(commands.Cog):
             )
 
             for submission in submissions:
-                user_id = await get_user_from_id(
-                    submission["user_id"], interaction, self.bot
-                )
+                user_id = await get_user_from_id(submission["user_id"], interaction, self.bot)
 
                 embed.add_field(
                     name=f"{user_id}: {submission['submission_name']}",
