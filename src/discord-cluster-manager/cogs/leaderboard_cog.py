@@ -250,7 +250,7 @@ class LeaderboardCog(commands.Cog):
             deadline_str = lb["deadline"].strftime("%Y-%m-%d %H:%M")
             embed.add_field(name=lb["name"], value=f"Deadline: {deadline_str}", inline=False)
 
-        await interaction.followup.send(interaction, embed=embed)
+        await interaction.followup.send("", embed=embed)
 
     @discord.app_commands.describe(
         leaderboard_name="Name of the leaderboard",
