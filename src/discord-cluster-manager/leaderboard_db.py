@@ -72,6 +72,7 @@ class LeaderboardDB:
                 """
                 INSERT INTO leaderboard.leaderboard (name, deadline, reference_code)
                 VALUES (%s, %s, %s)
+                RETURNING id
                 """,
                 (
                     leaderboard["name"],
@@ -79,6 +80,18 @@ class LeaderboardDB:
                     leaderboard["reference_code"],
                 ),
             )
+
+            leaderboard_id = self.cursor.fetchone()[0]
+
+            for gpu_type in leaderboard["gpu_types"]:
+                self.cursor.execute(
+                    """
+                    INSERT INTO leaderboard.gpu_type (leaderboard_id, gpu_type)
+                    VALUES (%s, %s)
+                    """,
+                    (leaderboard_id, gpu_type)
+                )
+
             self.connection.commit()
         except psycopg2.Error as e:
             self.connection.rollback()  # Ensure rollback if error occurs
