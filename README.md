@@ -6,13 +6,29 @@ The key idea is that we're using Github Actions as a job scheduling engine and p
 
 [Demo!](https://www.youtube.com/watch?v=-u7kX_vpLfk)
 
+## Table of Contents
+- [Supported Schedulers](#supported-schedulers)
+- [Local Development](#local-development)
+  - [Database](#database)
+  - [Environment Variables](#environment-variables)
+  - [How to Run the Bot](#how-to-run-the-bot)
+  - [Usage Instructions](#usage-instructions)
+- [Using the Leaderboard](#using-the-leaderboard)
+  - [Creating a New Leaderboard](#creating-a-new-leaderboard)
+    - [Reference Code Requirements](#reference-code-requirements)
+  - [Available Leaderboard Commands](#available-leaderboard-commands)
+  - [GPU Kernel-Specific Commands](#gpu-kernel-specific-commands)
+- [Testing the Discord Bot](#testing-the-discord-bot)
+- [How to Add a New GPU to the Cluster](#how-to-add-a-new-gpu-to-the-cluster)
+- [Acknowledgements](#acknowledgements)
+
 ## Supported schedulers
 
 * GitHub Actions
 * Modal
 * Slurm (not implemented yet)
 
-## How to run and develop the bot locally
+## Local Development
 
 To run and develop the bot locally, you need to add it to your own server. Follow the steps [here](https://discordjs.guide/preparations/setting-up-a-bot-application.html#creating-your-bot) and [here](https://discordjs.guide/preparations/adding-your-bot-to-servers.html#bot-invite-links) to create a bot application and then add it to your server.
 
@@ -144,7 +160,7 @@ Below is where to find these environment variables:
 * `/ping` to check if the bot is online
 
 
-## How to test the bot
+## Testing the Discord Bot
 
 Use the `/verifyruns` command to test basic functionality of the cluster bot. To check database connectivity, use the `/verifydb` command.
 
