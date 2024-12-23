@@ -1,4 +1,5 @@
 import random
+import textwrap
 from datetime import datetime
 
 import discord
@@ -244,11 +245,31 @@ class LeaderboardCog(commands.Cog):
 
         # Create embed
         embed = discord.Embed(title="Active Leaderboards", color=discord.Color.blue())
+        padding = " " * 4
+        header = f"{'Name':<20}{padding}{'Deadline':<10}{padding}{'GPU Types':<18}\n"
+        divider = "-" * 56  # Fixed discord bot length
+        rows = []
 
         # Add fields for each leaderboard
         for lb in leaderboards:
-            deadline_str = lb["deadline"].strftime("%Y-%m-%d %H:%M")
-            embed.add_field(name=lb["name"], value=f"Deadline: {deadline_str}", inline=False)
+            name_lines = textwrap.wrap(lb["name"], 20)
+            gpu_types_lines = textwrap.wrap(", ".join(lb["gpu_types"]), 18)
+
+            # Text wrapping logic for long names / multiple GPU displays
+            max_lines = max(len(name_lines), len(gpu_types_lines), 1)
+            deadline_str = lb["deadline"].strftime("%Y-%m-%d")
+
+            for i in range(max_lines):
+                name_part = name_lines[i] if i < len(name_lines) else ""
+                deadline_part = deadline_str if i == 0 else ""  # Deadline only on the first row
+                gpu_types_part = gpu_types_lines[i] if i < len(gpu_types_lines) else ""
+
+                rows.append(
+                    f"{name_part:<20}{padding}{deadline_part:<10}{padding}{gpu_types_part:<18}"
+                )
+
+        # Add the formatted text to the embed as a code block
+        embed.description = f"```\n{header}{divider}\n" + "\n".join(rows) + "\n```"
 
         await interaction.followup.send("", embed=embed)
 
