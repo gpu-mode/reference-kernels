@@ -132,10 +132,11 @@ class LeaderboardDB:
             self.cursor.execute(
                 """
                 INSERT INTO leaderboard.submission (leaderboard_id, name,
-                    user_id, code, submission_time, score)
+                    user_id, code, submission_time, score, gpu_type, stdout,
+                    profiler_output)
                 VALUES (
                     (SELECT id FROM leaderboard.leaderboard WHERE name = %s),
-                    %s, %s, %s, %s, %s)
+                    %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     submission["leaderboard_name"],
@@ -144,6 +145,9 @@ class LeaderboardDB:
                     submission["code"],
                     submission["submission_time"],
                     submission["submission_score"],
+                    submission["gpu_type"],
+                    submission.get("stdout", None),
+                    submission.get("profiler_output", None),
                 ),
             )
             self.connection.commit()
@@ -193,6 +197,7 @@ class LeaderboardDB:
         else:
             return None
 
+    # TODO: add GPU type
     def get_leaderboard_submissions(self, leaderboard_name: str) -> list[SubmissionItem]:
         self.cursor.execute(
             """

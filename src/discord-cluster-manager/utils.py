@@ -2,7 +2,7 @@ import datetime
 import logging
 import re
 import subprocess
-from typing import Any, List, TypedDict
+from typing import Any, List, NotRequired, TypedDict
 
 import discord
 
@@ -143,9 +143,6 @@ class SubmissionItem(TypedDict):
     leaderboard_name: str
     code: str
     user_id: int
-
-
-class ProfilingItem(TypedDict):
-    submission_name: str
-    ncu_output: str
-    stdout: str
+    gpu_type: str
+    stdout: NotRequired[str]
+    profiler_output: NotRequired[str]
