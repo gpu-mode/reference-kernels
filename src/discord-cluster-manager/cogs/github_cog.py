@@ -55,6 +55,7 @@ class GitHubCog(commands.Cog):
         try:
             script_content = (await script.read()).decode("utf-8")
             selected_gpu = GPUType.AMD if gpu_type.value == "amd" else GPUType.NVIDIA
+            filename = "train.py" if script.filename.endswith(".py") else "train.cu"
 
             if reference_script is not None or reference_code is not None:
                 reference_content = (
@@ -66,15 +67,13 @@ class GitHubCog(commands.Cog):
 
                 run_id = await self.trigger_github_action(
                     script_content,
-                    script.filename,
+                    filename,
                     selected_gpu,
                     reference_content,
                     eval_code,
                 )
             else:
-                run_id = await self.trigger_github_action(
-                    script_content, script.filename, selected_gpu
-                )
+                run_id = await self.trigger_github_action(script_content, filename, selected_gpu)
 
             if run_id:
                 await thread.send(
