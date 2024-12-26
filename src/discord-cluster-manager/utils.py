@@ -82,6 +82,43 @@ def extract_score(score_str: str) -> float:
         return None
 
 
+async def display_lb_submissions(interaction, bot, leaderboard_name: str, gpu: str):
+    """
+    Display leaderboard submissions for a particular GPU to discord.
+    Must be used as a follow-up currently.
+    """
+    with bot.leaderboard_db as db:
+        submissions = db.get_leaderboard_submissions(leaderboard_name, gpu)
+
+    if not interaction.response.is_done():
+        await interaction.response.defer()
+
+    if not submissions:
+        await send_discord_message(
+            interaction,
+            f'No submissions found for "{leaderboard_name}".',
+            ephemeral=True,
+        )
+        return
+
+    # Create embed
+    embed = discord.Embed(
+        title=f'Leaderboard Submissions for "{leaderboard_name}" on {gpu}',
+        color=discord.Color.blue(),
+    )
+
+    for submission in submissions:
+        user_id = await get_user_from_id(submission["user_id"], interaction, bot)
+
+        embed.add_field(
+            name=f"{user_id}: {submission['submission_name']}",
+            value=f"Submission speed: {submission['submission_score']}",
+            inline=False,
+        )
+
+    await interaction.followup.send(embed=embed)
+
+
 class LRUCache:
     def __init__(self, max_size: int):
         """LRU Cache implementation, as functools.lru doesn't work in async code

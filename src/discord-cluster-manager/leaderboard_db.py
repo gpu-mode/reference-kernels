@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 import discord
 import psycopg2
@@ -180,6 +180,27 @@ class LeaderboardDB:
 
         return leaderboards
 
+    def get_leaderboard_gpu_types(self, leaderboard_name: str) -> List[str] | None:
+        self.cursor.execute(
+            """
+            SELECT *
+            FROM leaderboard.gpu_type
+            WHERE leaderboard_id = (
+                SELECT id
+                FROM leaderboard.leaderboard
+                WHERE name = %s
+            )
+            """,
+            (leaderboard_name,),
+        )
+
+        gpu_types = [x[1] for x in self.cursor.fetchall()]
+
+        if gpu_types:
+            return gpu_types
+        else:
+            return None
+
     def get_leaderboard(self, leaderboard_name: str) -> int | None:
         self.cursor.execute(
             """
@@ -198,17 +219,20 @@ class LeaderboardDB:
             return None
 
     # TODO: add GPU type
-    def get_leaderboard_submissions(self, leaderboard_name: str) -> list[SubmissionItem]:
+    def get_leaderboard_submissions(
+        self, leaderboard_name: str, gpu_name: str
+    ) -> list[SubmissionItem]:
         self.cursor.execute(
             """
-            SELECT s.name, s.user_id, s.code, s.submission_time, s.score
+            SELECT s.name, s.user_id, s.code, s.submission_time, s.score,
+            s.gpu_type
             FROM leaderboard.submission s
             JOIN leaderboard.leaderboard l
             ON s.leaderboard_id = l.id
-            WHERE l.name = %s
+            WHERE l.name = %s AND s.gpu_type = %s
             ORDER BY s.score ASC
             """,
-            (leaderboard_name,),
+            (leaderboard_name, gpu_name),
         )
 
         return [
@@ -219,6 +243,7 @@ class LeaderboardDB:
                 code=submission[2],
                 submission_time=submission[3],
                 submission_score=submission[4],
+                gpu_type=gpu_name,
             )
             for submission in self.cursor.fetchall()
         ]
