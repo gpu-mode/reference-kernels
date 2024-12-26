@@ -11,6 +11,18 @@ from utils import extract_score, get_user_from_id, send_discord_message, setup_l
 logger = setup_logging()
 
 
+async def leaderboard_name_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    """Return leaderboard names that match the current typed name"""
+    bot = interaction.client
+    with bot.leaderboard_db as db:
+        leaderboards = db.get_leaderboards()
+    filtered = [lb["name"] for lb in leaderboards if current.lower() in lb["name"].lower()]
+    return [app_commands.Choice(name=name, value=name) for name in filtered[:25]]
+
+
 class LeaderboardSubmitCog(app_commands.Group):
     def __init__(
         self,
@@ -218,6 +230,42 @@ class GPUSelectionView(ui.View):
         self.stop()
 
 
+class DeleteConfirmationModal(ui.Modal, title="Confirm Deletion"):
+    def __init__(self, leaderboard_name: str, db):
+        super().__init__()
+        self.leaderboard_name = leaderboard_name
+        self.db = db
+        self.confirmation = ui.TextInput(
+            label=f"Type '{leaderboard_name}' to confirm deletion",
+            placeholder="Enter the leaderboard name",
+            required=True,
+        )
+        self.add_item(self.confirmation)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if self.confirmation.value == self.leaderboard_name:
+            with self.db as db:
+                err = db.delete_leaderboard(self.leaderboard_name)
+                if err:
+                    await send_discord_message(
+                        interaction,
+                        "An error occurred while deleting the leaderboard.",
+                        ephemeral=True,
+                    )
+                else:
+                    await send_discord_message(
+                        interaction,
+                        f"Leaderboard '{self.leaderboard_name}' deleted.",
+                        ephemeral=True,
+                    )
+        else:
+            await send_discord_message(
+                interaction,
+                "Deletion cancelled: The leaderboard name didn't match.",
+                ephemeral=True,
+            )
+
+
 class LeaderboardCog(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
@@ -231,6 +279,10 @@ class LeaderboardCog(commands.Cog):
         self.get_leaderboard_submissions = bot.leaderboard_group.command(
             name="show", description="Get all submissions for a leaderboard"
         )(self.get_leaderboard_submissions)
+
+        self.delete_leaderboard = bot.leaderboard_group.command(
+            name="delete", description="Delete a leaderboard"
+        )(self.delete_leaderboard)
 
     async def get_leaderboards(self, interaction: discord.Interaction):
         """Display all leaderboards in a table format"""
@@ -414,3 +466,12 @@ class LeaderboardCog(commands.Cog):
                 await send_discord_message(
                     interaction, "An unknown error occurred.", ephemeral=True
                 )
+
+    @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
+    @discord.app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
+    async def delete_leaderboard(self, interaction: discord.Interaction, leaderboard_name: str):
+        modal = DeleteConfirmationModal(
+            leaderboard_name,
+            self.bot.leaderboard_db
+        )
+        await interaction.response.send_modal(modal)

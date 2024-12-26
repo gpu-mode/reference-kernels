@@ -98,6 +98,21 @@ class LeaderboardDB:
             return f"Error during leaderboard creation: {e}"
         return None
 
+    def delete_leaderboard(self, leaderboard_name: str) -> Optional[str]:
+        try:
+            # TODO: wait for cascade to be implemented
+            self.cursor.execute(
+                """
+                DELETE FROM leaderboard.leaderboard WHERE name = %s
+                """,
+                (leaderboard_name,),
+            )
+            self.connection.commit()
+        except psycopg2.Error as e:
+            self.connection.rollback()
+            return f"Error during leaderboard deletion: {e}"
+        return None
+
     def create_submission(self, submission: SubmissionItem):
         try:
             self.cursor.execute(
