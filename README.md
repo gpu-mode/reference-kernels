@@ -15,9 +15,11 @@ The key idea is that we're using Github Actions as a job scheduling engine and p
   - [Usage Instructions](#usage-instructions)
 - [Using the Leaderboard](#using-the-leaderboard)
   - [Creating a New Leaderboard](#creating-a-new-leaderboard)
-    - [Reference Code Requirements](#reference-code-requirements)
-  - [Available Leaderboard Commands](#available-leaderboard-commands)
-  - [GPU Kernel-Specific Commands](#gpu-kernel-specific-commands)
+    - [Reference Code Requirements (Python)](#reference-code-requirements-python)
+    - [Reference Code Requirements (CUDA)](#reference-code-requirements-cuda)
+  - [Submitting to a Leaderboard](#submitting-to-a-leaderboard)
+  - [Other Available Leaderboard Commands](#other-available-leaderboard-commands)
+    - [GPU Kernel-Specific Commands](#gpu-kernel-specific-commands)
 - [Testing the Discord Bot](#testing-the-discord-bot)
 - [How to Add a New GPU to the Cluster](#how-to-add-a-new-gpu-to-the-cluster)
 - [Acknowledgements](#acknowledgements)
@@ -159,6 +161,93 @@ Below is where to find these environment variables:
 * `/resync` to clear all the commands and resync them
 * `/ping` to check if the bot is online
 
+
+## Using the Leaderboard
+
+The main purpose of the Discord bot is to allow servers to host coding competitions through Discord. 
+The leaderboard was designed for evaluating GPU kernels, but can be adapted easily for other
+competitions. The rest of this section will mostly refer to leaderboard submissions in the context
+of our GPU Kernel competition.
+
+
+> [!NOTE]
+> All leaderboard commands have the prefix `/leaderboard`, and center around creating, submitting to,
+> and viewing leaderboard statistics and information. 
+
+### Creating a new Leaderboard
+
+```
+/leaderboard create {name: str} {deadline: str} {reference_code: .cu or .py file}
+```
+
+The above command creates a leaderboard named `name` that ends at `deadline`. The `reference_code`
+has strict function signature requirements, and is required to contain an input generator and a
+reference implementation for the desired GPU kernel. We import these functions in our evaluation
+scripts for verifying leaderboard submissions and measuring runtime. In the next mini-section, we
+discuss the exact requirements for the `reference_code` script.
+
+Each leaderboard `name` can also specify the types of hardware that users can run their kernels on.
+For example, a softmax kernel on an RTX 4090 can have different performance characteristics on an
+H100. After running the leaderboard creation command, a prompt will pop up where the creator can
+specify the available GPUs that the leaderboard evaluates on.
+
+![Leaderboard GPU](assets/img/lb_gpu.png)
+
+#### Reference Code Requirements (Python)
+The Discord bot internally contains an `eval.py` script that handles the correctness and timing
+analysis for the leaderboard. The `reference_code` that the leaderboard creator submits must have
+the following function signatures with their implementations filled out:
+
+```python
+# Reference kernel implementation.
+def ref_kernel(input: torch.Tensor) -> torch.Tensor:
+    # Implement me...
+
+# Generate a list of tensors as input to the kernel
+def generate_input() -> List[torch.Tensor]:
+    # Implement me...
+```
+
+
+#### Reference Code Requirements (CUDA)
+TODO. This is currently a work in progress.
+
+### Submitting to a Leaderboard
+
+```
+/leaderboard submit {github / modal} {leaderboard_name: str} {script: .cu or .py file}
+```
+
+The leaderboard submission for *Python code* requires the following function signatures:
+```python
+# User kernel implementation.
+def custom_kernel(input: torch.Tensor) -> torch.Tensor:
+    # Implement me...
+```
+
+
+### Other Available Leaderboard Commands
+
+Deleting a leaderboard:
+```
+/leaderboard delete {name: str}
+```
+
+List all active leaderboards and which GPUs they can run on:
+```
+/leaderboard list
+```
+
+List all leaderboard scores (runtime) for a particular leaderboard. (currently deprecated. Doesn't
+support multiple GPU types yet)
+```
+/leaderboard show {name: str}
+```
+
+#### GPU Kernel-specific Commands
+We plan to add support for the PyTorch profiler and CUDA NSight Compute CLI to allow users to
+profile their kernels. These commands are not specific to the leaderboard, but may be helpful for
+leaderboard submissions.
 
 ## Testing the Discord Bot
 
