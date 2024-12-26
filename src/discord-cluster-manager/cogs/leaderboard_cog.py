@@ -6,21 +6,10 @@ import discord
 from consts import GitHubGPU, ModalGPU
 from discord import Interaction, SelectOption, app_commands, ui
 from discord.ext import commands
+from leaderboard_db import leaderboard_name_autocomplete
 from utils import extract_score, get_user_from_id, send_discord_message, setup_logging
 
 logger = setup_logging()
-
-
-async def leaderboard_name_autocomplete(
-    interaction: discord.Interaction,
-    current: str,
-) -> list[app_commands.Choice[str]]:
-    """Return leaderboard names that match the current typed name"""
-    bot = interaction.client
-    with bot.leaderboard_db as db:
-        leaderboards = db.get_leaderboards()
-    filtered = [lb["name"] for lb in leaderboards if current.lower() in lb["name"].lower()]
-    return [app_commands.Choice(name=name, value=name) for name in filtered[:25]]
 
 
 class LeaderboardSubmitCog(app_commands.Group):
@@ -37,6 +26,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         leaderboard_name="Name of the competition / kernel to optimize",
         script="The Python / CUDA script file to run",
     )
+    @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     # TODO: Modularize this so all the write functionality is in here. Haven't figured
     # a good way to do this yet.
     async def submit(
@@ -51,6 +41,7 @@ class LeaderboardSubmitCog(app_commands.Group):
     @app_commands.describe(
         gpu_type="Choose the GPU type for Modal",
     )
+    @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     @app_commands.choices(
         gpu_type=[app_commands.Choice(name=gpu.value, value=gpu.value) for gpu in ModalGPU]
     )
@@ -104,6 +95,7 @@ class LeaderboardSubmitCog(app_commands.Group):
 
     ### GITHUB SUBCOMMAND
     @app_commands.command(name="github", description="Submit leaderboard data for GitHub")
+    @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def submit_github(
         self,
         interaction: discord.Interaction,
@@ -423,6 +415,7 @@ class LeaderboardCog(commands.Cog):
             )
 
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
+    @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def get_leaderboard_submissions(
         self,
         interaction: discord.Interaction,

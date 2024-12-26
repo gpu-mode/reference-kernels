@@ -2,7 +2,7 @@ import datetime
 import logging
 import re
 import subprocess
-from typing import List, TypedDict
+from typing import Any, List, TypedDict
 
 import discord
 
@@ -80,6 +80,53 @@ def extract_score(score_str: str) -> float:
         return float(match.group(1))
     else:
         return None
+
+
+class LRUCache:
+    def __init__(self, max_size: int):
+        """LRU Cache implementation, as functools.lru doesn't work in async code
+        Note: Implementation uses list for convenience because cache is small, so
+        runtime complexity does not matter here.
+        Args:
+            max_size (int): Maximum size of the cache
+        """
+        self._cache = {}
+        self._max_size = max_size
+        self._q = []
+
+    def __getitem__(self, key: Any, default: Any = None) -> Any | None:
+        if key not in self._cache:
+            return default
+
+        self._q.remove(key)
+        self._q.append(key)
+        return self._cache[key]
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        if key in self._cache:
+            self._q.remove(key)
+            self._q.append(key)
+            self._cache[key] = value
+            return
+
+        if len(self._cache) >= self._max_size:
+            self._cache.pop(self._q.pop(0))
+
+        self._cache[key] = value
+        self._q.append(key)
+
+    def __contains__(self, key: Any) -> bool:
+        return key in self._cache
+
+    def __len__(self) -> int:
+        return len(self._cache)
+
+    def invalidate(self):
+        """Invalidate the cache, clearing all entries, should be called when updating the underlying
+        data in db
+        """
+        self._cache.clear()
+        self._q.clear()
 
 
 class LeaderboardItem(TypedDict):

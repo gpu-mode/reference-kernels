@@ -1,5 +1,6 @@
 from typing import Optional
 
+import discord
 import psycopg2
 from consts import (
     DATABASE_URL,
@@ -10,7 +11,28 @@ from consts import (
     POSTGRES_USER,
 )
 from psycopg2 import Error
-from utils import LeaderboardItem, SubmissionItem
+from utils import LeaderboardItem, LRUCache, SubmissionItem
+
+leaderboard_name_cache = LRUCache(max_size=512)
+
+
+async def leaderboard_name_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[discord.app_commands.Choice[str]]:
+    """Return leaderboard names that match the current typed name"""
+    cached_value = leaderboard_name_cache[current]
+    if cached_value is not None:
+        return cached_value
+
+    bot = interaction.client
+    with bot.leaderboard_db as db:
+        leaderboards = db.get_leaderboards()
+    filtered = [lb["name"] for lb in leaderboards if current.lower() in lb["name"].lower()]
+    leaderboard_name_cache[current] = [
+        discord.app_commands.Choice(name=name, value=name) for name in filtered[:25]
+    ]
+    return leaderboard_name_cache[current]
 
 
 class LeaderboardDB:
@@ -83,6 +105,7 @@ class LeaderboardDB:
                 )
 
             self.connection.commit()
+            leaderboard_name_cache.invalidate()  # Invalidate autocomplete cache
         except psycopg2.Error as e:
             self.connection.rollback()  # Ensure rollback if error occurs
             return f"Error during leaderboard creation: {e}"
@@ -98,6 +121,7 @@ class LeaderboardDB:
                 (leaderboard_name,),
             )
             self.connection.commit()
+            leaderboard_name_cache.invalidate()  # Invalidate autocomplete cache
         except psycopg2.Error as e:
             self.connection.rollback()
             return f"Error during leaderboard deletion: {e}"
