@@ -8,15 +8,14 @@ from utils import send_discord_message, setup_logging
 
 logger = setup_logging()
 
+
 class ModalCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
         self.run_modal = bot.run_group.command(
-            name="modal",
-            description="Run a script using Modal"
+            name="modal", description="Run a script using Modal"
         )(self.run_modal)
-
 
     @app_commands.describe(
         script="The Python script file to run", gpu_type="Choose the GPU type for Modal"
@@ -35,9 +34,7 @@ class ModalCog(commands.Cog):
         thread = None
         try:
             if not script.filename.endswith(".py") and not script.filename.endswith(".cu"):
-                await send_discord_message(
-                    "Please provide a Python (.py) or CUDA (.cu) file"
-                )
+                await send_discord_message("Please provide a Python (.py) or CUDA (.cu) file")
                 return None
 
             thread = await self.bot.create_thread(interaction, gpu_type.name, "Modal Job")
@@ -50,10 +47,12 @@ class ModalCog(commands.Cog):
 
             script_content = (await script.read()).decode("utf-8")
             status_msg = await thread.send(
-                "**Running on Modal...**\n> ⏳ Waiting for available GPU...")
+                "**Running on Modal...**\n> ⏳ Waiting for available GPU..."
+            )
 
             result, execution_time_ms = await self.trigger_modal_run(
-                script_content, script.filename)
+                script_content, script.filename
+            )
 
             # Update status message to show completion
             await status_msg.edit(content="**Running on Modal...**\n> ✅ Job completed!")
@@ -88,9 +87,11 @@ class ModalCog(commands.Cog):
                 with modal_app.run():
                     if filename.endswith(".py"):
                         from modal_runner import run_pytorch_script
+
                         result, execution_time_ms = run_pytorch_script.remote(script_content)
                     elif filename.endswith(".cu"):
                         from modal_runner import run_cuda_script
+
                         result, execution_time_ms = run_cuda_script.remote(script_content)
 
             return result, execution_time_ms

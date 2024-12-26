@@ -11,7 +11,7 @@ def flush_database():
     # Load environment variables
     load_dotenv()
 
-    DATABASE_URL = os.getenv('DATABASE_URL')
+    DATABASE_URL = os.getenv("DATABASE_URL")
 
     if DATABASE_URL is None:
         print("❌ Missing DATABASE_URL environment variable")
@@ -20,7 +20,7 @@ def flush_database():
     try:
         # Connect to database
         print("📡 Connecting to database...")
-        connection = psycopg2.connect(DATABASE_URL, sslmode='require')
+        connection = psycopg2.connect(DATABASE_URL, sslmode="require")
         cursor = connection.cursor()
 
         # Drop existing tables
@@ -43,10 +43,11 @@ def flush_database():
     except Error as e:
         print(f"❌ Database error: {e}")
     finally:
-        if 'connection' in locals():
+        if "connection" in locals():
             cursor.close()
             connection.close()
             print("🔌 Database connection closed")
+
 
 if __name__ == "__main__":
     flush_database()

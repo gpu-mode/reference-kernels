@@ -18,9 +18,7 @@ def create_mock_attachment():
     mock_attachment = AsyncMock(spec=discord.Attachment)
     mock_attachment.filename = "test_script.py"
     mock_attachment.content_type = "text/plain"
-    mock_attachment.read = AsyncMock(
-        return_value="print('Hello, world!')".encode("utf-8")
-    )
+    mock_attachment.read = AsyncMock(return_value="print('Hello, world!')".encode("utf-8"))
     return mock_attachment
 
 
@@ -47,13 +45,9 @@ class VerifyRunCog(commands.Cog):
         interaction: discord.Interaction,
     ) -> bool:
         github_command = github_cog.run_github
-        github_thread = await github_command.callback(
-            github_cog, interaction, script_file, choice
-        )
+        github_thread = await github_command.callback(github_cog, interaction, script_file, choice)
 
-        message_contents = [
-            msg.content async for msg in github_thread.history(limit=None)
-        ]
+        message_contents = [msg.content async for msg in github_thread.history(limit=None)]
 
         required_patterns = [
             "Processing `.*` with",
@@ -64,10 +58,7 @@ class VerifyRunCog(commands.Cog):
         ]
 
         all_patterns_found = all(
-            any(
-                re.search(pattern, content, re.DOTALL) is not None
-                for content in message_contents
-            )
+            any(re.search(pattern, content, re.DOTALL) is not None for content in message_contents)
             for pattern in required_patterns
         )
 
@@ -82,10 +73,7 @@ class VerifyRunCog(commands.Cog):
             missing_patterns = [
                 pattern
                 for pattern in required_patterns
-                if not any(
-                    re.search(pattern, content, re.DOTALL)
-                    for content in message_contents
-                )
+                if not any(re.search(pattern, content, re.DOTALL) for content in message_contents)
             ]
             await send_discord_message(
                 interaction,
@@ -94,19 +82,13 @@ class VerifyRunCog(commands.Cog):
             )
             return False
 
-    async def verify_modal_run(
-        self, modal_cog: ModalCog, interaction: discord.Interaction
-    ) -> bool:
+    async def verify_modal_run(self, modal_cog: ModalCog, interaction: discord.Interaction) -> bool:
         t4 = app_commands.Choice(name="NVIDIA T4", value="t4")
         modal_command = modal_cog.run_modal
 
-        modal_thread = await modal_command.callback(
-            modal_cog, interaction, script_file, t4
-        )
+        modal_thread = await modal_command.callback(modal_cog, interaction, script_file, t4)
 
-        message_contents = [
-            msg.content async for msg in modal_thread.history(limit=None)
-        ]
+        message_contents = [msg.content async for msg in modal_thread.history(limit=None)]
 
         required_patterns = [
             "Processing `.*` with",
@@ -115,10 +97,7 @@ class VerifyRunCog(commands.Cog):
         ]
 
         all_patterns_found = all(
-            any(
-                re.search(pattern, content, re.DOTALL) is not None
-                for content in message_contents
-            )
+            any(re.search(pattern, content, re.DOTALL) is not None for content in message_contents)
             for pattern in required_patterns
         )
 
@@ -132,10 +111,7 @@ class VerifyRunCog(commands.Cog):
             missing_patterns = [
                 pattern
                 for pattern in required_patterns
-                if not any(
-                    re.search(pattern, content, re.DOTALL)
-                    for content in message_contents
-                )
+                if not any(re.search(pattern, content, re.DOTALL) for content in message_contents)
             ]
             await send_discord_message(
                 interaction,

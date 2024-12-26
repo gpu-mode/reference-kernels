@@ -76,14 +76,16 @@ class LeaderboardSubmitCog(app_commands.Group):
             score = random.random()
 
             with self.bot.leaderboard_db as db:
-                db.create_submission({
-                    "submission_name": script.filename,
-                    "submission_time": datetime.now(),
-                    "leaderboard_name": leaderboard_name,
-                    "code": submission_content,
-                    "user_id": interaction.user.id,
-                    "submission_score": score,
-                })
+                db.create_submission(
+                    {
+                        "submission_name": script.filename,
+                        "submission_time": datetime.now(),
+                        "leaderboard_name": leaderboard_name,
+                        "code": submission_content,
+                        "user_id": interaction.user.id,
+                        "submission_score": score,
+                    }
+                )
 
             await send_discord_message(
                 interaction,
@@ -163,7 +165,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     script,
                     app_commands.Choice(
                         name="NVIDIA", value="nvidia"
-                    ), # TODO: Change this to multiple GPUs
+                    ),  # TODO: Change this to multiple GPUs
                     reference_code=reference_code,
                 )
             except discord.errors.NotFound as e:
@@ -177,14 +179,16 @@ class LeaderboardSubmitCog(app_commands.Group):
             score = extract_score("".join(message_contents))
 
             with self.bot.leaderboard_db as db:
-                db.create_submission({
-                    "submission_name": script.filename,
-                    "submission_time": datetime.now(),
-                    "leaderboard_name": leaderboard_name,
-                    "code": submission_content,
-                    "user_id": interaction.user.id,
-                    "submission_score": score,
-                })
+                db.create_submission(
+                    {
+                        "submission_name": script.filename,
+                        "submission_time": datetime.now(),
+                        "leaderboard_name": leaderboard_name,
+                        "code": submission_content,
+                        "user_id": interaction.user.id,
+                        "submission_score": score,
+                    }
+                )
 
             user_id = (
                 interaction.user.global_name
@@ -375,12 +379,14 @@ class LeaderboardCog(commands.Cog):
             template_content = await reference_code.read()
 
             with self.bot.leaderboard_db as db:
-                err = db.create_leaderboard({
-                    "name": leaderboard_name,
-                    "deadline": date_value,
-                    "reference_code": template_content.decode("utf-8"),
-                    "gpu_types": view.selected_gpus,
-                })
+                err = db.create_leaderboard(
+                    {
+                        "name": leaderboard_name,
+                        "deadline": date_value,
+                        "reference_code": template_content.decode("utf-8"),
+                        "gpu_types": view.selected_gpus,
+                    }
+                )
 
                 if err:
                     if "duplicate key" in err:

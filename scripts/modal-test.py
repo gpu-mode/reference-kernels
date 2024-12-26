@@ -12,10 +12,9 @@ import modal
 # Modal app setup
 modal_app = modal.App("discord-bot-runner")
 
+
 @modal_app.function(
-    gpu="T4",
-    image=modal.Image.debian_slim(python_version="3.12")
-        .pip_install(["torch"])
+    gpu="T4", image=modal.Image.debian_slim(python_version="3.12").pip_install(["torch"])
 )
 async def run_pytorch_script_on_modal():
     """
@@ -35,10 +34,11 @@ print(b)
 print(a + b)
 """
         # Execute the script content directly
-        exec(main_script, {'__name__': '__main__'})
+        exec(main_script, {"__name__": "__main__"})
         return "Script executed successfully"
     except Exception as e:
         return f"Error executing script: {str(e)}"
+
 
 # Run the function
 if __name__ == "__main__":

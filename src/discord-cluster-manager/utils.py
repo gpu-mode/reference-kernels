@@ -60,9 +60,7 @@ async def get_user_from_id(id, interaction, bot):
             return id
 
 
-async def send_discord_message(
-    interaction: discord.Interaction, msg: str, **kwargs
-) -> None:
+async def send_discord_message(interaction: discord.Interaction, msg: str, **kwargs) -> None:
     """
     To get around response messages in slash commands that are
     called externally, send a message using the followup.

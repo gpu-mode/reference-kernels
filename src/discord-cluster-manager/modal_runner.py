@@ -31,10 +31,7 @@ def timeout(seconds: int):
         signal.signal(signal.SIGALRM, original_handler)
 
 
-@modal_app.function(
-    gpu="T4",
-    image=Image.debian_slim(python_version="3.10").pip_install(["torch"])
-)
+@modal_app.function(gpu="T4", image=Image.debian_slim(python_version="3.10").pip_install(["torch"]))
 def run_pytorch_script(script_content: str, timeout_seconds: int = 300) -> tuple[str, float]:
     """
     Executes the provided PyTorch GPU kernel in an isolated environment with a timeout
@@ -82,9 +79,7 @@ def run_pytorch_script(script_content: str, timeout_seconds: int = 300) -> tuple
 
 @modal_app.function(
     gpu="T4",
-    image=Image.from_registry(
-        "nvidia/cuda:12.6.0-devel-ubuntu24.04", add_python="3.11"
-    ),
+    image=Image.from_registry("nvidia/cuda:12.6.0-devel-ubuntu24.04", add_python="3.11"),
 )
 def run_cuda_script(script_content: str, timeout_seconds: int = 600) -> tuple[str, float]:
     """
@@ -126,9 +121,7 @@ def run_cuda_script(script_content: str, timeout_seconds: int = 600) -> tuple[st
             if compile_process.returncode != 0:
                 return f"Compilation Error:\n{compile_process.stderr}", 0.0
 
-            run_process = subprocess.run(
-                ["./script.out"], capture_output=True, text=True
-            )
+            run_process = subprocess.run(["./script.out"], capture_output=True, text=True)
             execution_end_time = time.perf_counter()
 
             execution_time_sec = execution_end_time - execution_start_time

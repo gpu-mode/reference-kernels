@@ -8,10 +8,10 @@ another migration.
 
 from yoyo import step
 
-__depends__ = {'20241208_01_p3yuR-initial-leaderboard-schema'}
+__depends__ = {"20241208_01_p3yuR-initial-leaderboard-schema"}
 
 steps = [
     step("DROP TABLE IF EXISTS public.leaderboard CASCADE"),
     step("DROP TABLE IF EXISTS public.submissions CASCADE"),
-    step("DROP TABLE IF EXISTS public.runinfo CASCADE")
+    step("DROP TABLE IF EXISTS public.runinfo CASCADE"),
 ]

@@ -9,7 +9,6 @@ __depends__ = {}
 
 steps = [
     step("CREATE SCHEMA leaderboard"),
-
     step("""
          CREATE TABLE IF NOT EXISTS leaderboard.problem (
              id SERIAL PRIMARY KEY,
@@ -18,7 +17,6 @@ steps = [
              reference_code TEXT NOT NULL
          )
          """),
-
     step("""
          CREATE TABLE IF NOT EXISTS leaderboard.submission (
              id SERIAL PRIMARY KEY,
@@ -30,9 +28,7 @@ steps = [
              score NUMERIC NOT NULL
          )
          """),
-
     step("CREATE INDEX ON leaderboard.submission (problem_id)"),
-
     step("""
          CREATE TABLE IF NOT EXISTS leaderboard.runinfo (
              id SERIAL PRIMARY KEY,
@@ -41,6 +37,5 @@ steps = [
              ncu_output TEXT
          )
          """),
-
-    step("CREATE INDEX ON leaderboard.runinfo (submission_id)")
+    step("CREATE INDEX ON leaderboard.runinfo (submission_id)"),
 ]

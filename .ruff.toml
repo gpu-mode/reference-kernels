@@ -1,5 +1,5 @@
 line-length = 100 # ideally I want this to be less than 100 but don't wanna test and change files with longer lines
-target-version = "py310"
+target-version = "py313"
 lint.select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes

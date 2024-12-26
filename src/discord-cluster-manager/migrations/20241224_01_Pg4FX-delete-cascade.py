@@ -5,7 +5,7 @@ cascade'.
 
 from yoyo import step
 
-__depends__ = {'20241222_01_ELxU5-add-gpu-types'}
+__depends__ = {"20241222_01_ELxU5-add-gpu-types"}
 
 steps = [
     # submission table
@@ -24,7 +24,6 @@ steps = [
         ON DELETE CASCADE
         """
     ),
-
     # runinfo table
     step(
         """
@@ -41,7 +40,6 @@ steps = [
         ON DELETE CASCADE
         """
     ),
-
     # gpu_type table
     step(
         """

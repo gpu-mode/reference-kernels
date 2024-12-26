@@ -102,9 +102,7 @@ class ClusterBot(commands.Bot):
         )
         return thread
 
-    async def send_chunked_message(
-        self, channel, content: str, code_block: bool = True
-    ):
+    async def send_chunked_message(self, channel, content: str, code_block: bool = True):
         """
         Send a long message in chunks to avoid Discord's message length limit
 
@@ -114,15 +112,11 @@ class ClusterBot(commands.Bot):
             code_block: Whether to wrap the content in code blocks
         """
         chunk_size = 1900  # Leave room for code block syntax
-        chunks = [
-            content[i : i + chunk_size] for i in range(0, len(content), chunk_size)
-        ]
+        chunks = [content[i : i + chunk_size] for i in range(0, len(content), chunk_size)]
 
         for i, chunk in enumerate(chunks):
             if code_block:
-                await channel.send(
-                    f"```\nOutput (part {i + 1}/{len(chunks)}):\n{chunk}\n```"
-                )
+                await channel.send(f"```\nOutput (part {i + 1}/{len(chunks)}):\n{chunk}\n```")
             else:
                 await channel.send(chunk)
 
@@ -131,9 +125,7 @@ def main():
     init_environment()
 
     parser = argparse.ArgumentParser(description="Run the Discord Cluster Bot")
-    parser.add_argument(
-        "--debug", action="store_true", help="Run in debug/staging mode"
-    )
+    parser.add_argument("--debug", action="store_true", help="Run in debug/staging mode")
     args = parser.parse_args()
 
     logger.info("Starting bot...")

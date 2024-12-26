@@ -29,8 +29,7 @@ class BotManagerCog(commands.Cog):
                 commands = await self.bot.tree.fetch_commands(guild=interaction.guild)
                 send_discord_message(
                     interaction,
-                    "Resynced commands:\n"
-                    + "\n".join([f"- /{cmd.name}" for cmd in commands]),
+                    "Resynced commands:\n" + "\n".join([f"- /{cmd.name}" for cmd in commands]),
                 )
             except Exception as e:
                 logger.error(f"Error in resync command: {str(e)}", exc_info=True)
