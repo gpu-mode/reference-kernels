@@ -102,18 +102,11 @@ class LeaderboardSubmitCog(app_commands.Group):
 
     ### GITHUB SUBCOMMAND
     @app_commands.command(name="github", description="Submit leaderboard data for GitHub")
-    @app_commands.describe(
-        gpu_type="Choose the GPU type for Github Runners",
-    )
-    @app_commands.choices(
-        gpu_type=[app_commands.Choice(name=gpu.name, value=gpu.value) for gpu in GitHubGPU]
-    )
     async def submit_github(
         self,
         interaction: discord.Interaction,
         leaderboard_name: str,
         script: discord.Attachment,
-        gpu_type: app_commands.Choice[str],
     ):
         # Read the template file
         submission_content = await script.read()
@@ -151,13 +144,26 @@ class LeaderboardSubmitCog(app_commands.Group):
                 await send_discord_message(interaction, "❌ Required cogs not found!")
                 return
 
+            view = GPUSelectionView([gpu.name for gpu in GitHubGPU])
+
+            await send_discord_message(
+                interaction,
+                f"Please select GPUs to submit to for leaderboard: {leaderboard_name}.",
+                view=view,
+                ephemeral=True,
+            )
+
+            await view.wait()
+
             github_command = github_cog.run_github
             try:
                 github_thread = await github_command.callback(
                     github_cog,
                     interaction,
                     script,
-                    gpu_type,
+                    app_commands.Choice(
+                        name="NVIDIA", value="nvidia"
+                    ), # TODO: Change this to multiple GPUs
                     reference_code=reference_code,
                 )
             except discord.errors.NotFound as e:
@@ -470,8 +476,5 @@ class LeaderboardCog(commands.Cog):
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
     @discord.app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def delete_leaderboard(self, interaction: discord.Interaction, leaderboard_name: str):
-        modal = DeleteConfirmationModal(
-            leaderboard_name,
-            self.bot.leaderboard_db
-        )
+        modal = DeleteConfirmationModal(leaderboard_name, self.bot.leaderboard_db)
         await interaction.response.send_modal(modal)
