@@ -122,7 +122,8 @@ class GitHubCog(commands.Cog):
 
             if reference_content is not None:
                 eval_filename = "eval.py" if filename.endswith(".py") else "eval.cu"
-                reference_filename = "reference.py" if filename.endswith(".py") else "reference.cu"
+                reference_filename = "reference.py" if filename.endswith(".py") else "reference.cuh"
+                filename = "train.py" if filename.endswith(".py") else "train.cuh"
                 success = workflow.create_dispatch(
                     get_github_branch_name(),
                     {

@@ -62,5 +62,53 @@ if __name__ == '__main__':
 """
 
 cu_eval = """
+#include <chrono>
+#include <iostream>
+
+#include "reference.cuh"
+#include "train.cuh"
+
+#define WARMUP_RUNS 10
+#define TIMED_RUNS 100
+
+
+float measure_runtime() {
+    std::cout << "warming up..." << std::endl;
+
+    for (int i = 0; i < WARMUP_RUNS; i++) {
+        auto data = generate_input();
+        submission(data);
+    }
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    for (int i = 0; i < TIMED_RUNS; i++) {
+        auto data = generate_input();
+        submission(data);
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    using double_duration = std::chrono::duration<double>;
+    auto duration = std::chrono::duration_cast<double_duration>(end - start).count() / TIMED_RUNS;
+    std::cout << "submitted kernel runtime: " << duration << " seconds" << std::endl;
+    return duration;
+}
+
+int main() {
+    auto data = generate_input();
+    auto reference_output = reference(data);
+    auto submission_output = submission(data);
+
+    if (!check_implementation(submission_output, reference_output)) {
+        std::cout << "check_implementation failed" << std::endl;
+        return 1;
+    }
+
+    float s = measure_runtime();
+    std::cout << "score: " << s << std::endl;
+
+    return 0;
+}
 
 """
