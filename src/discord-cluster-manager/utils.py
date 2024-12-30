@@ -116,7 +116,7 @@ async def display_lb_submissions(interaction, bot, leaderboard_name: str, gpu: s
             inline=False,
         )
 
-    await interaction.followup.send(embed=embed)
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 class LRUCache:
