@@ -2,17 +2,20 @@
 
 This is the code for the Discord bot we'll be using to queue jobs to a cluster of GPUs that our generous sponsors have provided. Our goal is to be able to queue kernels that can run end to end in seconds that way things feel interactive and social.
 
-The key idea is that we're using Github Actions as a job scheduling engine and primarily making the Discord bot interact with the cluster via issuing Github Actions and and monitoring their status and while we're focused on having a nice user experience on discord.gg/gpumode, we're happy to accept PRs that make it easier for other Discord communities to hook GPUs.
+The key idea is that we're using Github Actions as a job scheduling engine and primarily making the Discord bot interact with the cluster via issuing Github Actions and and monitoring their status and while we're focused on having a nice user experience on discord.gg/gpumode, [we're happy to accept PRs](#local-development) that make it easier for other Discord communities to hook GPUs.
 
 [Demo!](https://www.youtube.com/watch?v=-u7kX_vpLfk)
 
 ## Table of Contents
+
 - [Supported Schedulers](#supported-schedulers)
 - [Local Development](#local-development)
+  - [Clone Repository](#clone-repository)
+  - [Discord Bot](#discord-bot)
   - [Database](#database)
   - [Environment Variables](#environment-variables)
-  - [How to Run the Bot](#how-to-run-the-bot)
-  - [Usage Instructions](#usage-instructions)
+  - [Verify Setup](#verify-setup)
+- [Available Commands](#available-commands)
 - [Using the Leaderboard](#using-the-leaderboard)
   - [Creating a New Leaderboard](#creating-a-new-leaderboard)
     - [Reference Code Requirements (Python)](#reference-code-requirements-python)
@@ -26,15 +29,27 @@ The key idea is that we're using Github Actions as a job scheduling engine and p
 
 ## Supported schedulers
 
-* GitHub Actions
-* Modal
-* Slurm (not implemented yet)
+- GitHub Actions
+- Modal
+- Slurm (not implemented yet)
 
 ## Local Development
 
-To run and develop the bot locally, you need to add it to your own server. Follow the steps [here](https://discordjs.guide/preparations/setting-up-a-bot-application.html#creating-your-bot) and [here](https://discordjs.guide/preparations/adding-your-bot-to-servers.html#bot-invite-links) to create a bot application and then add it to your server.
+### Clone Repository
 
-Here is a visual walk-through of the steps (after clicking on the New Application button):
+> [!IMPORTANT]
+> Do not fork this repository. Instead, directly clone this repository to your local machine.
+
+> [!IMPORTANT]
+> Python 3.11 or higher is required.
+
+After, install the dependencies with `pip install -r requirements.txt`.
+
+### Setup Discord Bot
+
+To run and develop the bot locally, you need to add it to your own "staging" server. Follow the steps [here](https://discordjs.guide/preparations/setting-up-a-bot-application.html#creating-your-bot) and [here](https://discordjs.guide/preparations/adding-your-bot-to-servers.html#bot-invite-links) to create a bot application and then add it to your staging server.
+
+Below is a visual walk-through of the steps linked above:
 
 - The bot needs the `Message Content Intent` and `Server Members Intent` permissions turned on.
   <details>
@@ -42,24 +57,22 @@ Here is a visual walk-through of the steps (after clicking on the New Applicatio
     <img width="1440" alt="DCS_bot_perms" src="https://github.com/user-attachments/assets/31ee441a-f8a9-4a2f-89d1-fda171947bfd" />
   </details>
 
-- The bot also needs `applications.commands` and `bot` scopes.
+- The bot needs `applications.commands` and `bot` scopes.
 
   <details>
       <summary>Click here for visual.</summary>
     <img width="1440" alt="Screenshot 2024-11-24 at 12 34 09 PM" src="https://github.com/user-attachments/assets/31302214-1d5a-416a-b7b4-93a44442be51">
   </details>
 
-- The bot also needs to permissions to read and write messages which is easy to setup if you click on [this link](https://discord.com/api/oauth2/authorize?client_id=1303135152091697183&permissions=68608&scope=bot%20applications.commands). 
-Finally, generate an invite link for the bot and enter it into any browser.
+- Finally, generate an invite link for the bot and enter it into any browser.
 
   <details>
       <summary>Click here for visual.</summary>
       <img width="1440" alt="Screenshot 2024-11-24 at 12 44 08 PM" src="https://github.com/user-attachments/assets/54c34b6b-c944-4ce7-96dd-e40cfe79ffb3">
   </details>
 
-
 > [!NOTE]
-> Bot permissions involving threads/mentions/messages should suffice, but you can naively give it `Administrator` since it's just a test bot in your own testing Discord server.  
+> Bot permissions involving threads/mentions/messages should suffice, but you can naively give it `Administrator` since it's just a test bot in your own testing Discord server.
 
 ### Database
 
@@ -96,6 +109,7 @@ yoyo apply src/discord-cluster-manager/migrations \
     This is saved in plain text and contains your database password.
 
     Answering 'y' means you do not have to specify the migration source or database connection for future runs [yn]: n
+
   </details>
 
 Applying migrations to our staging and prod environments also happens using `yoyo apply`, just with a different database URL.
@@ -109,6 +123,7 @@ yoyo new src/discord-cluster-manager/migrations -m "short_description"
 ...and then edit the generated file. Please do not edit existing migration files: the existing migration files form a sort of changelog that is supposed to be immutable, and so yoyo will refuse to reapply the changes.
 
 We are following an expand/migrate/contract pattern to allow database migrations without downtime. When you want to make a change to the structure of the database, first determine if it is expansive or contractive.
+
 - _Expansive changes_ are those that have no possibility of breaking a running application. Examples include: adding a new nullable column, adding a non-null column with a default value, adding an index, adding a table, etc.
 - _Contractive changes_ are those that could break a running application. Examples include: dropping a table, dropping a column, adding a not null constraint to a column, adding a unique index, etc.
 
@@ -117,62 +132,80 @@ After an expansive phase, data gets migrated to the newly added elements. Code a
 Expand, migrate, and contract steps may all be written using yoyo.
 
 ### Environment Variables
-After this, you should be able to create a `.env` file with the following environment variables:
+
+Create a `.env` file with the following environment variables:
 
 - `DISCORD_DEBUG_TOKEN` : The token of the bot you want to run locally
-- `DISCORD_DEBUG_CLUSTER_STAGING_ID` : The ID of the staging server you want to connect to
+- `DISCORD_TOKEN` : The token of the bot you want to run in production
+- `DISCORD_DEBUG_CLUSTER_STAGING_ID` : The ID of the "staging" server you want to connect to
+- `DISCORD_CLUSTER_STAGING_ID` : The ID of the "production" server you want to connect to
 - `GITHUB_TOKEN` : A Github token with permissions to trigger workflows, for now only new branches from [discord-cluster-manager](https://github.com/gpu-mode/discord-cluster-manager) are tested, since the bot triggers workflows on your behalf
 - `DATABASE_URL` : The URL you use to connect to Postgres.
 
 Below is where to find these environment variables:
-- **`DISCORD_DEBUG_TOKEN` or `DISCORD_TOKEN`**: Found in your bot's page within the [Discord Developer Portal](https://discord.com/developers/applications/):
+
+> [!NOTE]
+> For now, you can naively set `DISCORD_DEBUG_TOKEN` and `DISCORD_DEBUG_CLUSTER_STAGING_ID` to the same values as `DISCORD_TOKEN` and `DISCORD_CLUSTER_STAGING_ID` respectively.
+
+- `DISCORD_DEBUG_TOKEN` or `DISCORD_TOKEN`: Found in your bot's page within the [Discord Developer Portal](https://discord.com/developers/applications/):
 
   <details>
       <summary>Click here for visual.</summary>
       <img width="1440" alt="Screenshot 2024-11-24 at 11 01 19 AM" src="https://github.com/user-attachments/assets/b98bb4e0-8489-4441-83fb-256053aac34d">
   </details>
-  
-- **`DISCORD_DEBUG_CLUSTER_STAGING_ID` or `DISCORD_CLUSTER_STAGING_ID`**: Right-click your staging Discord server and select `Copy Server ID`:
+
+- `DISCORD_DEBUG_CLUSTER_STAGING_ID` or `DISCORD_CLUSTER_STAGING_ID`: Right-click your staging Discord server and select `Copy Server ID`:
 
   <details>
       <summary>Click here for visual.</summary>
   <img width="1440" alt="Screenshot 2024-11-24 at 10 58 27 AM" src="https://github.com/user-attachments/assets/0754438c-59ef-4db2-bcaa-c96106c16756">
   </details>
-  
-- **`GITHUB_TOKEN`**: Found in Settings -> Developer Settings (or [here](https://github.com/settings/tokens?type=beta)).
 
-- **`DATABASE_URL`**: This contains the connection details for your local database, and has the form `postgresql://user:password@localhost/clusterdev`.
+- `GITHUB_TOKEN`: Found in Settings -> Developer Settings (or [here](https://github.com/settings/tokens?type=beta)). Create a new (preferably classic) personal access token with an expiration date to any day less than a year from the current date, and the scopes `repo` and `workflow`.
 
-### How to run the bot
+  <details>
+      <summary>Click here for visual.</summary>
+      <img width="1440" alt="Screenshot 2024-12-30 at 8 51 59 AM" src="https://github.com/user-attachments/assets/e3467871-bd2c-4f94-b0c5-c8a6ef5ce89e">
+  </details>
 
-1. Install dependencies with `pip install -r requirements.txt`
-2. Create a `.env` file with the environment variables listed above
-3. `python src/discord-cluster-manager/bot.py --debug`
+- `DATABASE_URL`: This contains the connection details for your local database, and has the form `postgresql://user:password@localhost/clusterdev`.
 
-### Usage instructions
+### Verify Setup
+
+Run the following command to run the bot:
+
+```
+python src/discord-cluster-manager/bot.py --debug
+```
+
+Then in your staging server, use the `/verifyruns` command to test basic functionalities of the bot and the `/verifydb` command to check database connectivity.
 
 > [!NOTE]
 > To test functionality of the Modal runner, you also need to be authenticated with Modal. Modal provides free credits to get started.
-> 
-> To test functionality of the GitHub runner, you may need direct access to this repo.
+> To test functionality of the GitHub runner, you may need direct access to this repo which you can ping us for.
 
-* `/run modal <gpu_type>` which you can use to pick a specific gpu, right now defaults to T4
-* `/run github <NVIDIA/AMD>` which picks one of two workflow files 
-* `/resync` to clear all the commands and resync them
-* `/ping` to check if the bot is online
+## Available Commands
 
+TODO. This is currently a work in progress.
+
+`/run modal <gpu_type>` which you can use to pick a specific gpu, right now defaults to T4
+
+`/run github <NVIDIA/AMD>` which picks one of two workflow files
+
+`/resync` to clear all the commands and resync them
+
+`/ping` to check if the bot is online
 
 ## Using the Leaderboard
 
-The main purpose of the Discord bot is to allow servers to host coding competitions through Discord. 
+The main purpose of the Discord bot is to allow servers to host coding competitions through Discord.
 The leaderboard was designed for evaluating GPU kernels, but can be adapted easily for other
 competitions. The rest of this section will mostly refer to leaderboard submissions in the context
 of our GPU Kernel competition.
 
-
 > [!NOTE]
 > All leaderboard commands have the prefix `/leaderboard`, and center around creating, submitting to,
-> and viewing leaderboard statistics and information. 
+> and viewing leaderboard statistics and information.
 
 ### Creating a new Leaderboard
 
@@ -194,6 +227,7 @@ specify the available GPUs that the leaderboard evaluates on.
 ![Leaderboard GPU](assets/img/lb_gpu.png)
 
 #### Reference Code Requirements (Python)
+
 The Discord bot internally contains an `eval.py` script that handles the correctness and timing
 analysis for the leaderboard. The `reference_code` that the leaderboard creator submits must have
 the following function signatures with their implementations filled out:
@@ -208,8 +242,8 @@ def generate_input() -> List[torch.Tensor]:
     # Implement me...
 ```
 
-
 #### Reference Code Requirements (CUDA)
+
 TODO. This is currently a work in progress.
 
 ### Submitting to a Leaderboard
@@ -218,49 +252,40 @@ TODO. This is currently a work in progress.
 /leaderboard submit {github / modal} {leaderboard_name: str} {script: .cu or .py file}
 ```
 
-The leaderboard submission for *Python code* requires the following function signatures:
+The leaderboard submission for _Python code_ requires the following function signatures:
+
 ```python
 # User kernel implementation.
 def custom_kernel(input: torch.Tensor) -> torch.Tensor:
     # Implement me...
 ```
 
-
 ### Other Available Leaderboard Commands
 
 Deleting a leaderboard:
+
 ```
 /leaderboard delete {name: str}
 ```
 
 List all active leaderboards and which GPUs they can run on:
+
 ```
 /leaderboard list
 ```
 
 List all leaderboard scores (runtime) for a particular leaderboard. (currently deprecated. Doesn't
 support multiple GPU types yet)
+
 ```
 /leaderboard show {name: str}
 ```
 
 #### GPU Kernel-specific Commands
+
 We plan to add support for the PyTorch profiler and CUDA NSight Compute CLI to allow users to
 profile their kernels. These commands are not specific to the leaderboard, but may be helpful for
 leaderboard submissions.
-
-## Testing the Discord Bot
-
-Use the `/verifyruns` command to test basic functionality of the cluster bot. To check database connectivity, use the `/verifydb` command.
-
-[!IMPORTANT]
-You need to have multiple environment variables set to run the bot on your own server:
-
-You can run the bot in two modes:
-- Production mode: `python discord-bot.py`
-- Debug/staging mode: `python discord-bot.py --debug`
-
-When running in debug mode, the bot will use your `DISCORD_DEBUG_TOKEN` and `DISCORD_DEBUG_CLUSTER_STAGING_ID` and display as "Cluster Bot (Staging)" to clearly indicate it's not the production instance.
 
 ## How to add a new GPU to the cluster
 
@@ -268,9 +293,9 @@ If you'd like to donate a GPU to our efforts, we can make you a CI admin in Gith
 
 ## Acknowledgements
 
-* Thank you to AMD for sponsoring an MI250 node
-* Thank you to NVIDIA for sponsoring an H100 node
-* Thank you to Nebius for sponsoring credits and an H100 node
-* Thank you Modal for credits and speedy spartup times
-* Luca Antiga did something very similar for the NeurIPS LLM efficiency competition, it was great!
-* Midjourney was a similar inspiration in terms of UX
+- Thank you to AMD for sponsoring an MI250 node
+- Thank you to NVIDIA for sponsoring an H100 node
+- Thank you to Nebius for sponsoring credits and an H100 node
+- Thank you Modal for credits and speedy spartup times
+- Luca Antiga did something very similar for the NeurIPS LLM efficiency competition, it was great!
+- Midjourney was a similar inspiration in terms of UX
