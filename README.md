@@ -240,11 +240,48 @@ def ref_kernel(input: torch.Tensor) -> torch.Tensor:
 # Generate a list of tensors as input to the kernel
 def generate_input() -> List[torch.Tensor]:
     # Implement me...
+
+# Verify correctness of reference and output
+def check_implementation(input: torch.Tensor, output: torch.Tensor) -> bool:
+    # Implement me...
 ```
 
 #### Reference Code Requirements (CUDA)
 
-TODO. This is currently a work in progress.
+The Discord bot internally contains an `eval.cu` script that handles the correctness and timing
+analysis for the leaderboard. The difficult of CUDA evaluation scripts is we need to explicitly
+handle the typing system for tensors. The `reference.cu` that the leaderboard creator submits must have
+the following function signatures with their implementations filled out:
+
+The main difference is we now need to define an alias for the type that the input / outputs are. A
+simple and common example is a list of FP32 tensors, which can be defined using a pre-defined array of 
+`const int`s called `N_SIZES`, then define an array of containers, e.g. 
+`std::array<std::vector<float>, N_SIZES>`.
+
+```cuda
+// User-defined type for inputs, e.g. using input_t = std::array<std::vector<float>, IN_SIZES>;
+using input_t = ...;
+
+// User-defined type for outputs, e.g. using output_t = std::array<std::vector<float>, OUT_SIZES>;
+using output_t = ...;
+
+// Generate random data of type input_t
+input_t generate_input() {
+    // Implement me...
+}
+
+
+// Reference kernel host code.
+output_t reference(input_t data) {
+    // Implement me...
+}
+
+
+// Verify correctness of reference and output
+bool check_implementation(output_t out, output_t ref) {
+    // Implement me...
+}
+```
 
 ### Submitting to a Leaderboard
 
