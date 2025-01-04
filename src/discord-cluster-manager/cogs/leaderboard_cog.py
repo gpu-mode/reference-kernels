@@ -168,6 +168,10 @@ class LeaderboardSubmitCog(app_commands.Group):
         leaderboard_name: str,
         script: discord.Attachment,
     ):
+        # Don't allow submissions if deadline is past
+        with self.bot.leaderboard_db as db:
+            leaderboard_item = db.get_leaderboard(leaderboard_name)
+
         # Read the template file
         submission_content = await script.read()
 
@@ -183,8 +187,19 @@ class LeaderboardSubmitCog(app_commands.Group):
             # Read and convert reference code
             reference_code = None
             with self.bot.leaderboard_db as db:
-                # TODO: query that gets reference code given leaderboard name
                 leaderboard_item = db.get_leaderboard(leaderboard_name)
+
+                now = datetime.now()
+                deadline = leaderboard_item["deadline"]
+
+                if now.date() > deadline.date():
+                    await send_discord_message(
+                        interaction,
+                        f"The deadline to submit to {leaderboard_name} has passed.\n"
+                        + f"It was {deadline.date()} and today is {now.date()}.",
+                    )
+                    return
+
                 if not leaderboard_item:
                     await send_discord_message(
                         interaction,

@@ -230,19 +230,21 @@ specify the available GPUs that the leaderboard evaluates on.
 
 The Discord bot internally contains an `eval.py` script that handles the correctness and timing
 analysis for the leaderboard. The `reference_code` that the leaderboard creator submits must have
-the following function signatures with their implementations filled out:
+the following function signatures with their implementations filled out. `InputType` and
+`OutputType` are generics that could be a `torch.Tensor`, `List[torch.Tensor]`, etc. 
+depending on the reference code specifications. We leave this flexibility to the leaderboard creator.
 
 ```python
 # Reference kernel implementation.
-def ref_kernel(input: torch.Tensor) -> torch.Tensor:
+def ref_kernel(input: InputType) -> OutputType:
     # Implement me...
 
 # Generate a list of tensors as input to the kernel
-def generate_input() -> List[torch.Tensor]:
+def generate_input() -> InputType:
     # Implement me...
 
 # Verify correctness of reference and output
-def check_implementation(input: torch.Tensor, output: torch.Tensor) -> bool:
+def check_implementation(custom_out: OutputType, reference_out: OutputType) -> bool:
     # Implement me...
 ```
 
@@ -289,11 +291,13 @@ bool check_implementation(output_t out, output_t ref) {
 /leaderboard submit {github / modal} {leaderboard_name: str} {script: .cu or .py file}
 ```
 
-The leaderboard submission for _Python code_ requires the following function signatures:
+The leaderboard submission for _Python code_ requires the following function signatures, where
+`InputType` and `OutputType` are generics that could be a `torch.Tensor`, `List[torch.Tensor]`, 
+etc. depending on the reference code specifications.
 
 ```python
 # User kernel implementation.
-def custom_kernel(input: torch.Tensor) -> torch.Tensor:
+def custom_kernel(input: InputType) -> OutputType:
     # Implement me...
 ```
 

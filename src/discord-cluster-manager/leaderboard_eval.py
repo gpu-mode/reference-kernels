@@ -5,20 +5,19 @@
 py_eval = """
 import torch
 import time
-from reference import ref_kernel, generate_input
+from reference import ref_kernel, generate_input, check_implementation
 from train import custom_kernel
 
 
-def check_implementation() -> bool:
+def correctness() -> bool:
     for _ in range(10):  # check multiple times
         input_tensors = generate_input()
-        for input in input_tensors:
-            custom_output = custom_kernel(input)
-            ref_output = ref_kernel(input)
 
-            if not torch.allclose(custom_output, ref_output, atol=1e-5):
-                print('mismatch found! custom implementation doesnt match reference.')
-                return False
+        custom_output = custom_kernel(input_tensors)
+        ref_output = ref_kernel(input_tensors)
+
+        if not check_implementation(custom_output, ref_output):
+            return False
 
     print('custom implementation matches the reference implementation.')
     return True
@@ -28,30 +27,30 @@ def metric():
     warmup_runs = 10
     timed_runs = 100
 
-    # warmup
+    # Warmup Code
     print('warming up...')
     for _ in range(warmup_runs):
         input_tensors = generate_input()
-        for input in input_tensors:
-            _ = custom_kernel(input)
-            _ = ref_kernel(input)
+        _ = custom_kernel(input_tensors)
+        _ = ref_kernel(input_tensors)
+    torch.cuda.synchronize()
 
-    # timing
-    print('timing custom implementation...')
-    input_tensor = generate_input()
+    # Timing Code
+    input_tensors = generate_input()
     start_time = time.time()
     for _ in range(timed_runs):
-        for input in input_tensors:
-            _ = custom_kernel(input)
+        _ = custom_kernel(input_tensors)
+    torch.cuda.synchronize()
+    end_time = time.time()
 
-    custom_duration = (time.time() - start_time) / timed_runs
+    custom_duration = (end_time - start_time) / timed_runs
 
-    print(f'submitted kernel runtime: {custom_duration:.4f} seconds')
+    print(f'Submitted kernel runtime: {custom_duration:.4f} seconds')
 
     return custom_duration
 
 def main():
-    assert (check_implementation())
+    assert (correctness())
     s = metric()
 
     print(f'score:{s}')
