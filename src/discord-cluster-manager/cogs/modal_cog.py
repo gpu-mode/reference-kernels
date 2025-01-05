@@ -39,9 +39,6 @@ class ModalCog(commands.Cog):
 
             thread = await self.bot.create_thread(interaction, gpu_type.name, "Modal Job")
             queue_start_time = time.perf_counter()
-            message = f"Created thread {thread.mention} for your Modal job"
-
-            await send_discord_message(interaction, message)
 
             await thread.send(f"**Processing `{script.filename}` with {gpu_type.name}...**")
 

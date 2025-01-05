@@ -218,22 +218,35 @@ class LeaderboardDB:
         else:
             return None
 
-    # TODO: add GPU type
     def get_leaderboard_submissions(
-        self, leaderboard_name: str, gpu_name: str
+        self, leaderboard_name: str, gpu_name: str, user_id: Optional[str] = None
     ) -> list[SubmissionItem]:
-        self.cursor.execute(
+        query = """
+            WITH ranked_submissions AS (
+                SELECT
+                    s.name,
+                    s.user_id,
+                    s.code,
+                    s.submission_time,
+                    s.score,
+                    s.gpu_type,
+                    RANK() OVER (ORDER BY s.score ASC) as rank
+                FROM leaderboard.submission s
+                JOIN leaderboard.leaderboard l ON s.leaderboard_id = l.id
+                WHERE l.name = %s AND s.gpu_type = %s
+            )
+            SELECT * FROM ranked_submissions
             """
-            SELECT s.name, s.user_id, s.code, s.submission_time, s.score,
-            s.gpu_type
-            FROM leaderboard.submission s
-            JOIN leaderboard.leaderboard l
-            ON s.leaderboard_id = l.id
-            WHERE l.name = %s AND s.gpu_type = %s
-            ORDER BY s.score ASC
-            """,
-            (leaderboard_name, gpu_name),
-        )
+        if user_id:
+            query += " WHERE user_id = %s"
+
+        query += " ORDER BY score ASC"
+
+        args = (leaderboard_name, gpu_name)
+        if user_id:
+            args = args + (user_id,)
+
+        self.cursor.execute(query, args)
 
         return [
             SubmissionItem(
@@ -244,6 +257,7 @@ class LeaderboardDB:
                 submission_time=submission[3],
                 submission_score=submission[4],
                 gpu_type=gpu_name,
+                rank=submission[6],
             )
             for submission in self.cursor.fetchall()
         ]
