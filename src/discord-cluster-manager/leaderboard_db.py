@@ -201,7 +201,7 @@ class LeaderboardDB:
         else:
             return None
 
-    def get_leaderboard(self, leaderboard_name: str) -> int | None:
+    def get_leaderboard(self, leaderboard_name: str) -> LeaderboardItem | None:
         self.cursor.execute(
             """
             SELECT id, name, deadline, reference_code
