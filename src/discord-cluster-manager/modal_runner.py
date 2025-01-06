@@ -240,7 +240,7 @@ def run_cuda_script(  # # noqa: C901
     except Exception as e:
         return f"Error: {str(e)}", 0.0
     finally:
-        tmp_files = ["reference.cuh", "train.cuh", "eva;.cu", "eval.out"]
+        tmp_files = ["reference.cuh", "train.cuh", "eval.cu", "eval.out"]
         for f in tmp_files:
             if os.path.exists(f):
                 os.remove(f)
