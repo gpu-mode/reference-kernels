@@ -5,7 +5,10 @@ from io import StringIO
 from typing import Optional
 
 import discord
-from consts import GitHubGPU, ModalGPU
+from consts import (
+    GitHubGPU,
+    ModalGPU,
+)
 from discord import app_commands
 from discord.ext import commands
 from leaderboard_db import leaderboard_name_autocomplete
@@ -83,13 +86,18 @@ async def async_submit_github_job(
 
 
 class LeaderboardSubmitCog(app_commands.Group):
-    def __init__(
-        self,
-        bot: commands.Bot,
-    ):
-        self.bot: commands.Bot = bot
+    def __init__(self, bot):
+        super().__init__(name="submit", description="Submit to leaderboard")
+        self.bot = bot
 
-        super().__init__(name="submit", description="Submit leaderboard data")
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.channel_id != self.bot.leaderboard_submissions_id:
+            await interaction.response.send_message(
+                f"Please use submission commands in <#{self.bot.leaderboard_submissions_id}>",
+                ephemeral=True,
+            )
+            return False
+        return True
 
     # Parent command that defines global options
     @app_commands.describe(
@@ -298,6 +306,25 @@ class LeaderboardCog(commands.Cog):
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
     # --------------------------------------------------------------------------
+
+    async def admin_check(self, interaction: discord.Interaction) -> bool:
+        if not interaction.user.get_role(self.bot.leaderboard_admin_role_id):
+            return False
+        return True
+
+    async def creator_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.get_role(self.bot.leaderboard_creator_role_id):
+            return True
+        return False
+
+    async def is_creator_check(
+        self, interaction: discord.Interaction, leaderboard_name: str
+    ) -> bool:
+        with self.bot.leaderboard_db as db:
+            leaderboard_item = db.get_leaderboard(leaderboard_name)
+            if leaderboard_item["creator_id"] == interaction.user.id:
+                return True
+            return False
 
     async def _display_lb_submissions_helper(
         self,
@@ -518,13 +545,33 @@ class LeaderboardCog(commands.Cog):
         deadline="Competition deadline in the form: 'Y-m-d'",
         reference_code="Reference implementation of kernel. Also includes eval code.",
     )
-    async def leaderboard_create(
+    async def leaderboard_create(  # noqa: C901
         self,
         interaction: discord.Interaction,
         leaderboard_name: str,
         deadline: str,
         reference_code: discord.Attachment,
     ):
+        is_admin = await self.admin_check(interaction)
+        is_creator = await self.creator_check(interaction)
+        thread = None
+        if len(leaderboard_name) > 95:
+            await send_discord_message(
+                interaction,
+                "Leaderboard name is too long. Please keep it under 95 characters.",
+                ephemeral=True,
+            )
+            return
+
+        if not (is_admin or is_creator):
+            await send_discord_message(
+                interaction,
+                "You need the Leaderboard Creator role or the Leaderboard Admin role to use this command.",  # noqa: E501
+                ephemeral=True,
+            )
+            return
+
+        # Try parsing with time first
         # Try parsing with time first
         try:
             date_value = datetime.strptime(deadline, "%Y-%m-%d %H:%M")
@@ -540,7 +587,6 @@ class LeaderboardCog(commands.Cog):
                 )
                 return
 
-        # Ask the user to select GPUs
         view = GPUSelectionView([gpu.name for gpu in GitHubGPU])
 
         await send_discord_message(
@@ -563,6 +609,7 @@ class LeaderboardCog(commands.Cog):
                         "deadline": date_value,
                         "reference_code": template_content.decode("utf-8"),
                         "gpu_types": view.selected_gpus,
+                        "creator_id": interaction.user.id,
                     }
                 )
 
@@ -584,13 +631,45 @@ class LeaderboardCog(commands.Cog):
                         )
                     return
 
+            forum_channel = self.bot.get_channel(self.bot.leaderboard_forum_id)
+
+            existing_threads = [
+                thread for thread in forum_channel.threads if thread.name == leaderboard_name
+            ]
+
+            if not existing_threads:
+                thread = await forum_channel.create_thread(
+                    name=leaderboard_name,
+                    content=(
+                        f"# New Leaderboard: {leaderboard_name}\n\n"
+                        f"**Deadline**: {date_value.strftime('%Y-%m-%d %H:%M')}\n\n"
+                        f"**Reference Code**: {reference_code}\n\n"
+                        "Submit your entries using `/submit github` or `/submit modal` in the submissions channel.\n\n"  # noqa: E501
+                        f"Good luck to all participants! 🚀 <@&{self.bot.leaderboard_participant_role_id}>"  # noqa: E501
+                    ),
+                    auto_archive_duration=10080,  # 7 days
+                )
+
             await send_discord_message(
                 interaction,
                 f"Leaderboard '{leaderboard_name}'.\n"
-                + f"Reference code: {reference_code}. Submission deadline: {date_value}",
+                + f"Reference code: {reference_code}. Submission deadline: {date_value}"
+                + f"\nForum thread: {thread.thread.mention}",
+            )
+            return
+
+        except discord.Forbidden:
+            await send_discord_message(
+                interaction,
+                "Error: Bot doesn't have permission to create forum threads. Leaderboard was not created.",  # noqa: E501
                 ephemeral=True,
             )
-
+        except discord.HTTPException:
+            await send_discord_message(
+                interaction,
+                "Error creating forum thread. Leaderboard was not created.",
+                ephemeral=True,
+            )
         except Exception as e:
             logger.error(f"Error in leaderboard creation: {e}")
             # Handle any other errors
@@ -599,6 +678,11 @@ class LeaderboardCog(commands.Cog):
                 "Error in leaderboard creation.",
                 ephemeral=True,
             )
+        if thread:
+            await thread.thread.delete()
+
+        with self.bot.leaderboard_db as db:  # Cleanup in case lb was created
+            db.delete_leaderboard(leaderboard_name)
 
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
@@ -621,5 +705,25 @@ class LeaderboardCog(commands.Cog):
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
     @discord.app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def delete_leaderboard(self, interaction: discord.Interaction, leaderboard_name: str):
+        is_admin = await self.admin_check(interaction)
+        is_creator = await self.creator_check(interaction)
+        is_creator_of_leaderboard = await self.is_creator_check(interaction, leaderboard_name)
+
+        if not (is_admin):
+            if not is_creator:
+                await send_discord_message(
+                    interaction,
+                    "You need the Leaderboard Creator role or the Leaderboard Admin role to use this command.",  # noqa: E501
+                    ephemeral=True,
+                )
+                return
+            if not is_creator_of_leaderboard:
+                await send_discord_message(
+                    interaction,
+                    "You need to be the creator of the leaderboard to use this command.",
+                    ephemeral=True,
+                )
+                return
+
         modal = DeleteConfirmationModal("leaderboard", leaderboard_name, self.bot.leaderboard_db)
         await interaction.response.send_modal(modal)

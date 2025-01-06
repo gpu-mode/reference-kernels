@@ -82,14 +82,15 @@ class LeaderboardDB:
         try:
             self.cursor.execute(
                 """
-                INSERT INTO leaderboard.leaderboard (name, deadline, reference_code)
-                VALUES (%s, %s, %s)
+                INSERT INTO leaderboard.leaderboard (name, deadline, reference_code, creator_id)
+                VALUES (%s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
                     leaderboard["name"],
                     leaderboard["deadline"],
                     leaderboard["reference_code"],
+                    leaderboard["creator_id"],
                 ),
             )
 
@@ -158,7 +159,7 @@ class LeaderboardDB:
     def get_leaderboards(self) -> list[LeaderboardItem]:
         self.cursor.execute(
             """
-            SELECT id, name, deadline, reference_code
+            SELECT id, name, deadline, reference_code, creator_id
             FROM leaderboard.leaderboard
             """
         )
@@ -174,7 +175,12 @@ class LeaderboardDB:
 
             leaderboards.append(
                 LeaderboardItem(
-                    id=lb[0], name=lb[1], deadline=lb[2], reference_code=lb[3], gpu_types=gpu_types
+                    id=lb[0],
+                    name=lb[1],
+                    deadline=lb[2],
+                    reference_code=lb[3],
+                    gpu_types=gpu_types,
+                    creator_id=lb[4],
                 )
             )
 
@@ -204,7 +210,7 @@ class LeaderboardDB:
     def get_leaderboard(self, leaderboard_name: str) -> LeaderboardItem | None:
         self.cursor.execute(
             """
-            SELECT id, name, deadline, reference_code
+            SELECT id, name, deadline, reference_code, creator_id
             FROM leaderboard.leaderboard
             WHERE name = %s
             """,
@@ -214,7 +220,13 @@ class LeaderboardDB:
         res = self.cursor.fetchone()
 
         if res:
-            return LeaderboardItem(id=res[0], name=res[1], deadline=res[2], reference_code=res[3])
+            return LeaderboardItem(
+                id=res[0],
+                name=res[1],
+                deadline=res[2],
+                reference_code=res[3],
+                creator_id=res[4],
+            )
         else:
             return None
 

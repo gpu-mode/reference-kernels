@@ -131,6 +131,7 @@ class LRUCache:
 
 class LeaderboardItem(TypedDict):
     name: str
+    creator_id: int
     deadline: datetime.datetime
     reference_code: str
     gpu_types: List[str]

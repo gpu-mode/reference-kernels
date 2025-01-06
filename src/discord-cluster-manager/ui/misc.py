@@ -32,9 +32,11 @@ class DeleteConfirmationModal(ui.Modal, title="Confirm Deletion"):
         self.field_name = field_name
         self.field_value = field_value
         self.db = db
+        placeholder = f"Type '{field_value}'"[:100]
+        label = f"To delete, type '{field_value}'"[:45]
         self.confirmation = ui.TextInput(
-            label=f"Type '{field_value}' to confirm deletion",
-            placeholder=f"Enter the {field_name}",
+            label=label,
+            placeholder=placeholder,
             required=True,
         )
         self.add_item(self.confirmation)
