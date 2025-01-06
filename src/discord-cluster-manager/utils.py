@@ -44,12 +44,12 @@ async def get_user_from_id(id, interaction, bot):
     # This currently doesn't work.
     if interaction.guild:
         # In a guild, try to get the member by ID
-        member = await interaction.guild.fetch_member(id)
-        if member:
-            username = member.global_name if member.nick is None else member.nick
-            return username
-        else:
-            return id
+        try:
+            member = await interaction.guild.fetch_member(id)
+        except Exception:
+            member = id
+
+        return member
     else:
         # If the interaction is in DMs, we can get the user directly
         user = await bot.fetch_user(id)

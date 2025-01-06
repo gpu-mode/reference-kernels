@@ -5,9 +5,10 @@ from datetime import datetime, timedelta, timezone
 
 import discord
 import requests
-from consts import GITHUB_REPO, GITHUB_TOKEN, GPUType
+from consts import GPUType
 from discord import app_commands
 from discord.ext import commands
+from env import GITHUB_REPO, GITHUB_TOKEN
 from github import Github
 from leaderboard_eval import cu_eval, py_eval
 from utils import get_github_branch_name, send_discord_message, setup_logging

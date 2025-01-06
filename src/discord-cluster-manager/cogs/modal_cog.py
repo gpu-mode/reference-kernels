@@ -76,12 +76,12 @@ class ModalCog(commands.Cog):
     async def trigger_modal_run(self, script_content: str, filename: str) -> tuple[str, float]:
         logger.info("Attempting to trigger Modal run")
 
-        from modal_runner import modal_app
+        from modal_runner import app
 
         try:
             print(f"Running {filename} with Modal")
             with modal.enable_output():
-                with modal_app.run():
+                with app.run():
                     if filename.endswith(".py"):
                         from modal_runner import run_pytorch_script
 

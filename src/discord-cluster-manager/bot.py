@@ -7,7 +7,9 @@ from cogs.leaderboard_cog import LeaderboardCog
 from cogs.misc_cog import BotManagerCog
 from cogs.modal_cog import ModalCog
 from cogs.verify_run_cog import VerifyRunCog
-from consts import (
+from discord import app_commands
+from discord.ext import commands
+from env import (
     DISCORD_CLUSTER_STAGING_ID,
     DISCORD_DEBUG_CLUSTER_STAGING_ID,
     DISCORD_DEBUG_TOKEN,
@@ -19,8 +21,6 @@ from consts import (
     POSTGRES_USER,
     init_environment,
 )
-from discord import app_commands
-from discord.ext import commands
 from leaderboard_db import LeaderboardDB
 from utils import setup_logging
 

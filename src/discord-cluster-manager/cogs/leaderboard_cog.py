@@ -1,5 +1,4 @@
 import asyncio
-import random
 from datetime import datetime
 from io import StringIO
 from typing import Optional
@@ -116,33 +115,68 @@ class LeaderboardSubmitCog(app_commands.Group):
         pass
 
     @app_commands.command(name="modal", description="Submit leaderboard data for modal")
-    @app_commands.describe(
-        gpu_type="Choose the GPU type for Modal",
-    )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
-    @app_commands.choices(
-        gpu_type=[app_commands.Choice(name=gpu.value, value=gpu.value) for gpu in ModalGPU]
-    )
     async def submit_modal(
         self,
         interaction: discord.Interaction,
         leaderboard_name: str,
         script: discord.Attachment,
-        gpu_type: app_commands.Choice[str],
     ):
+        await interaction.response.defer(ephemeral=True)
         try:
+            if not script.filename.endswith(".py") and not script.filename.endswith(".cu"):
+                await send_discord_message("Please provide a Python (.py) or CUDA (.cu) file")
+                return None
+
+            # TODO: please add this info to the LB itself
+            lang = "cpp" if script.filename.endswith(".cu") else "py"
+            eval_code = cu_eval if lang == "cpp" else py_eval
+
             # Read the template file
             submission_content = await script.read()
 
             # Call Modal runner
             modal_cog = self.bot.get_cog("ModalCog")
 
+            with self.bot.leaderboard_db as db:
+                leaderboard_item = db.get_leaderboard(leaderboard_name)
+                reference_code: bytes = leaderboard_item["reference_code"]
+                gpus = db.get_leaderboard_gpu_types(leaderboard_name)
+
+            view = GPUSelectionView(gpus)
+
+            await send_discord_message(
+                interaction,
+                f"Please select GPUs to submit for leaderboard: {leaderboard_name}.",
+                view=view,
+                ephemeral=True,
+            )
+
+            await view.wait()
+
+            from modal_runner import app
+
+            with app.run():
+                if lang == "cpp":
+                    from modal_runner import run_cuda_script
+
+                    stdout, score = run_cuda_script.remote(
+                        eval_code,
+                        reference_content=reference_code,
+                        submission_content=submission_content.decode("utf-8"),
+                    )
+                else:
+                    from modal_runner import run_pytorch_script
+
+                    stdout, score = run_pytorch_script.remote(
+                        eval_code,
+                        reference_content=reference_code,
+                        submission_content=submission_content.decode("utf-8"),
+                    )
+
             if not all([modal_cog]):
                 await send_discord_message(interaction, "❌ Required cogs not found!")
                 return
-
-            # Compute eval or submission score, call runner here.
-            score = random.random()
 
             with self.bot.leaderboard_db as db:
                 db.create_submission(
@@ -153,15 +187,22 @@ class LeaderboardSubmitCog(app_commands.Group):
                         "code": submission_content,
                         "user_id": interaction.user.id,
                         "submission_score": score,
-                        "gpu_type": gpu_type.name,
+                        "gpu_type": view.selected_gpus[0],  # TODO: fix
                     }
                 )
 
+            user_id = (
+                interaction.user.global_name
+                if interaction.user.nick is None
+                else interaction.user.nick
+            )
+
             await send_discord_message(
                 interaction,
-                f"Ran on Modal. Leaderboard '{leaderboard_name}'.\n"
+                f"Successfully ran on {view.selected_gpus[0]} using Modal runners!\n"
+                + f"Leaderboard '{leaderboard_name}'.\n"
                 + f"Submission title: {script.filename}.\n"
-                + f"Submission user: {interaction.user.id}.\n"
+                + f"Submission user: {user_id}.\n"
                 + f"Runtime: {score:.9f} seconds.",
                 ephemeral=True,
             )
@@ -587,7 +628,8 @@ class LeaderboardCog(commands.Cog):
                 )
                 return
 
-        view = GPUSelectionView([gpu.name for gpu in GitHubGPU])
+        # Ask the user to select GPUs
+        view = GPUSelectionView([gpu.name for gpu in GitHubGPU] + [gpu.name for gpu in ModalGPU])
 
         await send_discord_message(
             interaction,

@@ -2,7 +2,7 @@ from typing import List, Optional
 
 import discord
 import psycopg2
-from consts import (
+from env import (
     DATABASE_URL,
     POSTGRES_DATABASE,
     POSTGRES_HOST,
