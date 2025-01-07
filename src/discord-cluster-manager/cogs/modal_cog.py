@@ -7,16 +7,7 @@ from consts import ModalGPU
 from discord import app_commands
 from discord.ext import commands
 from leaderboard_eval import cu_eval, py_eval
-from modal_runner_archs import (  # noqa: F401
-    run_cuda_script_a100,
-    run_cuda_script_h100,
-    run_cuda_script_l4,
-    run_cuda_script_t4,
-    run_pytorch_script_a100,
-    run_pytorch_script_h100,
-    run_pytorch_script_l4,
-    run_pytorch_script_t4,
-)
+from modal_runner_archs import modal_context
 from utils import send_discord_message, setup_logging
 
 logger = setup_logging()
@@ -113,8 +104,7 @@ class ModalCog(commands.Cog):
                 await thread.send(f"**Error:** {str(e)}")
             raise
 
-    # TODO: needs cleaning with modal folks
-    async def trigger_modal_run(  # noqa: C901
+    async def trigger_modal_run(
         self,
         script_content: str,
         filename: str,
@@ -127,39 +117,19 @@ class ModalCog(commands.Cog):
 
         try:
             print(f"Running {filename} with Modal")
-            gpu_type = gpu_type.lower()
-            with modal.enable_output():
-                with app.run():
-                    if reference_content is not None:
-                        if filename.endswith(".py"):
-                            from modal_runner_archs import get_pytorch_modal_runner
-
-                            modal_runner = get_pytorch_modal_runner(gpu_type)
-                            stdout, score = modal_runner.remote(
-                                py_eval,
-                                reference_content=reference_content,
-                                submission_content=script_content,
-                            )
-                        else:
-                            from modal_runner_archs import get_cuda_modal_runner
-
-                            modal_runner = get_cuda_modal_runner(gpu_type)
-                            stdout, score = modal_runner.remote(
-                                cu_eval,
-                                reference_content=reference_content,
-                                submission_content=script_content,
-                            )
-                    else:
-                        if filename.endswith(".py"):
-                            from modal_runner_archs import get_pytorch_modal_runner
-
-                            modal_runner = get_pytorch_modal_runner(gpu_type)
-                            stdout, score = modal_runner.remote(script_content)
-                        elif filename.endswith(".cu"):
-                            from modal_runner_archs import get_cuda_modal_runner
-
-                            modal_runner = get_cuda_modal_runner(gpu_type)
-                            stdout, score = modal_runner.remote(script_content)
+            file_type = filename.split(".")[-1]
+            with modal.enable_output(), app.run(), modal_context() as runners:
+                if reference_content is not None:
+                    eval_code = py_eval if file_type == "py" else cu_eval
+                    runner = runners.get_runner(file_type, gpu_type)
+                    stdout, score = runner.remote(
+                        eval_code,
+                        reference_content=reference_content,
+                        submission_content=script_content,
+                    )
+                else:
+                    runner = runners.get_runner(file_type, gpu_type)
+                    stdout, score = runner.remote(script_content)
 
             return stdout, score
 

@@ -1,6 +1,9 @@
 # This file contains wrapper functions for running
 # Modal apps on specific devices. We will fix this later.
 
+import sys
+from contextlib import contextmanager
+
 from consts import GPU_TO_SM
 from modal_runner import app, cuda_image, run_cuda_script, run_pytorch_script
 
@@ -161,34 +164,72 @@ def run_pytorch_script_h100(
     )
 
 
-pytorch_function_map = {
-    "t4": run_pytorch_script_t4,
-    "l4": run_pytorch_script_l4,
-    "a100": run_pytorch_script_a100,
-    "h100": run_pytorch_script_h100,
-}
-
-cuda_function_map = {
-    "t4": run_cuda_script_t4,
-    "l4": run_cuda_script_l4,
-    "a100": run_cuda_script_a100,
-    "h100": run_cuda_script_h100,
-}
+def _get_runner_module_functions(prefix: str):
+    current_module = sys.modules[__name__]
+    return {
+        name.split("_")[-1]: getattr(current_module, name)
+        for name in dir(current_module)
+        if name.startswith(f"run_{prefix}_script_")
+    }
 
 
-def get_pytorch_modal_runner(gpu_type: str):
-    function = pytorch_function_map.get(gpu_type.lower())
-
-    if function:
-        return function
-    else:
-        raise ValueError(f"Function for gpu_type {gpu_type} not found")
+pytorch_function_map = _get_runner_module_functions("pytorch")
+cuda_function_map = _get_runner_module_functions("cuda")
 
 
-def get_cuda_modal_runner(gpu_type: str):
-    function = cuda_function_map.get(gpu_type.lower())
+@contextmanager
+def modal_context():
+    """
+    Context manager that ensures Modal functions are hydrated while in use.
+    Usage:
+        with hydrated_modal_runners() as runners:
+            function = runners.get_runner("py", "t4")
+            stdout, score = function(*args, **kwargs)
+    """
+    current_module = sys.modules[__name__]
 
-    if function:
-        return function
-    else:
-        raise ValueError(f"Function for gpu_type {gpu_type} not found")
+    # Dynamically get all runner functions
+    pytorch_functions = {
+        name.split("_")[-1]: getattr(current_module, name)
+        for name in dir(current_module)
+        if name.startswith("run_pytorch_script_")
+    }
+
+    cuda_functions = {
+        name.split("_")[-1]: getattr(current_module, name)
+        for name in dir(current_module)
+        if name.startswith("run_cuda_script_")
+    }
+
+    class Runners:
+        def __init__(self):
+            self._pytorch_map = pytorch_functions
+            self._cuda_map = cuda_functions
+
+        def get_runner(self, runner_type: str, gpu_type: str):
+            if runner_type == "py":
+                function = self._pytorch_map.get(gpu_type.lower())
+            elif runner_type == "cu":
+                function = self._cuda_map.get(gpu_type.lower())
+            else:
+                raise ValueError(f"Invalid runner type: {runner_type}")
+            return function
+
+        def _get_cuda_runner(self, gpu_type: str):
+            function = self._cuda_map.get(gpu_type.lower())
+            if function:
+                return function
+            raise ValueError(f"Function for gpu_type {gpu_type} not found")
+
+        def _get_pytorch_runner(self, gpu_type: str):
+            function = self._pytorch_map.get(gpu_type.lower())
+            if function:
+                return function
+            raise ValueError(f"Function for gpu_type {gpu_type} not found")
+
+    runners = Runners()
+    try:
+        yield runners
+    finally:
+        # Clean up if needed
+        pass
