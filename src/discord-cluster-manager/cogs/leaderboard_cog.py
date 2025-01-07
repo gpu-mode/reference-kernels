@@ -1,10 +1,12 @@
 import asyncio
 from datetime import datetime
+from enum import Enum
 from io import StringIO
-from typing import Optional
+from typing import List, Optional
 
 import discord
 from consts import (
+    AllGPU,
     GitHubGPU,
     ModalGPU,
 )
@@ -24,70 +26,217 @@ from utils import (
 logger = setup_logging()
 
 
-async def async_submit_github_job(
-    interaction: discord.Interaction,
-    leaderboard_name: str,
-    script: discord.Attachment,
-    github_command,
-    reference_code,
-    bot,
-    submission_content,
-    github_cog: commands.Cog,
-    gpu: str,
-):
-    try:
-        github_thread = await github_command.callback(
-            github_cog,
-            interaction,
-            script,
-            app_commands.Choice(
-                name=gpu,
-                value=GitHubGPU[gpu].value,
-            ),
-            reference_code=reference_code,
-        )
-    except discord.errors.NotFound as e:
-        print(f"Webhook not found: {e}")
-        await send_discord_message(interaction, "❌ The webhook was not found.")
-
-    message_contents = [msg.content async for msg in github_thread.history(limit=None)]
-
-    # Compute eval or submission score, call runner here.
-    # TODO: Make this more robust later
-    score = extract_score("".join(message_contents))
-
-    with bot.leaderboard_db as db:
-        db.create_submission(
-            {
-                "submission_name": script.filename,
-                "submission_time": datetime.now(),
-                "leaderboard_name": leaderboard_name,
-                "code": submission_content,
-                "user_id": interaction.user.id,
-                "submission_score": score,
-                "gpu_type": gpu,
-            }
-        )
-
-    user_id = (
-        interaction.user.global_name if interaction.user.nick is None else interaction.user.nick
-    )
-
-    await send_discord_message(
-        interaction,
-        f"Successfully ran on {gpu} using GitHub runners!\n"
-        + f"Leaderboard '{leaderboard_name}'.\n"
-        + f"Submission title: {script.filename}.\n"
-        + f"Submission user: {user_id}.\n"
-        + f"Runtime: {score:.9f} seconds.",
-        ephemeral=True,
-    )
-
-
 class LeaderboardSubmitCog(app_commands.Group):
     def __init__(self, bot):
         super().__init__(name="submit", description="Submit to leaderboard")
         self.bot = bot
+
+    async def async_submit_cog_job(
+        self,
+        interaction: discord.Interaction,
+        leaderboard_name: str,
+        script: discord.Attachment,
+        command,
+        reference_code,
+        submission_content,
+        cog: commands.Cog,
+        gpu: AllGPU,
+        runner_name: str = "GitHub",
+    ):
+        try:
+            discord_thread = await command.callback(
+                cog,
+                interaction,
+                script,
+                app_commands.Choice(
+                    name=gpu.name,
+                    value=gpu.value,
+                ),
+                reference_code=reference_code,
+            )
+        except discord.errors.NotFound as e:
+            print(f"Webhook not found: {e}")
+            await send_discord_message(interaction, "❌ The webhook was not found.")
+
+        message_contents = [msg.content async for msg in discord_thread.history(limit=None)]
+
+        try:
+            # For CUDA leaderboards, make more robust
+            if "check_implementation failed" in message_contents:
+                await send_discord_message(
+                    interaction,
+                    "check_implementation failed. User kernel and reference kernel do not match.",
+                    ephemeral=True,
+                )
+                return
+
+            # TODO: Make this more robust later
+            score = extract_score("".join(message_contents))
+
+            with self.bot.leaderboard_db as db:
+                db.create_submission(
+                    {
+                        "submission_name": script.filename,
+                        "submission_time": datetime.now(),
+                        "leaderboard_name": leaderboard_name,
+                        "code": submission_content,
+                        "user_id": interaction.user.id,
+                        "submission_score": score,
+                        "gpu_type": gpu.name,
+                    }
+                )
+
+            user_id = (
+                interaction.user.global_name
+                if interaction.user.nick is None
+                else interaction.user.nick
+            )
+
+            await send_discord_message(
+                interaction,
+                f"Successfully ran on {gpu.name} using {runner_name} runners!\n"
+                + f"Leaderboard '{leaderboard_name}'.\n"
+                + f"Submission title: {script.filename}.\n"
+                + f"Submission user: {user_id}.\n"
+                + f"Runtime: {score:.9f} seconds.",
+                ephemeral=True,
+            )
+        except Exception:
+            await send_discord_message(
+                interaction,
+                f"Leaderboard submission to '{leaderboard_name}' on {gpu.name} "
+                + f"using {runner_name} runners failed!\n",
+                ephemeral=True,
+            )
+
+    async def select_gpu_view(
+        self,
+        interaction: discord.Interaction,
+        leaderboard_name: str,
+        gpus: List[str],
+    ):
+        """
+        UI displayed to user to select GPUs that they want to use.
+        """
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
+
+        view = GPUSelectionView(gpus)
+
+        await send_discord_message(
+            interaction,
+            f"Please select the GPU(s) for leaderboard: {leaderboard_name}.",
+            view=view,
+            ephemeral=True,
+        )
+
+        await view.wait()
+        return view
+
+    async def before_submit_hook(
+        self,
+        interaction: discord.Interaction,
+        leaderboard_name: str,
+        script: discord.Attachment,
+    ):
+        """
+        Main logic to handle at the beginning of a user submission to a runner, to make
+        sure reference code, deadlines, etc. are all correct.
+        """
+        # Read and convert reference code
+        reference_code = None
+        with self.bot.leaderboard_db as db:
+            leaderboard_item = db.get_leaderboard(leaderboard_name)
+
+            now = datetime.now()
+            deadline = leaderboard_item["deadline"]
+
+            if now.date() > deadline.date():
+                await send_discord_message(
+                    interaction,
+                    f"The deadline to submit to {leaderboard_name} has passed.\n"
+                    + f"It was {deadline.date()} and today is {now.date()}.",
+                )
+                return None
+
+            if not leaderboard_item:
+                await send_discord_message(
+                    interaction,
+                    f"Leaderboard {leaderboard_name} not found.",
+                    ephemeral=True,
+                )
+                return None
+
+            leaderboard_item = db.get_leaderboard(leaderboard_name)
+            gpus = db.get_leaderboard_gpu_types(leaderboard_name)
+            reference_code = leaderboard_item["reference_code"]
+
+        # Read the template file
+        submission_content = await script.read()
+
+        try:
+            submission_content = submission_content.decode()
+        except UnicodeError:
+            await send_discord_message(
+                interaction, "Could not decode your file. Is it UTF-8?", ephemeral=True
+            )
+            return None
+
+        return (submission_content, reference_code, gpus)
+
+    async def on_submit_hook(
+        self,
+        interaction: discord.Interaction,
+        leaderboard_name: str,
+        script: discord.Attachment,
+        command,
+        cog: commands.Cog,
+        GPUsEnum: Enum,
+        runner_name: str,
+    ) -> int:
+        """
+        Called as the main body of a submission to route to the correct runner.
+        """
+        try:
+            submission_content, reference_code, gpus = await self.before_submit_hook(
+                interaction,
+                leaderboard_name,
+                script,
+            )
+        except Exception:
+            return -1
+
+        # GPU selection View
+        gpu_enums = {e.name for e in GPUsEnum}
+        gpus = [gpu for gpu in gpus if gpu in gpu_enums]
+
+        if len(gpus) == 0:
+            await send_discord_message(
+                interaction,
+                "❌ No available GPUs for Leaderboard "
+                + f"`{leaderboard_name}` on {runner_name} runner.",
+            )
+            return -1
+
+        view = await self.select_gpu_view(interaction, leaderboard_name, gpus)
+
+        tasks = [
+            self.async_submit_cog_job(
+                interaction,
+                leaderboard_name,
+                script,
+                command,
+                reference_code,
+                submission_content,
+                cog,
+                AllGPU[gpu],
+                runner_name,
+            )
+            for gpu in view.selected_gpus
+        ]
+
+        await asyncio.gather(*tasks)
+        return 0
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.channel_id != self.bot.leaderboard_submissions_id:
@@ -122,96 +271,24 @@ class LeaderboardSubmitCog(app_commands.Group):
         leaderboard_name: str,
         script: discord.Attachment,
     ):
-        await interaction.response.defer(ephemeral=True)
-        try:
-            if not script.filename.endswith(".py") and not script.filename.endswith(".cu"):
-                await send_discord_message("Please provide a Python (.py) or CUDA (.cu) file")
-                return None
+        # Call Modal runner
+        modal_cog = self.bot.get_cog("ModalCog")
 
-            # TODO: please add this info to the LB itself
-            lang = "cpp" if script.filename.endswith(".cu") else "py"
-            eval_code = cu_eval if lang == "cpp" else py_eval
+        if not all([modal_cog]):
+            await send_discord_message(interaction, "❌ Required Modal cogs not found!")
+            return
+        modal_runner_command = modal_cog.run_modal
 
-            # Read the template file
-            submission_content = await script.read()
-
-            # Call Modal runner
-            modal_cog = self.bot.get_cog("ModalCog")
-
-            with self.bot.leaderboard_db as db:
-                leaderboard_item = db.get_leaderboard(leaderboard_name)
-                reference_code: bytes = leaderboard_item["reference_code"]
-                gpus = db.get_leaderboard_gpu_types(leaderboard_name)
-
-            view = GPUSelectionView(gpus)
-
-            await send_discord_message(
-                interaction,
-                f"Please select GPUs to submit for leaderboard: {leaderboard_name}.",
-                view=view,
-                ephemeral=True,
-            )
-
-            await view.wait()
-
-            from modal_runner import app
-
-            with app.run():
-                if lang == "cpp":
-                    from modal_runner import run_cuda_script
-
-                    stdout, score = run_cuda_script.remote(
-                        eval_code,
-                        reference_content=reference_code,
-                        submission_content=submission_content.decode("utf-8"),
-                    )
-                else:
-                    from modal_runner import run_pytorch_script
-
-                    stdout, score = run_pytorch_script.remote(
-                        eval_code,
-                        reference_content=reference_code,
-                        submission_content=submission_content.decode("utf-8"),
-                    )
-
-            if not all([modal_cog]):
-                await send_discord_message(interaction, "❌ Required cogs not found!")
-                return
-
-            with self.bot.leaderboard_db as db:
-                db.create_submission(
-                    {
-                        "submission_name": script.filename,
-                        "submission_time": datetime.now(),
-                        "leaderboard_name": leaderboard_name,
-                        "code": submission_content,
-                        "user_id": interaction.user.id,
-                        "submission_score": score,
-                        "gpu_type": view.selected_gpus[0],  # TODO: fix
-                    }
-                )
-
-            user_id = (
-                interaction.user.global_name
-                if interaction.user.nick is None
-                else interaction.user.nick
-            )
-
-            await send_discord_message(
-                interaction,
-                f"Successfully ran on {view.selected_gpus[0]} using Modal runners!\n"
-                + f"Leaderboard '{leaderboard_name}'.\n"
-                + f"Submission title: {script.filename}.\n"
-                + f"Submission user: {user_id}.\n"
-                + f"Runtime: {score:.9f} seconds.",
-                ephemeral=True,
-            )
-        except ValueError:
-            await send_discord_message(
-                interaction,
-                "Invalid date format. Please use YYYY-MM-DD or YYYY-MM-DD HH:MM",
-                ephemeral=True,
-            )
+        success = await self.on_submit_hook(
+            interaction,
+            leaderboard_name,
+            script,
+            modal_runner_command,
+            modal_cog,
+            ModalGPU,
+            "Modal",
+        )
+        return success
 
     @app_commands.command(name="github", description="Submit leaderboard data for GitHub")
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
@@ -221,93 +298,24 @@ class LeaderboardSubmitCog(app_commands.Group):
         leaderboard_name: str,
         script: discord.Attachment,
     ):
-        # Don't allow submissions if deadline is past
-        with self.bot.leaderboard_db as db:
-            leaderboard_item = db.get_leaderboard(leaderboard_name)
+        # Call GH runner
+        github_cog = self.bot.get_cog("GitHubCog")
 
-        # Read the template file
-        submission_content = await script.read()
-
-        try:
-            submission_content = submission_content.decode()
-        except UnicodeError:
-            await send_discord_message(
-                interaction, "Could not decode your file. Is it UTF-8?", ephemeral=True
-            )
+        if not all([github_cog]):
+            await send_discord_message(interaction, "❌ Required cogs not found!")
             return
+        gh_runner_command = github_cog.run_github
 
-        try:
-            # Read and convert reference code
-            reference_code = None
-            with self.bot.leaderboard_db as db:
-                leaderboard_item = db.get_leaderboard(leaderboard_name)
-
-                now = datetime.now()
-                deadline = leaderboard_item["deadline"]
-
-                if now.date() > deadline.date():
-                    await send_discord_message(
-                        interaction,
-                        f"The deadline to submit to {leaderboard_name} has passed.\n"
-                        + f"It was {deadline.date()} and today is {now.date()}.",
-                    )
-                    return
-
-                if not leaderboard_item:
-                    await send_discord_message(
-                        interaction,
-                        f"Leaderboard {leaderboard_name} not found.",
-                        ephemeral=True,
-                    )
-                    return
-                reference_code = leaderboard_item["reference_code"]
-                gpus = db.get_leaderboard_gpu_types(leaderboard_name)
-
-            if not interaction.response.is_done():
-                await interaction.response.defer()
-
-            # Call GH runner
-            github_cog = self.bot.get_cog("GitHubCog")
-
-            if not all([github_cog]):
-                await send_discord_message(interaction, "❌ Required cogs not found!")
-                return
-
-            view = GPUSelectionView(gpus)
-
-            await send_discord_message(
-                interaction,
-                f"Please select GPUs to submit for leaderboard: {leaderboard_name}.",
-                view=view,
-                ephemeral=True,
-            )
-
-            await view.wait()
-
-            github_command = github_cog.run_github
-
-            tasks = [
-                async_submit_github_job(
-                    interaction,
-                    leaderboard_name,
-                    script,
-                    github_command,
-                    reference_code,
-                    self.bot,
-                    reference_code,
-                    github_cog,
-                    gpu,
-                )
-                for gpu in view.selected_gpus
-            ]
-            await asyncio.gather(*tasks)
-
-        except ValueError:
-            await send_discord_message(
-                interaction,
-                "Invalid date format. Please use YYYY-MM-DD or YYYY-MM-DD HH:MM",
-                ephemeral=True,
-            )
+        success = await self.on_submit_hook(
+            interaction,
+            leaderboard_name,
+            script,
+            gh_runner_command,
+            github_cog,
+            GitHubGPU,
+            "Modal",
+        )
+        return success
 
 
 class LeaderboardCog(commands.Cog):

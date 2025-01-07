@@ -83,7 +83,7 @@ class VerifyRunCog(commands.Cog):
             return False
 
     async def verify_modal_run(self, modal_cog: ModalCog, interaction: discord.Interaction) -> bool:
-        t4 = app_commands.Choice(name="NVIDIA T4", value="t4")
+        t4 = app_commands.Choice(name="T4", value="t4")
         modal_command = modal_cog.run_modal
 
         modal_thread = await modal_command.callback(modal_cog, interaction, script_file, t4)
