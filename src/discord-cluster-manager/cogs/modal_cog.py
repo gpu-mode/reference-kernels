@@ -84,7 +84,7 @@ class ModalCog(commands.Cog):
                 await status_msg.edit(content="**Running on Modal...**\n> ❌ Job failed!")
                 return thread
             elif "Error" in result:
-                await thread.send(f"Modal run failed. {result}\n")
+                await thread.send(f"Modal run failed. {result}\n"[:2000])  # TODO: Fix later
                 await status_msg.edit(content="**Running on Modal...**\n> ❌ Job failed!")
                 return thread
 
