@@ -71,6 +71,40 @@ async def send_discord_message(interaction: discord.Interaction, msg: str, **kwa
         await interaction.response.send_message(msg, **kwargs)
 
 
+async def send_logs(thread: discord.Thread, logs: str) -> None:
+    """Send logs to a Discord thread, splitting by lines and respecting Discord's character limit.
+
+    Args:
+        thread: The Discord thread to send logs to
+        logs: The log string to send
+    """
+    # Split logs into lines
+    log_lines = logs.splitlines()
+
+    current_chunk = []
+    current_length = 0
+
+    for line in log_lines:
+        # Add 1 for the newline character
+        line_length = len(line) + 1
+
+        # If adding this line would exceed Discord's limit, send current chunk
+        if current_length + line_length > 1990:  # Leave room for code block markers
+            if current_chunk:
+                chunk_text = "\n".join(current_chunk)
+                await thread.send(f"```\n{chunk_text}\n```")
+                current_chunk = []
+                current_length = 0
+
+        current_chunk.append(line)
+        current_length += line_length
+
+    # Send any remaining lines
+    if current_chunk:
+        chunk_text = "\n".join(current_chunk)
+        await thread.send(f"```\n{chunk_text}\n```")
+
+
 def extract_score(score_str: str) -> float:
     """
     Extract score from output logs and push to DB (kind of hacky).

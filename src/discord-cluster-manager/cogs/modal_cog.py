@@ -8,7 +8,7 @@ from discord import app_commands
 from discord.ext import commands
 from leaderboard_eval import cu_eval, py_eval
 from modal_runner_archs import modal_context
-from utils import send_discord_message, setup_logging
+from utils import send_discord_message, send_logs, setup_logging
 
 logger = setup_logging()
 
@@ -80,11 +80,14 @@ class ModalCog(commands.Cog):
                 await thread.send(f"**Modal execution result:**\n```\n{result}\n```")
 
             if "check_implementation failed" in result:
+                await thread.send("Modal run failed.\n")
                 await thread.send("check_implementation failed.\n")
+                await send_logs(thread, result)
                 await status_msg.edit(content="**Running on Modal...**\n> ❌ Job failed!")
                 return thread
             elif "Error" in result:
-                await thread.send(f"Modal run failed. {result}\n"[:2000])  # TODO: Fix later
+                await thread.send("Modal run failed.\n")
+                await send_logs(thread, result)
                 await status_msg.edit(content="**Running on Modal...**\n> ❌ Job failed!")
                 return thread
 
@@ -118,18 +121,19 @@ class ModalCog(commands.Cog):
         try:
             print(f"Running {filename} with Modal")
             file_type = filename.split(".")[-1]
-            with modal.enable_output(), app.run(), modal_context() as runners:
-                if reference_content is not None:
-                    eval_code = py_eval if file_type == "py" else cu_eval
-                    runner = runners.get_runner(file_type, gpu_type)
-                    stdout, score = runner.remote(
-                        eval_code,
-                        reference_content=reference_content,
-                        submission_content=script_content,
-                    )
-                else:
-                    runner = runners.get_runner(file_type, gpu_type)
-                    stdout, score = runner.remote(script_content)
+            with modal.enable_output():
+                with app.run(), modal_context() as runners:
+                    if reference_content is not None:
+                        eval_code = py_eval if file_type == "py" else cu_eval
+                        runner = runners.get_runner(file_type, gpu_type)
+                        stdout, score = runner.remote(
+                            eval_code,
+                            reference_content=reference_content,
+                            submission_content=script_content,
+                        )
+                    else:
+                        runner = runners.get_runner(file_type, gpu_type)
+                        stdout, score = runner.remote(script_content)
 
             return stdout, score
 
