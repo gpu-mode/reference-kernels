@@ -1,0 +1,13 @@
+{
+  "label": "Submitting your First Kernel",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "description": "We distinguish between Python and CUDA leaderboards. 
+    The primary difference is what language/frameworks kernel 
+    evaluation happens in. In Python leaderboards, data will typically be 
+    stored as PyTorch tensors (e.g. the Storage abstraction), while in CUDA leaderboards, 
+    data will be allocated as contiguous chunks of memory. As we will discuss, you can 
+    still inline compile CUDA code for your Python submissions."
+  }
+}

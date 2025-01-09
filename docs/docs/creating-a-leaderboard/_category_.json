@@ -1,0 +1,11 @@
+{
+  "label": "Creating a Leaderboard",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Creating a leaderboard requires special permissions on servers like GPU MODE,
+    but you can also simply request for them to be made. This section is also useful for participants
+    to understand what the user submission pipeline looks like. The whole pipeline is designed to be extremely simple,
+    with the goal of quickly evaluating and profiling kernels that people want to see made faster."
+  }
+}
