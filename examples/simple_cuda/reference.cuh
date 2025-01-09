@@ -1,8 +1,11 @@
-#ifndef __REFERENCE_HPP
-#define __REFERENCE_HPP
+#ifndef __REFERENCE_CUH__
+#define __REFERENCE_CUH__
 
 #include <tuple>
 #include <vector>
+#include <cstdlib>
+#include <cmath>
+#include <array>
 
 #define N_SIZES 10
 const int Ns[N_SIZES] = {128,  256,  512,   1024,  2048,

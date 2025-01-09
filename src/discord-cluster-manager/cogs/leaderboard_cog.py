@@ -554,10 +554,11 @@ class LeaderboardCog(commands.Cog):
 
         code = leaderboard_item["reference_code"]
         code_file = StringIO(code)
-        language = "cpp" if "#include" in code else "py"
+        language = "cuda" if "#include" in code else "python"
+        suffix = "py" if language == "python" else "cuh"
 
         ref_code = discord.File(
-            fp=code_file, filename=f"{leaderboard_name}_reference_code.{language}"
+            fp=code_file, filename=f"{leaderboard_name}_reference_code.{suffix}"
         )
 
         message = (
@@ -569,18 +570,20 @@ class LeaderboardCog(commands.Cog):
 
     @app_commands.describe(language="Language of the evaluation code [cpp, python]")
     @app_commands.choices(
-        language=[app_commands.Choice(name=lang, value=lang) for lang in ["cpp", "python"]]
+        language=[app_commands.Choice(name=lang, value=lang) for lang in ["cuda", "python"]]
     )
     async def get_leaderboard_eval(self, interaction: discord.Interaction, language: str):
         await interaction.response.defer(ephemeral=True)
 
-        if language == "cpp":
+        if language == "cuda":
             eval_code = cu_eval
         else:
             eval_code = py_eval
 
+        suffix = "py" if language == "python" else "cu"
+
         code_file = StringIO(eval_code)
-        ref_code = discord.File(fp=code_file, filename=f"leaderboard_eval.{language}")
+        ref_code = discord.File(fp=code_file, filename=f"leaderboard_eval.{suffix}")
 
         await send_discord_message(
             interaction,

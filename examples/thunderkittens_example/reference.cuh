@@ -1,5 +1,5 @@
-#ifndef __REFERENCE_HPP
-#define __REFERENCE_HPP
+#ifndef __REFERENCE_CUH__
+#define __REFERENCE_CUH__
 
 #include <tuple>
 #include <vector>

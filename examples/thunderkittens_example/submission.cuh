@@ -3,6 +3,7 @@
 // Test whether TK works on Modal runners.
 
 #include "kittens.cuh"
+#include "reference.cuh"
 using namespace kittens;
 
 #define CudaCheckError() __cudaCheckError(__FILE__, __LINE__)
