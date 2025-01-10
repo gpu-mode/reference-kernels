@@ -132,8 +132,8 @@ into three categories, which you can open in the tabs below.
         define anything as the input and output types.
 
         **Arguments:** 
-        - `leaderboard_name` *(required)*: name of the leaderboard to create.
-        - `deadline` *(required)*: name of the leaderboard to delete.
+        - `leaderboard_name` *(required)*: Name of the leaderboard to create.
+        - `deadline` *(required)*: When the leaderboard finishes. Must be of the form YYYY-MM-DD.
         - `reference_code` *(required)*: The reference code that defines the leaderboard. This file
         must obey a set of implemented function signatures according to [Creating a Leaderboard](#),
         and its file extension (e.g. `.py` or `.cu`) determines whether the leaderboard submissions must be

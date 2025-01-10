@@ -82,7 +82,7 @@ const config: Config = {
           title: 'Docs',
           items: [
             {
-              label: 'Using the Leaderboard',
+              label: 'Getting Started',
               to: '/docs/intro',
             },
           ],

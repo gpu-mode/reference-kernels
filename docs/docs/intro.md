@@ -35,7 +35,7 @@ designing automated methods for optimized kernel generation.
 The leaderboard is designed under the principle that an optimized kernel for algorithm `X` on device
 `A` might not be optimized on device `B`. Thus, we separate runtime rankings entirely for the same
 algorithm on different devices. Furthermore, certain algorithms like `Llama 3` inference probably
-will not fit on an `NVIDIA T4`, so we allow leaderboard creators to specify which devices are
+will not fit in-memory on, say an `NVIDIA T4`, so we allow leaderboard creators to specify which devices are
 available for their leaderboard.
 
 We built the entire leaderboard interface around a **Discord bot** that connects to a set of runners ([GitHub Actions](https://github.com/features/actions) and

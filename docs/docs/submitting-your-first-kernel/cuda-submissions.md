@@ -36,7 +36,7 @@ output_t ref_kernel(input_t input) {
 }
 ```
 You can read through the exact implementation details if you'd like as the file is quite small. To
-better understand how to write a kernel on this leaderboard, it is easy to understand how we evaluate user submitted kernels. 
+better understand how to write a kernel on this leaderboard, it is useful to first understand how we evaluate user submitted kernels. 
 Under the hood, the basic submission flow is as follows:
 1. The evaluation harness will call `data = generate_input() -> input_t` to produce an `input_t`
    object. This will typically be a `array[vector<float>]`, or just a list of tensors to evaluate on.
@@ -65,7 +65,7 @@ output_t custom_kernel(input_t input) {
 }
 ```
 
-The `input_t` and `output_t` are generics defined by the leaderboard (you can view the
+The `input_t` and `output_t` are generic aliases defined by the leaderboard (you can view the
 leaderboard reference code that defines these types, see [Available Discord
 Commands](../available-discord-commands)), and are typically going to be
 of the form `std::array<std::vector<float>, N_TENSORS>`. We choose this generic format to allow for things like multiple

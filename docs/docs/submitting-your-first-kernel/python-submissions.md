@@ -5,8 +5,8 @@ sidebar_position: 2
 # Submitting to Python Leaderboards
 As mentioned earlier, Python leaderboards use a Python reference kernel and expect a Python
 submission file from the user. The only restriction is that the user submits **exactly one file that
-is in Python**, but participants can still submit CUDA code through [inlining CUDA code](https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html#custom-ops-landing-page) or writing
-a [CUDA extension / pybinding](https://pytorch.org/tutorials/advanced/cpp_extension.html).
+is in Python**, but participants can still submit CUDA code through [inlining CUDA code](https://pytorch.org/docs/stable/cpp_extension.html#torch.utils.cpp_extension.load_inline) or writing
+a [CUDA extension / pybinding](https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html#custom-ops-landing-page).
 
 
 ## Analyzing the Leaderboard Specifications
@@ -33,7 +33,7 @@ def ref_kernel(xs: List[torch.Tensor]) -> List[torch.Tensor]:
     return xs
 ```
 You can read through the exact implementation details if you'd like as the file is quite small. To
-better understand how to write a kernel on this leaderboard, it is easy to understand how we evaluate user submitted kernels. 
+better understand how to write a kernel on this leaderboard, it is useful to first understand how we evaluate user submitted kernels. 
 Under the hood, the basic submission flow is as follows:
 1. The evaluation harness will call `data = generate_input() -> InputType` to produce an `InputType`
    object. This will typically be a `List[torch.Tensor]`, or just a list of tensors to evaluate on.
@@ -43,7 +43,7 @@ Under the hood, the basic submission flow is as follows:
    `ref_kernel` using the leaderboard-defined `check_implementation(OutputType ref_out, OutputType
     submission_out)`.
 
-The idea here is that `InputType` could actually be multiple inputs (e.g. `(float, float,
+The idea here is that `InputType` and `OutputType` could actually be multiple inputs (e.g. `(float, float,
 torch.Tensor)`), a batch of inputs, etc. The leaderboard creator will specify how to check for
 correctness, and you can view all of this logic for each leaderboard. In the example above,
 `InputType = OutputType = List[torch.Tensor]`, but this need not be the case.
