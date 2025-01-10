@@ -88,7 +88,7 @@ jobs:
         run: |
           if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
             echo "PyTorch detected, installing torch"
-            uv pip install numpy torch
+            uv pip install numpy torch setuptools ninja
           fi
           if grep -rE "(import triton|from triton)" "${{ github.event.inputs.filename }}"; then
             echo "Triton detected, installing triton"

@@ -313,7 +313,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             gh_runner_command,
             github_cog,
             GitHubGPU,
-            "Modal",
+            "GitHub",
         )
         return success
 
