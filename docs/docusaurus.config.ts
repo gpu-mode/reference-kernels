@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 const config: Config = {
-  title: 'Project Popcorn 🍿' ,
+  title: 'GPU MODE Kernel Leaderboard' ,
   tagline: 'Open-community leaderboard to build the fastest GPU kernels!',
   favicon: 'img/favicon.ico',
 
@@ -62,10 +62,10 @@ const config: Config = {
     image: 'img/popcorn.png',
     navbar: {
       title: 'Home',
-      logo: {
-        alt: 'Popcorn',
-        src: 'img/logo.svg',
-      },
+      // logo: {
+      //   alt: 'Popcorn',
+      //   src: 'img/logo.svg',
+      // },
       items: [
         {
           type: 'docSidebar',
@@ -110,7 +110,6 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Project Popcorn 🍿. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,
