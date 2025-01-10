@@ -37,8 +37,10 @@ class ModalCog(commands.Cog):
     ) -> discord.Thread:
         thread = None
         try:
-            if not script.filename.endswith(".py") and not script.filename.endswith(".cu"):
-                await send_discord_message("Please provide a Python (.py) or CUDA (.cu) file")
+            if not script.filename.endswith((".py", ".cu", ".cuh", ".cpp")):
+                await send_discord_message(
+                    "Please provide a Python (.py) or CUDA (.cu / .cuh / .cpp) file"
+                )
                 return None
 
             thread = await self.bot.create_thread(interaction, gpu_type.name, "Modal Job")

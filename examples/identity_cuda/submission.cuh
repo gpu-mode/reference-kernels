@@ -11,7 +11,7 @@ __global__ void copy_kernel(float *input, float *output, int N)
     }
 }
 
-output_t submission(input_t data)
+output_t custom_kernel(input_t data)
 {
     output_t result;
 

@@ -76,14 +76,14 @@ float measure_runtime() {
 
     for (int i = 0; i < WARMUP_RUNS; i++) {
         auto data = generate_input();
-        submission(data);
+        custom_kernel(data);
     }
 
     auto start = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < TIMED_RUNS; i++) {
         auto data = generate_input();
-        submission(data);
+        custom_kernel(data);
     }
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -96,8 +96,8 @@ float measure_runtime() {
 
 int main() {
     auto data = generate_input();
-    auto reference_output = reference(data);
-    auto submission_output = submission(data);
+    auto reference_output = ref_kernel(data);
+    auto submission_output = custom_kernel(data);
 
     if (!check_implementation(submission_output, reference_output)) {
         std::cout << "check_implementation failed" << std::endl;

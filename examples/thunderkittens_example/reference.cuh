@@ -25,7 +25,7 @@ input_t generate_input() {
   return data;
 }
 
-output_t reference(input_t data) {
+output_t ref_kernel(input_t data) {
   output_t out;
 
   for (int i = 0; i < N_SIZES; ++i) {

@@ -41,9 +41,9 @@ class GitHubCog(commands.Cog):
         reference_script: discord.Attachment = None,
         reference_code: str = None,
     ) -> discord.Thread:
-        if not script.filename.endswith(".py") and not script.filename.endswith(".cu"):
+        if not script.filename.endswith((".py", ".cu", ".cuh", ".cpp")):
             await send_discord_message(
-                interaction, "Please provide a Python (.py) or CUDA (.cu) file"
+                interaction, "Please provide a Python (.py) or CUDA (.cu / .cuh / .cpp) file"
             )
             return None
 

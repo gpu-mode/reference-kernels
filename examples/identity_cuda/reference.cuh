@@ -28,17 +28,8 @@ input_t generate_input() {
 }
 
 // The identity kernel
-output_t reference(input_t data) {
-  output_t out;
-
-  for (int i = 0; i < N_SIZES; ++i) {
-    out[i].resize(Ns[i]);
-    for (int j = 0; j < Ns[i]; ++j) {
-      out[i][j] = data[i][j];
-    }
-  }
-
-  return out;
+output_t ref_kernel(input_t data) {
+  return (output_t) data;
 }
 
 bool check_implementation(output_t out, output_t ref, float epsilon = 1e-5) {

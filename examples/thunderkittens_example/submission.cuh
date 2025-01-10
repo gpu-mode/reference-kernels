@@ -89,7 +89,7 @@ void dispatch_micro(float *d_x, float *d_o, int N) {
   cudaDeviceSynchronize();
 }
 
-output_t submission(input_t data) {
+output_t custom_kernel(input_t data) {
   output_t result;
   cudaError_t err;
 

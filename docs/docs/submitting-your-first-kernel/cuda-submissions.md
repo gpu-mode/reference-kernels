@@ -31,8 +31,8 @@ input_t generate_input() {
     ...
 }
 
-output_t reference(input_t input) {
-    return static_cast<output_t>(out);
+output_t ref_kernel(input_t input) {
+    return static_cast<output_t>(input);
 }
 ```
 You can read through the exact implementation details if you'd like as the file is quite small. To
@@ -41,8 +41,8 @@ Under the hood, the basic submission flow is as follows:
 1. The evaluation harness will call `data = generate_input() -> input_t` to produce an `input_t`
    object. This will typically be a `array[vector<float>]`, or just a list of tensors to evaluate on.
 2. The evaluation harness will take the `input_t` data and pass it through both
-   `ref_kernel(input_t data) -> output_t` and a user-defined `submission(input_t data) -> output_t`.
-3. The evaluation harness will check the correctness of the user-defined `submission()` against the
+   `ref_kernel(input_t data) -> output_t` and a user-defined `custom_kernel(input_t data) -> output_t`.
+3. The evaluation harness will check the correctness of the user-defined `custom_kernel()` against the
    `ref_kernel` using the leaderboard-defined `check_implementation(output_t ref_out, output_t submission_out)`.
 
 The idea here is that `input_t` could actually be multiple inputs (e.g. `(float, float,
@@ -53,14 +53,14 @@ correctness, and you can view all of this logic for each leaderboard. In the exa
 ## Submission Files
 Submission files are generally flexible, but to interface easily with our evaluation scaffolding, we
 require submission files to **define and implement** the following function signature (**the
-function that gets called by our harness is `submission`**). Note that we automatically convert
+function that gets called by our harness is `custom_kernel`**). Note that we automatically convert
 your submission into a `.cuh` header, so you don't need to treat your file that way.
 
 ```cpp title="submission.cu"
 // Type aliases for input_t, output_t defined by leaderboard...
 
 // User kernel implementation.
-output_t submission(input_t input) {
+output_t custom_kernel(input_t input) {
     ...
 }
 ```
@@ -88,7 +88,7 @@ __global__ void copy_kernel(float *input, float *output, int N)
     }
 }
 
-output_t submission(input_t data)
+output_t custom_kernel(input_t data)
 {
     output_t result;
 
