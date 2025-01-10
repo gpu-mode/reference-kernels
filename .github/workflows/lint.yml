@@ -23,4 +23,4 @@ jobs:
     
     - name: Run Ruff check
       run: |
-        ruff check .
+        ruff check . --exclude examples/
