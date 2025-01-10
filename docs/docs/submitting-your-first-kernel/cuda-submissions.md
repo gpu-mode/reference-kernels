@@ -67,7 +67,7 @@ output_t submission(input_t input) {
 
 The `input_t` and `output_t` are generics defined by the leaderboard (you can view the
 leaderboard reference code that defines these types, see [Available Discord
-Commands](discord-cluster-manager/docs/available-discord-commands)), and are typically going to be
+Commands](../available-discord-commands)), and are typically going to be
 of the form `std::array<std::vector<float>, N_TENSORS>`. We choose this generic format to allow for things like multiple
 inputs as a tuple, as well as multiple differently sized Tensor inputs. Furthermore, the leaderboard creator
 can define whether to allocate data directly on the GPU, or have it start on the CPU. 
@@ -169,5 +169,5 @@ entire pipeline source code from slash commands. Some examples of useful command
 * `/leaderboard eval-code {language}` to show the evaluation harness for Python/CUDA leaderboards.
 * `/leaderboard reference-code {name}` to get the reference code for the leaderboard.
 
-More details for commands can be found in [Available Discord Commands](discord-cluster-manager/docs/available-discord-commands). 
+More details for commands can be found in [Available Discord Commands](../available-discord-commands). 
 You are now ready to write CUDA kernels! Play around with other available leaderboards and try to write the fastest kernels ⚡!
