@@ -9,3 +9,7 @@ lint.select = [
     "W",   # pycodestyle warnings
 ]
 lint.ignore = []
+exclude = [
+    "docs/",
+    "examples/",
+]
