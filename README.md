@@ -322,6 +322,12 @@ support multiple GPU types yet)
 /leaderboard show {name: str}
 ```
 
+Display all personal scores (runtime) from a specific leaderboard.
+
+```
+/leaderboard show-personal {name: str}
+```
+
 #### GPU Kernel-specific Commands
 
 We plan to add support for the PyTorch profiler and CUDA NSight Compute CLI to allow users to
