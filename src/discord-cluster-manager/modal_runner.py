@@ -1,10 +1,10 @@
 import signal
-import subprocess
 from contextlib import contextmanager
 from typing import Optional
 
-from consts import CUDA_FLAGS, MODAL_CUDA_INCLUDE_DIRS, MODAL_PATH
+from consts import MODAL_CUDA_INCLUDE_DIRS, MODAL_PATH
 from modal import App, Image, Mount
+from run_eval import run_cuda_script, run_pytorch_script
 
 # Create a stub for the Modal app
 # IMPORTANT: This has to stay in separate file or modal breaks
@@ -69,180 +69,43 @@ def timeout(seconds: int):
         signal.signal(signal.SIGALRM, original_handler)
 
 
-def run_pytorch_script(  # noqa: C901
+def modal_run_pytorch_script(  # noqa: C901
     script_content: str,
     reference_content: Optional[str] = None,
     submission_content: Optional[str] = None,
     timeout_seconds: int = 300,
     arch: int = None,
 ) -> tuple[str, float]:
-    """
-    Executes the provided PyTorch GPU kernel in an isolated environment with a timeout
-
-    Args:
-        script_content: The PyTorch script containing the GPU kernel to benchmark
-        reference_content: The (optional) reference code, used for leaderboards.
-        submission_content: The (optional) submission code, used for leaderboards.
-        timeout_seconds: Maximum execution time before timeout (default: 300 seconds)
-        arch: The arch code for the compute/sm versions.
-
-    Returns:
-        tuple[str, float]: (Kernel output, execution time in milliseconds)
-
-    NOTE: Modal execution time is not programmatically accessible, so we manually calculate it
-    """
-
-    import os
-    import time
-
+    """Modal version of run_pytorch_script, handling timeouts"""
     try:
         with timeout(timeout_seconds):
-            # Write submission files to directory
-            if reference_content is not None:
-                with open("reference.py", "w") as f:
-                    f.write(reference_content)
-
-            if submission_content is not None:
-                with open("train.py", "w") as f:
-                    f.write(submission_content)
-
-            with open("eval.py", "w") as f:
-                f.write(script_content)
-
-            execution_start_time = time.perf_counter()
-            result = subprocess.run(
-                ["python", "eval.py"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=timeout_seconds,
+            run_pytorch_script(
+                script_content=script_content,
+                reference_content=reference_content,
+                submission_content=submission_content,
+                arch=arch,
             )
-
-            if result.returncode != 0:
-                raise RuntimeError(
-                    "Script execution failed with return code "
-                    + f"{result.returncode}:\n{result.stderr}"
-                )
-
-            score = None
-            for line in result.stdout.splitlines():
-                if line.startswith("score:"):
-                    score = float(line.split(":")[1].strip())
-                    return ("score", score)
-
-            if score is None:
-                execution_end_time = time.perf_counter()
-                score = execution_end_time - execution_start_time
-
-        return result.stdout, score
 
     except TimeoutException as e:
         return f"Timeout Error: {str(e)}", 0.0
-    except Exception as e:
-        return f"Error executing script: {str(e)}", 0.0
-    finally:
-        tmp_files = ["eval.py", "reference.py", "train.py"]
-        for f in tmp_files:
-            if os.path.exists(f):
-                os.remove(f)
 
 
-def run_cuda_script(  # # noqa: C901
+def modal_run_cuda_script(  # # noqa: C901
     script_content: str,
     reference_content: str = None,
     submission_content: str = None,
     timeout_seconds: int = 600,
     arch: int = None,
 ) -> tuple[str, float]:
-    """
-    Executes the provided CUDA kernel in an isolated environment with a timeout
-
-    Args:
-        script_content: The CUDA script containing the GPU kernel
-        reference_content: The (optional) reference code, used for leaderboards.
-        submission_content: The (optional) submission code, used for leaderboards.
-        timeout_seconds: Maximum execution time in seconds (default: 600 seconds)
-        arch: The arch code for the compute/sm versions.
-
-    Returns:
-        tuple[str, float]: (Kernel output, execution time in milliseconds)
-
-    NOTE: Modal execution time is not programmatically accessible, so we manually calculate it
-    """
-    import os
-    import subprocess
-    import time
-
+    """Modal version of run_cuda_script, handling timeouts"""
     try:
         with timeout(timeout_seconds):
-            # Check CUDA is available and installed correctly
-            print("[CUDA Env Check]")
-            try:
-                # these check cuda compiler is also available
-                subprocess.run(["nvcc", "--version"], check=True)
-                subprocess.run(["which", "nvcc"], check=True)
-            except Exception:
-                return "nvcc not found.", 0.0
-
-            ARCH = f"-gencode=arch=compute_{arch},code=sm_{arch}"
-            NVCC_FILES = "eval.cu"
-            # Write submission files to directory
-            if reference_content is not None:
-                with open("reference.cuh", "w") as f:
-                    f.write(reference_content)
-
-            if submission_content is not None:
-                with open("train.cuh", "w") as f:
-                    f.write(submission_content)
-
-            with open("eval.cu", "w") as f:
-                f.write(script_content)
-
-            execution_start_time = time.perf_counter()
-            compile_process = subprocess.run(
-                ["nvcc"]
-                + CUDA_FLAGS
-                + MODAL_CUDA_INCLUDE_DIRS
-                + [ARCH, NVCC_FILES, "-o", "eval.out"],
-                capture_output=True,
-                text=True,
+            run_cuda_script(
+                script_content,
+                reference_content=reference_content,
+                submission_content=submission_content,
+                arch=arch,
+                include_dirs=MODAL_CUDA_INCLUDE_DIRS,
             )
-
-            if compile_process.returncode != 0:
-                raise RuntimeError(
-                    "CUDA compilation failed with return code "
-                    + f"{compile_process.returncode}:\n{compile_process.stderr}"
-                )
-
-            run_process = subprocess.run(["./eval.out"], capture_output=True, text=True)
-            execution_end_time = time.perf_counter()
-
-            print("run process stdout", run_process.stdout)
-
-            score = None
-            for line in run_process.stdout.splitlines():
-                if line.startswith("score:"):
-                    score = float(line.split(":")[1].strip())
-                    break
-
-            if score is None:
-                execution_end_time = time.perf_counter()
-                score = execution_end_time - execution_start_time
-                return (
-                    "check_implementation failed"
-                    if "check_implementation failed" in run_process.stdout
-                    else None,
-                    score,
-                )  # To make sure error is thrown on LB
-
-            return run_process.stdout, score
-
     except TimeoutException as e:
         return f"Timeout Error: {str(e)}", 0.0
-    except Exception as e:
-        return f"Error executing script: {str(e)}", 0.0
-    finally:
-        tmp_files = ["reference.cuh", "train.cuh", "eval.cu", "eval.out"]
-        for f in tmp_files:
-            if os.path.exists(f):
-                os.remove(f)
