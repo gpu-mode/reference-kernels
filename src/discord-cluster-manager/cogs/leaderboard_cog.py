@@ -779,4 +779,15 @@ class LeaderboardCog(commands.Cog):
                 return
 
         modal = DeleteConfirmationModal("leaderboard", leaderboard_name, self.bot.leaderboard_db)
+
+        forum_channel = self.bot.get_channel(self.bot.leaderboard_forum_id)
+        threads = [thread for thread in forum_channel.threads if thread.name == leaderboard_name]
+
+        if threads:
+            thread = threads[0]
+            new_name = (
+                f"{leaderboard_name} - archived at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            await thread.edit(name=new_name, archived=True)
+
         await interaction.response.send_modal(modal)
