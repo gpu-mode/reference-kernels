@@ -63,28 +63,39 @@ Let's break down what's going on in this relatively short file:
 
 
 float measure_runtime() {
+    std::cout << "warming up..." << std::endl;
 
-    // Warmup Runs
     for (int i = 0; i < WARMUP_RUNS; i++) {
         auto data = generate_input();
         custom_kernel(data);
     }
     cudaDeviceSynchronize();
 
-    auto start = std::chrono::high_resolution_clock::now();
+    using double_duration = std::chrono::duration<double>;
+    double total_duration = 0.0;
 
     for (int i = 0; i < TIMED_RUNS; i++) {
         auto data = generate_input();
-        custom_kernel(data);
-    }
-    
-    cudaDeviceSynchronize();
-    auto end = std::chrono::high_resolution_clock::now();
 
-    using double_duration = std::chrono::duration<double>;
-    auto duration = std::chrono::duration_cast<double_duration>(end - start).count() / TIMED_RUNS;
-    std::cout << "submitted kernel runtime: " << duration << " seconds" << std::endl;
-    return duration;
+        auto start = std::chrono::high_resolution_clock::now();
+        auto submission_output = custom_kernel(data);
+        cudaDeviceSynchronize();
+        auto end = std::chrono::high_resolution_clock::now();
+
+        total_duration += std::chrono::duration_cast<double_duration>(end - start).count();
+
+        auto reference_output = ref_kernel(data);
+        if (!check_implementation(submission_output, reference_output)) {
+            std::cout << "check_implementation failed" << std::endl;
+            return 1;
+        }
+
+    }
+
+
+    double average_duration = total_duration / TIMED_RUNS;
+    std::cout << "submitted kernel runtime: " << average_duration << " seconds" << std::endl;
+    return average_duration;
 }
 
 int main() {
@@ -98,11 +109,14 @@ int main() {
     }
 
     float s = measure_runtime();
+    if (s < 0) {
+        return 1;
+    }
+
     std::cout << "score: " << s << std::endl;
 
     return 0;
 }
-
 ```
 You'll notice that we include from headers named `reference.cuh` and `train.cuh`. These are the reference
 code and submission code respectively, just renamed to a fix module so we can include them. The

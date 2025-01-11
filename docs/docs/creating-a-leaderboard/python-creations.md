@@ -79,14 +79,25 @@ def metric():
     torch.cuda.synchronize()
 
     # Timing Code
-    inputs = generate_input()
-    start_time = time.time()
-    for _ in range(timed_runs):
-        _ = custom_kernel(inputs)
-    torch.cuda.synchronize()
-    end_time = time.time()
+    total_time = 0.0
 
-    custom_duration = (end_time - start_time) / timed_runs
+    for _ in range(timed_runs):
+        inputs = generate_input()
+
+        start_time = time.time()
+        custom_output = custom_kernel(inputs)
+        torch.cuda.synchronize()
+        end_time = time.time()
+        total_time += (end_time - start_time)
+
+        # Verify correctness outside of timing
+        ref_output = ref_kernel(inputs)
+        torch.cuda.synchronize()
+        if not check_implementation(custom_output, ref_output):
+            return -1
+
+
+    custom_duration = total_time / timed_runs
     print(f'Submitted kernel runtime: {custom_duration:.4f} seconds')
 
     return custom_duration
