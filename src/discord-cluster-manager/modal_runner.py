@@ -79,7 +79,7 @@ def modal_run_pytorch_script(  # noqa: C901
     """Modal version of run_pytorch_script, handling timeouts"""
     try:
         with timeout(timeout_seconds):
-            run_pytorch_script(
+            return run_pytorch_script(
                 script_content=script_content,
                 reference_content=reference_content,
                 submission_content=submission_content,
@@ -100,7 +100,7 @@ def modal_run_cuda_script(  # # noqa: C901
     """Modal version of run_cuda_script, handling timeouts"""
     try:
         with timeout(timeout_seconds):
-            run_cuda_script(
+            return run_cuda_script(
                 script_content,
                 reference_content=reference_content,
                 submission_content=submission_content,

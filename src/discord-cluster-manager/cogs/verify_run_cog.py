@@ -91,9 +91,8 @@ class VerifyRunCog(commands.Cog):
         message_contents = [msg.content async for msg in modal_thread.history(limit=None)]
 
         required_patterns = [
-            "Processing `.*` with",
             "Running on Modal...",
-            "Modal execution result:",
+            "Job completed!"
         ]
 
         all_patterns_found = all(
