@@ -1,9 +1,103 @@
 import os
+import shlex
 import subprocess
 import time
+from dataclasses import dataclass
 from typing import Optional
 
 from consts import CUDA_FLAGS
+
+
+@dataclass
+class CompileResult:
+    # fmt: off
+    nvcc_found: bool    # did we find nvcc?
+    nvcc_version: str   # the result of nvcc --version
+    success: bool       # did it compile successfully
+    command: str        # the command that was run to compile the code
+    stdout: str         # standard output produced by the compiler
+    stderr: str         # standard error produced by the compiler
+    exit_code: int      # exit code produced by the compiler
+    # fmt: on
+
+
+def _make_cmd(args: list[str]):
+    return " ".join(map(shlex.quote, args))
+
+
+def compile_cuda_script(  # # noqa: C901
+    files: list[str],
+    arch: int = None,
+    include_dirs: list[str] = None,
+    verbose: bool = False,
+) -> CompileResult:
+    """
+    Compiles a set of cuda files with nvcc.
+
+    Args:
+        files: List of files to compile.
+        arch: Architecture to compile for. If None, uses `native`
+        include_dirs: additional include directories to supply to nvcc
+        verbose: whether to print progress or be silent
+
+    Returns:
+        A `CompileResult` that summarizes the compilation process.
+
+    """
+    if include_dirs is None:
+        include_dirs = []
+
+    if verbose:
+        print_ = print
+    else:
+        print_ = lambda *args, **kwargs: None
+
+    # Check CUDA is available and installed correctly
+    print_("[CUDA Env Check]")
+    try:
+        # these check cuda compiler is also available
+        nvcc = subprocess.check_output(["which", "nvcc"], encoding="utf-8").strip()
+        nvcc_version = subprocess.check_output(["nvcc", "--version"], encoding="utf-8")
+    except subprocess.CalledProcessError as e:
+        return CompileResult(
+            nvcc_found=False,
+            success=False,
+            nvcc_version='',
+            command=_make_cmd(e.cmd),
+            stdout=e.stdout,
+            stderr=e.stderr,
+            exit_code=e.returncode,
+        )
+
+    if arch is None:
+        ARCH = "-arch=native"
+    else:
+        ARCH = f"-gencode=arch=compute_{arch},code=sm_{arch}"
+
+    command = [nvcc] + CUDA_FLAGS + include_dirs + files + [ARCH, "-o", "eval.out"]
+
+    print_("[Compiling]")
+    try:
+        compile_process = subprocess.run(command, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        return CompileResult(
+            nvcc_found=True,
+            success=False,
+            nvcc_version=nvcc_version,
+            command=_make_cmd(e.cmd),
+            stdout=e.stdout,
+            stderr=e.stderr,
+            exit_code=e.returncode,
+        )
+    return CompileResult(
+        nvcc_found=True,
+        success=True,
+        nvcc_version=nvcc_version,
+        command=_make_cmd(compile_process.args),
+        stdout=compile_process.stdout,
+        stderr=compile_process.stderr,
+        exit_code=compile_process.returncode,
+    )
 
 
 def run_cuda_script(  # # noqa: C901
@@ -30,20 +124,6 @@ def run_cuda_script(  # # noqa: C901
         include_dirs = []
 
     try:
-        # Check CUDA is available and installed correctly
-        print("[CUDA Env Check]")
-        try:
-            # these check cuda compiler is also available
-            print(subprocess.check_output(["which", "nvcc"], encoding="utf-8"))
-            print(subprocess.check_output(["nvcc", "--version"], encoding="utf-8"))
-        except Exception:
-            return "nvcc not found.", 0.0
-
-        if arch is None:
-            ARCH = "-arch=native"
-        else:
-            ARCH = f"-gencode=arch=compute_{arch},code=sm_{arch}"
-        NVCC_FILES = "eval.cu"
         # Write submission files to directory
         if reference_content is not None:
             with open("reference.cuh", "w") as f:
@@ -56,17 +136,18 @@ def run_cuda_script(  # # noqa: C901
         with open("eval.cu", "w") as f:
             f.write(script_content)
 
-        execution_start_time = time.perf_counter()
-        compile_process = subprocess.run(
-            ["nvcc"] + CUDA_FLAGS + include_dirs + [ARCH, NVCC_FILES, "-o", "eval.out"],
-            capture_output=True,
-            text=True,
+        compile_result = compile_cuda_script(
+            files=["eval.cu"],
+            arch=arch,
+            include_dirs=include_dirs,
+            verbose=True,
         )
 
-        if compile_process.returncode != 0:
+        if not compile_result.success:
             raise RuntimeError(
                 "CUDA compilation failed with return code "
-                + f"{compile_process.returncode}:\n{compile_process.stderr}"
+                + f"{compile_result.exit_code}:\n{compile_result.stderr}\n"
+                + f"compile command. `{compile_result.command}`"
             )
 
         # set up a pipe so the tester can communicate its verdict with us
@@ -74,6 +155,7 @@ def run_cuda_script(  # # noqa: C901
         pipe_read, pipe_write = os.pipe()
         env["POPCORN_FD"] = str(pipe_write)
 
+        execution_start_time = time.perf_counter()
         run_process = subprocess.run(
             ["./eval.out"],
             capture_output=True,
@@ -86,7 +168,6 @@ def run_cuda_script(  # # noqa: C901
         os.close(pipe_write)
         # and fetch pipe's content
         result = os.fdopen(pipe_read, "r").read()
-
         execution_end_time = time.perf_counter()
 
         print("result", result)
