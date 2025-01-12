@@ -52,21 +52,24 @@ static void cuda_check(cudaError_t status, const char* expr, const char* file, i
 
 #define cuda_check(expr) cuda_check(expr, #expr, __FILE__, __LINE__, __FUNCTION__)
 
-void measure_runtime(PopcornOutput& logger) {
+void measure_runtime(PopcornOutput& logger, std::mt19937& rng) {
     std::cout << "warming up..." << std::endl;
 
-    for (int i = 0; i < WARMUP_RUNS; i++) {
-        auto data = generate_input();
-        // discard result; this is just warmup, we don't care what it returns
-        (void)custom_kernel(data);
+    {
+        auto warmup_data = generate_input(rng());
+        for (int i = 0; i < WARMUP_RUNS; i++) {
+            // discard result; this is just warmup, we don't care what it returns
+            (void)custom_kernel(warmup_data);
+            cuda_check(cudaDeviceSynchronize());
+        }
     }
-    cuda_check(cudaDeviceSynchronize());
 
     std::vector<std::int64_t> durations;
     durations.reserve(TIMED_RUNS);
 
     for (int i = 0; i < TIMED_RUNS; i++) {
-        auto data = generate_input();
+        auto data = generate_input(rng());
+
         // make a copy of the input data to be used by the reference implementation
         auto copy = data;
 
@@ -124,7 +127,15 @@ int main() {
         return 111;
     }
 
-    auto data = generate_input();
+    // get the seed
+    const char *seed_str = std::getenv("POPCORN_SEED");
+    int seed = 42;
+    if (seed_str) {
+        seed = std::stoi(output_fd);
+    }
+
+    std::mt19937 rng(seed);
+    auto data = generate_input(rng());
     auto reference_output = ref_kernel(data);
     auto submission_output = custom_kernel(data);
 
@@ -133,6 +144,6 @@ int main() {
         return 112;
     }
 
-    measure_runtime(logger);
+    measure_runtime(logger, rng);
     return 0;
 }

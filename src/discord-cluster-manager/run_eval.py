@@ -63,7 +63,7 @@ def compile_cuda_script(  # # noqa: C901
         arch: Architecture to compile for. If None, uses `native`
         include_dirs: additional include directories to supply to nvcc
         verbose: whether to print progress or be silent
-
+        seed: Seed value to use for generating test cases
     Returns:
         A `CompileResult` that summarizes the compilation process.
 
@@ -125,11 +125,12 @@ def compile_cuda_script(  # # noqa: C901
     )
 
 
-def run_program(args: list[str]) -> RunResult:
+def run_program(args: list[str], seed: int) -> RunResult:
     # set up a pipe so the tester can communicate its verdict with us
     env = os.environ.copy()
     pipe_read, pipe_write = os.pipe()
     env["POPCORN_FD"] = str(pipe_write)
+    env["POPCORN_SEED"] = str(seed)
 
     execution_start_time = time.perf_counter()
     run_process = subprocess.run(
@@ -173,6 +174,7 @@ def run_cuda_script(  # # noqa: C901
     headers: dict[str, str] = None,
     arch: int = None,
     include_dirs: list[str] = None,
+    seed: int = 42,
 ) -> tuple[CompileResult, RunResult]:
     """
     Executes the provided CUDA kernel in an isolated environment
@@ -184,6 +186,7 @@ def run_cuda_script(  # # noqa: C901
             compile command.
         arch: The arch code for the compute/sm versions. If None, native arch is used.
         include_dirs: Additional include directories, e.g., for thunderkittens/cutlass etc
+        seed: Random seed to initialize the RNG for testing
 
     Returns:
         tuple[CompileResult, RunResult]: CUDA compile/eval result information
@@ -218,9 +221,6 @@ def run_cuda_script(  # # noqa: C901
                 result={},
             )
 
-        run_result = run_program(["./eval.out"])
-        return compile_result, run_result
-
     # cleaning up all source files _before_ we let the user code run, just in
     # case there's something in there that the user isn't supposed to snoop
     finally:
@@ -229,18 +229,7 @@ def run_cuda_script(  # # noqa: C901
             if os.path.exists(f):
                 os.remove(f)
 
-    if not compile_result.success:
-        return compile_result, RunResult(
-            success=False,
-            command="",
-            stdout="",
-            stderr="",
-            exit_code=-1,
-            duration=0.0,
-            result={},
-        )
-
-    run_result = run_program(["./eval.out"])
+    run_result = run_program(["./eval.out"], seed=seed)
     return compile_result, run_result
 
 
@@ -248,6 +237,7 @@ def run_pytorch_script(  # noqa: C901
     sources: dict[str, str],
     main: str,
     arch: int = None,
+    seed: int = 42,
 ) -> RunResult:
     """
     Executes the provided PyTorch GPU kernel in an isolated environment
@@ -256,6 +246,7 @@ def run_pytorch_script(  # noqa: C901
         sources: Files to generate
         main: Which file to run. Must be one of the keys in sources.
         arch: The arch code for the compute/sm versions.
+        seed: Random seed to initialize the RNG for testing
 
     Returns:
         RunResult
@@ -266,7 +257,7 @@ def run_pytorch_script(  # noqa: C901
         # Write submission files to directory
         for source, content in sources.items():
             Path(source).write_text(content)
-        return run_program(["python", main])
+        return run_program(["python", main], seed=seed)
 
     finally:
         for f in sources.keys():

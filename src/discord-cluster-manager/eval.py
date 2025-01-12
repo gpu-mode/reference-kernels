@@ -16,10 +16,9 @@ class PopcornLogger:
         print(f"{key}: {value}\n", file=self.channel)
 
 
-def correctness() -> bool:
+def correctness(rng: torch.Generator) -> bool:
     for _ in range(10):  # check multiple times
-        inputs = generate_input()
-
+        inputs = generate_input(torch.randint(0, int(2**31), (), generator=rng).item())
         custom_output = custom_kernel(inputs)
         ref_output = ref_kernel(inputs)
 
@@ -30,14 +29,14 @@ def correctness() -> bool:
     return True
 
 
-def metric(logger: PopcornLogger):
+def metric(logger: PopcornLogger, rng: torch.Generator):
     warmup_runs = 10
     timed_runs = 100
 
     # Warmup Code
     print("warming up...")
     for _ in range(warmup_runs):
-        inputs = generate_input()
+        inputs = generate_input(torch.randint(0, int(2**31), (), generator=rng).item())
         _ = custom_kernel(inputs)
     torch.cuda.synchronize()
 
@@ -45,7 +44,7 @@ def metric(logger: PopcornLogger):
     times = []
 
     for _ in range(timed_runs):
-        inputs = generate_input()
+        inputs = generate_input(torch.randint(0, int(2**31), (), generator=rng).item())
 
         start_time = time.time()
         custom_output = custom_kernel(inputs)
@@ -82,10 +81,14 @@ def main():
         print(e, file=sys.stderr)
         exit(111)
 
-    if not correctness():
+    seed = int(os.environ.get("POPCORN_FD", 42))
+    rng = torch.Generator()
+    rng.manual_seed(seed)
+
+    if not correctness(rng):
         logger.log("check", "fail")
         exit(112)
-    metric(logger)
+    metric(logger, rng)
 
 
 if __name__ == "__main__":

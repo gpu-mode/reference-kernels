@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <array>
+#include <random>
 #include <iostream>
 
 #define N_SIZES 10
@@ -15,13 +16,16 @@ const int Ns[N_SIZES] = {128,  256,  512,   1024,  2048,
 using input_t = std::array<std::vector<float>, N_SIZES>;
 using output_t = input_t;
 
-input_t generate_input() {
+input_t generate_input(int seed) {
+  std::mt19937 rng(seed);
   input_t data;
+
+  std::uniform_real_distribution<float> dist(0, 1);
 
   for (int i = 0; i < N_SIZES; ++i) {
     data[i].resize(Ns[i]);
     for (int j = 0; j < Ns[i]; ++j) {
-      data[i][j] = static_cast<float>(rand()) / RAND_MAX;
+      data[i][j] = dist(rng);
     }
   }
 

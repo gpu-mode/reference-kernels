@@ -16,7 +16,7 @@ def ref_kernel(xs: List[torch.Tensor]) -> List[torch.Tensor]:
     return xs
 
 
-def generate_input() -> List[torch.Tensor]:
+def generate_input(seed: int) -> List[torch.Tensor]:
     """
     Generates random input tensor of the specified shape.
     Returns:
@@ -34,8 +34,10 @@ def generate_input() -> List[torch.Tensor]:
         device = torch.device("cpu")
 
     tensors = []
+    rng = torch.Generator(device=device)
+    rng.manual_seed(seed)
     for shape in shapes:
-        tensors.append(torch.randn(shape, device=device))
+        tensors.append(torch.randn(shape, device=device, generator=rng))
 
     return tensors
 
