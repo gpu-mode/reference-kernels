@@ -1,8 +1,8 @@
+import dataclasses
 import os
 import shlex
 import subprocess
 import time
-import dataclasses
 from typing import Optional
 
 from consts import CUDA_FLAGS
@@ -75,7 +75,7 @@ def compile_cuda_script(  # # noqa: C901
         return CompileResult(
             nvcc_found=False,
             success=False,
-            nvcc_version='',
+            nvcc_version="",
             command=_make_cmd(e.cmd),
             stdout=e.stdout,
             stderr=e.stderr,
@@ -121,25 +121,14 @@ def run_cuda_program(args: list[str]) -> RunResult:
     env["POPCORN_FD"] = str(pipe_write)
 
     execution_start_time = time.perf_counter()
-    try:
-        run_process = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            check=True,
-            env=env,
-            pass_fds=[pipe_write],
-        )
-    except subprocess.CalledProcessError as e:
-        return RunResult(
-            success=False,
-            command=_make_cmd(e.cmd),
-            stdout=e.stdout,
-            stderr=e.stderr,
-            exit_code=e.returncode,
-            duration=time.perf_counter() - execution_start_time,
-            result={}
-        )
+    run_process = subprocess.run(
+        args,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+        pass_fds=[pipe_write],
+    )
     execution_end_time = time.perf_counter()
 
     # terminate output writing
@@ -153,13 +142,13 @@ def run_cuda_program(args: list[str]) -> RunResult:
         result_dict[key.strip()] = value.strip()
 
     return RunResult(
-        success=True,
+        success=run_process.returncode == 0,
         command=_make_cmd(run_process.args),
         stdout=run_process.stdout,
         stderr=run_process.stderr,
         exit_code=run_process.returncode,
         duration=execution_end_time - execution_start_time,
-        result=result_dict
+        result=result_dict,
     )
 
 
@@ -169,7 +158,7 @@ def run_cuda_script(  # # noqa: C901
     submission_content: str = None,
     arch: int = None,
     include_dirs: list[str] = None,
-) -> tuple[str, float]:
+) -> tuple[CompileResult, RunResult]:
     """
     Executes the provided CUDA kernel in an isolated environment with a timeout
 
@@ -181,7 +170,7 @@ def run_cuda_script(  # # noqa: C901
         include_dirs: Additional include directories, e.g., for thunderkittens/cutlass etc
 
     Returns:
-        tuple[str, float]: (Kernel output, execution time in milliseconds)
+        tuple[CompileResult, RunResult]: CUDA compile/eval result information
     """
     if include_dirs is None:
         include_dirs = []
@@ -207,45 +196,19 @@ def run_cuda_script(  # # noqa: C901
         )
 
         if not compile_result.success:
-            if not compile_result.nvcc_found:
-                return (
-                    "Error executing script: NVCC not found:\n"
-                    + f"command `{compile_result.command}` failed with exit code {compile_result.exit_code}:\n"
-                    + compile_result.stderr
-                    , 0.0
-                )
-            return (
-                "Error executing script: CUDA compilation failed with return code "
-                + f"{compile_result.exit_code}:\n{compile_result.stderr}\n"
-                + f"compile command: `{compile_result.command}`",
-                0.0
+            return compile_result, RunResult(
+                success=False,
+                command="",
+                stdout="",
+                stderr="",
+                exit_code=-1,
+                duration=0.0,
+                result={},
             )
 
         run_result = run_cuda_program(["./eval.out"])
-        if not run_result.success:
-            # exit code 1 encodes failed tests
-            if run_result.exit_code == 1:
-                return f"check_implementation failed:\n{run_result.stderr}", 0.0
-            else:
-                return f"Script failed with exit code ({run_result.exit_code}):\n{run_result.stderr}", 0.0
+        return compile_result, run_result
 
-        print("run process stdout:", run_result.stdout)
-        print("run process stderr:", run_result.stderr)
-
-        score = float(run_result.result.get("duration.mean", "0.0")) / 1e9
-        passed = run_result.result.get("check", "") == "pass"
-        if not passed:
-            return "check_implementation failed", 0.0
-
-        if score is None:
-            return run_result.stdout, run_result.duration
-
-        return run_result.stdout, score
-
-    except subprocess.CalledProcessError as e:
-        return f"Error executing script: {str(e)}\n{e.stderr}", 0.0
-    except Exception as e:
-        return f"Error executing script: {str(e)}", 0.0
     finally:
         tmp_files = ["reference.cuh", "train.cuh", "eval.cu", "eval.out"]
         for f in tmp_files:
