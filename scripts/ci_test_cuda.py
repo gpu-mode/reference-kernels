@@ -19,9 +19,15 @@ def test_does_not_compile():
     output_t custom_kernel(input_tt data) {   }
     """
 
-    cout, score = run_cuda_script(cu_eval, ref.read_text(), sub, arch=None)
-    assert score == 0
-    assert "CUDA compilation failed" in cout
+    comp, run = run_cuda_script(cu_eval, ref.read_text(), sub, arch=None)
+    assert comp.success is False
+    assert run.success is False
+    assert comp.nvcc_found is True
+    assert comp.stdout == ""
+    assert 'train.cuh(2): error: identifier "input_tt" is undefined' in comp.stderr
+    assert '1 error detected in the compilation of "eval.cu".' in comp.stderr
+    assert comp.command.startswith("/usr/local/cuda/bin/nvcc")
+    assert "nvcc: NVIDIA (R) Cuda compiler driver" in comp.nvcc_version
 
 
 def test_cuda_runtime_error():
@@ -44,11 +50,15 @@ output_t custom_kernel(input_t data)
 }
 
     """
-    cout, score = run_cuda_script(cu_eval, ref.read_text(), sub, arch=None)
-    assert score == 0
-    assert "Command '['./eval.out']' returned non-zero exit status 3." in cout
-    assert "cudaDeviceSynchronize() at eval.cu(64) in `measure_runtime`" in cout
-    assert "an illegal memory access was encountered" in cout
+    comp, run = run_cuda_script(cu_eval, ref.read_text(), sub, arch=None)
+    assert comp.success is True
+    assert run.success is False
+    assert run.command == "./eval.out"
+    assert "warming up..." in run.stdout
+    assert "cudaDeviceSynchronize() at eval.cu(64) in `measure_runtime`" in run.stderr
+    assert "an illegal memory access was encountered" in run.stderr
+    assert run.exit_code == 3
+    assert len(run.result) == 0
 
 
 def test_cuda_validation_fail():
@@ -68,14 +78,23 @@ def test_cuda_validation_fail():
     }
 
         """
-    cout, score = run_cuda_script(cu_eval, ref.read_text(), sub, arch=None)
-    assert score == 0
-    assert "Command '['./eval.out']' returned non-zero exit status 1." in cout
-    assert "ERROR AT 0, 0" in cout
+    comp, run = run_cuda_script(cu_eval, ref.read_text(), sub, arch=None)
+    assert comp.success is True
+    assert run.success is False
+    assert run.command == "./eval.out"
+    # we never reach the benchmark part, because the test fails
+    assert "warming up..." not in run.stdout
+    assert "ERROR AT 0, 0" in run.stderr
+    assert run.exit_code == 1
+    assert run.result["check"] == "fail"
 
 
 def test_cuda_correct():
-    sub = Path("examples/identity_cuda/submission.cuh")
+    sub = Path("examples/identity_cuda/submission.cuh").read_text()
 
-    cout, score = run_cuda_script(cu_eval, ref.read_text(), sub.read_text(), arch=None)
-    assert score > 0
+    comp, run = run_cuda_script(cu_eval, ref.read_text(), sub, arch=None)
+    assert comp.success is True
+    assert run.success is True
+    assert "warming up..." in run.stdout
+    assert run.exit_code == 0
+    assert run.result["check"] == "pass"
