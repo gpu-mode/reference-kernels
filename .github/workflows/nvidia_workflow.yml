@@ -2,134 +2,59 @@ name: NVIDIA PyTorch/CUDA Job
 on:
   workflow_dispatch:
     inputs:
-      script_content:
-        description: 'Content of Python/CUDA script (.py or .cu file)'
+      payload:
+        description: 'Content of the user submission, as json string'
         required: true
-        type: string
-      filename:
-        description: 'Name of script (supports .py or .cu)'
-        required: true
-        type: string
-      reference_content:
-        description: 'Content of the reference code script (optional)'
-        required: false
-        type: string
-      reference_filename:
-        description: 'Name of reference script (supports .py or .cu)'
-        required: false
-        type: string
-      eval_content:
-        description: 'Content of the outer eval code script (optional)'
-        required: false
-        type: string
-      eval_filename:
-        description: 'Name of outer eval script (supports .py or .cu)'
-        required: false
         type: string
 
 jobs:
-  train:
+  run:
     runs-on: [gpumode-nvidia-arc]
     timeout-minutes: 10
     container:
       image: nvidia/cuda:12.4.0-devel-ubuntu22.04
     steps:
+      - uses: actions/checkout@v3
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          
+
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
           version: "latest"
-          
+
       - name: Setup Python environment
         run: |
           uv venv .venv
           echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
-          
-      - name: Create script file
+          # TODO the old script was more selective!
+          uv pip install numpy torch setuptools ninja
+          uv pip install triton
+
+      - name: Create input files
         shell: bash
         run: |
-          cat << 'EOL' > ${{ github.event.inputs.filename }}
-          ${{ github.event.inputs.script_content }}
+          cat > "payload.json" <<EOL
+          ${{ github.event.inputs.payload }}
           EOL
-          cat ${{ github.event.inputs.filename }}  # Debug: show file contents
-
-      - name: Create reference scripts if provided
-        shell: bash
-        run: |
-          if [[ -n "${{ github.event.inputs.reference_filename }}" ]]; then
-            echo "Creating reference script..."
-            cat > "${{ github.event.inputs.reference_filename }}" <<EOL
-          ${{ github.event.inputs.reference_content }}
-          EOL
-              cat "${{ github.event.inputs.reference_filename }}"  # Debug: Show file contents
-            else
-                echo "No reference content provided."
-            fi
-
-      - name: Create eval scripts if provided
-        shell: bash
-        run: |
-          if [[ -n "${{ github.event.inputs.eval_filename }}" ]]; then
-            echo "Creating eval script..."
-            cat > "${{ github.event.inputs.eval_filename }}" <<EOL
-          ${{ github.event.inputs.eval_content }}
-          EOL
-              cat "${{ github.event.inputs.eval_filename }}"  # Debug: Show file contents
-            else
-                echo "No eval content provided."
-            fi
-
-      - name: Install dependencies
-        run: |
-          if grep -rE "(import torch|from torch)" "${{ github.event.inputs.filename }}"; then
-            echo "PyTorch detected, installing torch"
-            uv pip install numpy torch setuptools ninja
-          fi
-          if grep -rE "(import triton|from triton)" "${{ github.event.inputs.filename }}"; then
-            echo "Triton detected, installing triton"
-            uv pip install triton
-          fi
 
       - name: Run script
         shell: bash
         run: |
-          # Check if eval content exists without trying to evaluate it
-          if [ -f "${{ github.event.inputs.eval_filename }}" ]; then
-            if [[ "${{ github.event.inputs.eval_filename }}" == *.cu ]]; then
-              echo "Compiling and running CUDA files..."
-              CUDA_FILES="${{ github.event.inputs.eval_filename }}"
-              echo "Compiling: $CUDA_FILES"
-              nvcc $CUDA_FILES -o cuda_program
-              ./cuda_program > training.log 2>&1
-            else
-              echo "Running Python file..."
-              python3 "${{ github.event.inputs.eval_filename }}" > training.log 2>&1
-            fi
-          else
-            if [[ "${{ github.event.inputs.filename }}" == *.cu ]]; then
-              echo "Compiling and running CUDA file..."
-              nvcc "${{ github.event.inputs.filename }}" -o cuda_program
-              ./cuda_program > training.log 2>&1
-            else
-              echo "Running Python file..."
-              python3 "${{ github.event.inputs.filename }}" > training.log 2>&1
-            fi
-          fi
-          cat training.log  # Debug: show output
+          python .github/workflows/runner.py
+          cat result.json  # Debug: show output
 
       - name: Upload training artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: training-artifacts
+          name: run-result
           path: |
-            training.log
-            ${{ github.event.inputs.filename }}
+            result.json
 
     env:
       CUDA_VISIBLE_DEVICES: 0

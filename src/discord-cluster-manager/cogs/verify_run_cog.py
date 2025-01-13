@@ -43,8 +43,13 @@ class VerifyRunCog(commands.Cog):
         interaction: discord.Interaction,
     ) -> bool:
         github_command = github_cog.run_github
-        script_file = create_mock_attachment("test_script.py", "print('Hello, world!')")
-        github_thread = await github_command.callback(github_cog, interaction, script_file, choice)
+        cuda_file = create_mock_attachment(
+            "test.cu", Path("examples/identity_cuda/submission.cuh").read_text()
+        )
+        reference_code = Path("examples/identity_cuda/reference.cuh").read_text()
+        github_thread = await github_command.callback(
+            github_cog, interaction, cuda_file, choice, reference_code=reference_code
+        )
 
         message_contents = [msg.content async for msg in github_thread.history(limit=None)]
 
