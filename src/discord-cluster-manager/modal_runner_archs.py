@@ -75,7 +75,7 @@ def run_pytorch_script_l4(
     submission_content: str = None,
     timeout_seconds: int = 600,
 ) -> tuple[str, float]:
-    return modal_run_cuda_script(
+    return modal_run_pytorch_script(
         script_content,
         reference_content,
         submission_content,
@@ -114,7 +114,7 @@ def run_pytorch_script_a100(
     submission_content: str = None,
     timeout_seconds: int = 600,
 ) -> tuple[str, float]:
-    return modal_run_cuda_script(
+    return modal_run_pytorch_script(
         script_content,
         reference_content,
         submission_content,
@@ -153,7 +153,7 @@ def run_pytorch_script_h100(
     submission_content: str = None,
     timeout_seconds: int = 600,
 ) -> tuple[str, float]:
-    return modal_run_cuda_script(
+    return modal_run_pytorch_script(
         script_content,
         reference_content,
         submission_content,
