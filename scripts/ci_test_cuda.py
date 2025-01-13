@@ -47,7 +47,7 @@ output_t custom_kernel(input_t data)
     cout, score = run_cuda_script(cu_eval, ref.read_text(), sub, arch=None)
     assert score == 0
     assert "Command '['./eval.out']' returned non-zero exit status 3." in cout
-    assert "cudaDeviceSynchronize() at eval.cu(38) in `measure_runtime`" in cout
+    assert "cudaDeviceSynchronize() at eval.cu(64) in `measure_runtime`" in cout
     assert "an illegal memory access was encountered" in cout
 
 

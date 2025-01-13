@@ -90,10 +90,7 @@ class VerifyRunCog(commands.Cog):
 
         message_contents = [msg.content async for msg in modal_thread.history(limit=None)]
 
-        required_patterns = [
-            "Running on Modal...",
-            "Job completed!"
-        ]
+        required_patterns = ["Running on Modal...", "Job completed!"]
 
         all_patterns_found = all(
             any(re.search(pattern, content, re.DOTALL) is not None for content in message_contents)

@@ -69,26 +69,63 @@ def run_cuda_script(  # # noqa: C901
                 + f"{compile_process.returncode}:\n{compile_process.stderr}"
             )
 
-        run_process = subprocess.run(["./eval.out"], capture_output=True, text=True, check=True)
+        # set up a pipe so the tester can communicate its verdict with us
+        env = os.environ.copy()
+        pipe_read, pipe_write = os.pipe()
+        env["POPCORN_FD"] = str(pipe_write)
+
+        run_process = subprocess.run(
+            ["./eval.out"],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
+            pass_fds=[pipe_write],
+        )
+        # terminate output writing
+        os.close(pipe_write)
+        # and fetch pipe's content
+        result = os.fdopen(pipe_read, "r").read()
+
         execution_end_time = time.perf_counter()
 
+        print("result", result)
         print("run process stdout", run_process.stdout)
         print("run process stderr", run_process.stderr)
 
         score = None
-        for line in run_process.stdout.splitlines():
-            if line.startswith("score:"):
-                score = float(line.split(":")[1].strip())
-                break
+        passed = None
+        for line in result.splitlines():
+            key, _, value = line.partition(":")
+            key = key.strip()
+            value = value.strip()
+            if key == "duration.mean":
+                score = float(value) / 1e9
+            elif key == "duration.std":
+                _ = float(value) / 1e9
+            elif key == "duration.err":
+                _ = float(value) / 1e9
+            elif key == "duration.best":
+                _ = float(value) / 1e9
+            elif key == "duration.worst":
+                _ = float(value) / 1e9
+            elif key == "check":
+                passed = value == "pass"
+            else:
+                print(f"unknown key {key} = {value}")
+        # TODO: handle the case when "check" key is missing?
+        if not passed:
+            return "check_implementation failed", 0.0
 
         if score is None:
             score = execution_end_time - execution_start_time
-            if "check_implementation failed" in run_process.stdout:
+            if passed:
                 return "check_implementation failed", 0.0
             else:
+                # This case isn't handled well in modal_cog
                 return None, score
 
-        return run_process.stdout, score
+        return result, score
 
     except subprocess.CalledProcessError as e:
         return f"Error executing script: {str(e)}\n{e.stderr}", 0.0
