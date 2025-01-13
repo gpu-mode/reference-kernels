@@ -20,9 +20,13 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Install pytest
+        shell: bash
+        run: pip install pytest
+
       - name: Run script
         shell: bash
-        run: python3 scripts/local-test.py
+        run: pytest scripts/ci_test_cuda.py
 
     env:
       CUDA_VISIBLE_DEVICES: 0

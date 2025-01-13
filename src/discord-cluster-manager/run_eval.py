@@ -69,7 +69,7 @@ def run_cuda_script(  # # noqa: C901
                 + f"{compile_process.returncode}:\n{compile_process.stderr}"
             )
 
-        run_process = subprocess.run(["./eval.out"], capture_output=True, text=True)
+        run_process = subprocess.run(["./eval.out"], capture_output=True, text=True, check=True)
         execution_end_time = time.perf_counter()
 
         print("run process stdout", run_process.stdout)
@@ -82,7 +82,6 @@ def run_cuda_script(  # # noqa: C901
                 break
 
         if score is None:
-            execution_end_time = time.perf_counter()
             score = execution_end_time - execution_start_time
             if "check_implementation failed" in run_process.stdout:
                 return "check_implementation failed", 0.0
@@ -91,6 +90,8 @@ def run_cuda_script(  # # noqa: C901
 
         return run_process.stdout, score
 
+    except subprocess.CalledProcessError as e:
+        return f"Error executing script: {str(e)}\n{e.stderr}", 0.0
     except Exception as e:
         return f"Error executing script: {str(e)}", 0.0
     finally:
