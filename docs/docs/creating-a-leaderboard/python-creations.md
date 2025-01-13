@@ -152,3 +152,17 @@ of designing a variety of input/output types beyond just lists of Tensors, as we
 is actually placed (e.g. on device or on host). Furthermore, we allow leaderboard creators to define
 their own correctness check functions, because some leaderboards may allow for low-precision
 submissions through an allowable error such as `rtol` or `atol`.
+
+## Deleting a Leaderboard
+If you have sufficient permissions on the server, you can also delete leaderboards with:
+
+<center>
+```
+/leaderboard delete {leaderboard_name: str}
+```
+</center>
+
+This command will display a UI window with a list of available leaderboards. Select the leaderboard you want to delete from the list. Once confirmed, the leaderboard and all associated submissions will be permanently removed. Please use this command with caution, as it will also delete the leaderboard history as well.
+
+## Example Files
+You can find complete examples of eval.py, reference_code.py, and submission.py files in the discord-cluster-manager repository under the examples directory at discord-cluster-manager/tree/main/examples. These examples demonstrate different types of leaderboards and can serve as templates for creating your own leaderboards.
