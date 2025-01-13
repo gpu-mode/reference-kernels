@@ -1,5 +1,6 @@
 import asyncio
 import re
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import discord
@@ -12,17 +13,14 @@ from utils import send_discord_message, setup_logging
 logger = setup_logging()
 
 
-def create_mock_attachment():
+def create_mock_attachment(file_name: str, content: str):
     "Create an AsyncMock to simulate discord.Attachment"
 
     mock_attachment = AsyncMock(spec=discord.Attachment)
-    mock_attachment.filename = "test_script.py"
+    mock_attachment.filename = file_name
     mock_attachment.content_type = "text/plain"
-    mock_attachment.read = AsyncMock(return_value="print('Hello, world!')".encode("utf-8"))
+    mock_attachment.read = AsyncMock(return_value=content.encode("utf-8"))
     return mock_attachment
-
-
-script_file = create_mock_attachment()
 
 
 class VerifyRunCog(commands.Cog):
@@ -45,6 +43,7 @@ class VerifyRunCog(commands.Cog):
         interaction: discord.Interaction,
     ) -> bool:
         github_command = github_cog.run_github
+        script_file = create_mock_attachment("test_script.py", "print('Hello, world!')")
         github_thread = await github_command.callback(github_cog, interaction, script_file, choice)
 
         message_contents = [msg.content async for msg in github_thread.history(limit=None)]
@@ -86,7 +85,13 @@ class VerifyRunCog(commands.Cog):
         t4 = app_commands.Choice(name="T4", value="t4")
         modal_command = modal_cog.run_modal
 
-        modal_thread = await modal_command.callback(modal_cog, interaction, script_file, t4)
+        sub_code = create_mock_attachment(
+            "submission.py", Path("examples/identity_py/submission.py").read_text()
+        )
+        ref_code = Path("examples/identity_py/reference.py").read_text()
+        modal_thread = await modal_command.callback(
+            modal_cog, interaction, sub_code, t4, reference_code=ref_code
+        )
 
         message_contents = [msg.content async for msg in modal_thread.history(limit=None)]
 

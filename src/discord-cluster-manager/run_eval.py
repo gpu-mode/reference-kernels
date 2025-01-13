@@ -114,7 +114,7 @@ def compile_cuda_script(  # # noqa: C901
     )
 
 
-def run_cuda_program(args: list[str]) -> RunResult:
+def run_program(args: list[str]) -> RunResult:
     # set up a pipe so the tester can communicate its verdict with us
     env = os.environ.copy()
     pipe_read, pipe_write = os.pipe()
@@ -142,7 +142,9 @@ def run_cuda_program(args: list[str]) -> RunResult:
         result_dict[key.strip()] = value.strip()
 
     return RunResult(
-        success=run_process.returncode == 0,
+        # TODO should we return 0 also on test failure?
+        # TODO check what return codes python uses, e.g. on uncaught exception
+        success=(run_process.returncode == 0 or run_process.returncode == 1),
         command=_make_cmd(run_process.args),
         stdout=run_process.stdout,
         stderr=run_process.stderr,
@@ -206,7 +208,7 @@ def run_cuda_script(  # # noqa: C901
                 result={},
             )
 
-        run_result = run_cuda_program(["./eval.out"])
+        run_result = run_program(["./eval.out"])
         return compile_result, run_result
 
     finally:
@@ -221,9 +223,9 @@ def run_pytorch_script(  # noqa: C901
     reference_content: Optional[str] = None,
     submission_content: Optional[str] = None,
     arch: int = None,
-) -> tuple[str, float]:
+) -> RunResult:
     """
-    Executes the provided PyTorch GPU kernel in an isolated environment with a timeout
+    Executes the provided PyTorch GPU kernel in an isolated environment
 
     Args:
         script_content: The PyTorch script containing the GPU kernel to benchmark
@@ -247,33 +249,8 @@ def run_pytorch_script(  # noqa: C901
         with open("eval.py", "w") as f:
             f.write(script_content)
 
-        execution_start_time = time.perf_counter()
-        result = subprocess.run(
-            ["python", "eval.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        return run_program(["python", "eval.py"])
 
-        if result.returncode != 0:
-            raise RuntimeError(
-                "Script execution failed with return code "
-                + f"{result.returncode}:\n{result.stderr}"
-            )
-
-        score = None
-        for line in result.stdout.splitlines():
-            if line.startswith("score:"):
-                score = float(line.split(":")[1].strip())
-                return "score", score
-
-        if score is None:
-            execution_end_time = time.perf_counter()
-            score = execution_end_time - execution_start_time
-
-        return result.stdout, score
-    except Exception as e:
-        return f"Error executing script: {str(e)}", 0.0
     finally:
         tmp_files = ["eval.py", "reference.py", "train.py"]
         for f in tmp_files:
