@@ -4,7 +4,7 @@ from typing import Optional
 
 from consts import MODAL_CUDA_INCLUDE_DIRS, MODAL_PATH
 from modal import App, Image, Mount
-from run_eval import run_cuda_script, run_pytorch_script
+from run_eval import FullResult, run_cuda_script, run_pytorch_script
 
 # Create a stub for the Modal app
 # IMPORTANT: This has to stay in separate file or modal breaks
@@ -75,7 +75,7 @@ def modal_run_pytorch_script(  # noqa: C901
     submission_content: Optional[str] = None,
     timeout_seconds: int = 300,
     arch: int = None,
-) -> tuple[str, float]:
+) -> FullResult:
     """Modal version of run_pytorch_script, handling timeouts"""
     try:
         with timeout(timeout_seconds):
@@ -85,34 +85,14 @@ def modal_run_pytorch_script(  # noqa: C901
                 submission_content=submission_content,
                 arch=arch,
             )
-            if not run_result.success:
-                # exit code 1 encodes failed tests
-                if run_result.exit_code == 1:
-                    return f"check_implementation failed:\n{run_result.stderr}", 0.0
-                else:
-                    return (
-                        f"Script failed with exit code "
-                        f"({run_result.exit_code}):\n{run_result.stderr}",
-                        0.0,
-                    )
-
-            print("run process stdout:", run_result.stdout)
-            print("run process stderr:", run_result.stderr)
-
-            score = float(run_result.result.get("duration.mean", "0.0")) / 1e9
-            passed = run_result.result.get("check", "") == "pass"
-            if not passed:
-                return "check_implementation failed", 0.0
-
-            if score is None:
-                return run_result.stdout, run_result.duration
-
-            return run_result.stdout, score
-
+            return FullResult(success=True, error="", compile=None, run=run_result)
+        # TODO fixup error handling!
     except TimeoutException as e:
-        return f"Timeout Error: {str(e)}", 0.0
+        return FullResult(success=False, error=f"Timeout Error: {str(e)}", compile=None, run=None)
     except Exception as e:
-        return f"Error executing script: {str(e)}", 0.0
+        return FullResult(
+            success=False, error=f"Error executing script: {str(e)}", compile=None, run=None
+        )
 
 
 def modal_run_cuda_script(  # # noqa: C901
@@ -121,59 +101,22 @@ def modal_run_cuda_script(  # # noqa: C901
     submission_content: str = None,
     timeout_seconds: int = 600,
     arch: int = None,
-) -> tuple[str, float]:
+) -> FullResult:
     """Modal version of run_cuda_script, handling timeouts"""
     try:
         with timeout(timeout_seconds):
-            compile_result, run_result = run_cuda_script(
+            comp, run = run_cuda_script(
                 script_content,
                 reference_content=reference_content,
                 submission_content=submission_content,
                 arch=arch,
                 include_dirs=MODAL_CUDA_INCLUDE_DIRS,
             )
-
-            if not compile_result.success:
-                if not compile_result.nvcc_found:
-                    return (
-                        "Error executing script: NVCC not found:\n"
-                        + f"command `{compile_result.command}` "
-                        + f"failed with exit code {compile_result.exit_code}:\n"
-                        + compile_result.stderr,
-                        0.0,
-                    )
-                return (
-                    "Error executing script: CUDA compilation failed with return code "
-                    + f"{compile_result.exit_code}:\n{compile_result.stderr}\n"
-                    + f"compile command: `{compile_result.command}`",
-                    0.0,
-                )
-
-            if not run_result.success:
-                # exit code 1 encodes failed tests
-                if run_result.exit_code == 1:
-                    return f"check_implementation failed:\n{run_result.stderr}", 0.0
-                else:
-                    return (
-                        f"Script failed with exit code "
-                        f"({run_result.exit_code}):\n{run_result.stderr}",
-                        0.0,
-                    )
-
-            print("run process stdout:", run_result.stdout)
-            print("run process stderr:", run_result.stderr)
-
-            score = float(run_result.result.get("duration.mean", "0.0")) / 1e9
-            passed = run_result.result.get("check", "") == "pass"
-            if not passed:
-                return "check_implementation failed", 0.0
-
-            if score is None:
-                return run_result.stdout, run_result.duration
-
-            return run_result.stdout, score
-
+        return FullResult(success=True, error="", compile=comp, run=run)
+    # TODO fixup error handling!
     except TimeoutException as e:
-        return f"Timeout Error: {str(e)}", 0.0
+        return FullResult(success=False, error=f"Timeout Error: {str(e)}", compile=None, run=None)
     except Exception as e:
-        return f"Error executing script: {str(e)}", 0.0
+        return FullResult(
+            success=False, error=f"Error executing script: {str(e)}", compile=None, run=None
+        )
