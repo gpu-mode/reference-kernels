@@ -1,5 +1,6 @@
 import math
 import os
+import sys
 import time
 
 import torch
@@ -56,7 +57,7 @@ def metric(logger: PopcornLogger):
         torch.cuda.synchronize()
         if not check_implementation(custom_output, ref_output):
             logger.log("check", "fail")
-            exit(1)
+            exit(112)
 
     total_time = sum(times)
     average_duration = total_time / timed_runs
@@ -75,10 +76,15 @@ def metric(logger: PopcornLogger):
 
 
 def main():
-    logger = PopcornLogger(int(os.environ["POPCORN_FD"]))
+    try:
+        logger = PopcornLogger(int(os.environ["POPCORN_FD"]))
+    except Exception as e:
+        print(e, file=sys.stderr)
+        exit(111)
+
     if not correctness():
         logger.log("check", "fail")
-        exit(1)
+        exit(112)
     metric(logger)
 
 

@@ -141,10 +141,10 @@ def run_program(args: list[str]) -> RunResult:
         key, _, value = line.partition(":")
         result_dict[key.strip()] = value.strip()
 
+    # 0     everything was fine
+    # 112   program ran fine, but we detected a test failure
     return RunResult(
-        # TODO should we return 0 also on test failure?
-        # TODO check what return codes python uses, e.g. on uncaught exception
-        success=(run_process.returncode == 0 or run_process.returncode == 1),
+        success=run_process.returncode == 0,
         command=_make_cmd(run_process.args),
         stdout=run_process.stdout,
         stderr=run_process.stderr,

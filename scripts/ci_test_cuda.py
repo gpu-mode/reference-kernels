@@ -55,9 +55,9 @@ output_t custom_kernel(input_t data)
     assert run.success is False
     assert run.command == "./eval.out"
     assert "warming up..." in run.stdout
-    assert "cudaDeviceSynchronize() at eval.cu(64) in `measure_runtime`" in run.stderr
+    assert "cudaDeviceSynchronize() at eval.cu(63) in `measure_runtime`" in run.stderr
     assert "an illegal memory access was encountered" in run.stderr
-    assert run.exit_code == 3
+    assert run.exit_code == 110
     assert len(run.result) == 0
 
 
@@ -85,7 +85,7 @@ def test_cuda_validation_fail():
     # we never reach the benchmark part, because the test fails
     assert "warming up..." not in run.stdout
     assert "ERROR AT 0, 0" in run.stderr
-    assert run.exit_code == 1
+    assert run.exit_code == 112
     assert run.result["check"] == "fail"
 
 

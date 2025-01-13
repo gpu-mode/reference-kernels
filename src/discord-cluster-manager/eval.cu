@@ -46,8 +46,7 @@ static void cuda_check(cudaError_t status, const char* expr, const char* file, i
                   << line << ") in `"
                   << function << "`: "
                   << cudaGetErrorString(status) << std::endl;
-        // following pytest convention, exit code 3 means internal error
-        std::exit(3);
+        std::exit(110);
     }
 }
 
@@ -83,7 +82,7 @@ void measure_runtime(PopcornOutput& logger) {
         auto reference_output = ref_kernel(copy);
         if (!check_implementation(submission_output, reference_output)) {
             logger.log("check", "fail");
-            std::exit(1);
+            std::exit(112);
         }
 
     }
@@ -122,7 +121,7 @@ int main() {
         int fd = std::stoi(output_fd);
         logger.File.reset(::fdopen(fd, "w"));
     } else {
-        return 4;       // pytest: usage error
+        return 111;
     }
 
     auto data = generate_input();
@@ -131,7 +130,7 @@ int main() {
 
     if (!check_implementation(submission_output, reference_output)) {
         logger.log("check", "fail");
-        return 1;
+        return 112;
     }
 
     measure_runtime(logger);
