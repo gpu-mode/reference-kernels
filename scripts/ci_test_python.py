@@ -34,7 +34,8 @@ def custom_kernel(input):
     return [torch.zeros_like(i) for i in input]
         """
     run = run_pytorch_script(py_eval, ref.read_text(), sub, arch=None)
-    assert run.success is False
+    assert run.success is True
+    assert run.passed is False
     assert run.command == "python eval.py"
     # we never reach the benchmark part, because the test fails
     assert "warming up..." not in run.stdout
