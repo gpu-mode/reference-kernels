@@ -12,7 +12,7 @@ from discord import app_commands
 from discord.ext import commands
 from env import GITHUB_REPO, GITHUB_TOKEN
 from github import Github
-from leaderboard_eval import cu_eval, py_eval
+from leaderboard_eval import amd_requirements, nvidia_requirements
 from report import generate_report
 from run_eval import CompileResult, FullResult, RunResult
 from utils import get_github_branch_name, send_discord_message, setup_logging
@@ -68,34 +68,12 @@ class GitHubCog(commands.Cog):
             else:
                 reference_content = None
 
-            if gpu_type.value == "nvidia":
-                run_id = await self.trigger_github_nvidia(
-                    lang=lang,
-                    script_content=script_content,
-                    reference_content=reference_content,
-                )
-            else:
-                ##########
-                # OLD CODE
-                filename = "train.py" if script.filename.endswith(".py") else "train.cu"
-                if reference_script is not None or reference_code is not None:
-                    reference_content = (
-                        reference_code
-                        if reference_code is not None
-                        else (await reference_script.read()).decode("utf-8")
-                    )
-                    eval_code = py_eval if script.filename.endswith(".py") else cu_eval
-
-                    run_id = await self.trigger_github_amd(
-                        script_content,
-                        filename,
-                        selected_gpu,
-                        reference_content,
-                        eval_code,
-                    )
-                else:
-                    run_id = await self.trigger_github_amd(script_content, filename, selected_gpu)
-                ##########
+            run_id = await self.trigger_github_run(
+                lang=lang,
+                gpu_type=selected_gpu,
+                script_content=script_content,
+                reference_content=reference_content,
+            )
 
             if run_id:
                 await thread.send(
@@ -128,59 +106,24 @@ class GitHubCog(commands.Cog):
                 await thread.send(f"Error processing request: {str(e)}")
             raise
 
-    async def trigger_github_nvidia(
-        self, lang: str, script_content: str, reference_content: Optional[str]
+    async def trigger_github_run(
+        self, lang: str, gpu_type: GPUType, script_content: str, reference_content: Optional[str]
     ):
+        if lang == "cu" and gpu_type == GPUType.AMD:
+            # TODO implement HIP
+            raise ValueError("Cannot use CUDA runs with AMD GPUs")
+
         eval_name = {"py": "eval.py", "cu": "eval.cu"}[lang]
         ref_name = {"py": "reference.py", "cu": "reference.cuh"}[lang]
         sub_name = {"py": "submission.py", "cu": "submission.cuh"}[lang]
+        lang_name = {"py": "Python", "cu": "CUDA"}[lang]
 
         if reference_content is None:
             config = {eval_name: script_content, "lang": lang}
         else:
             config = {ref_name: reference_content, sub_name: script_content, "lang": lang}
 
-        logger.info("Attempting to trigger GitHub action for NVIDIA")
-        gh = Github(GITHUB_TOKEN)
-        repo = gh.get_repo(GITHUB_REPO)
-
-        try:
-            trigger_time = datetime.now(timezone.utc)
-            workflow_file = "nvidia_workflow.yml"
-            workflow = repo.get_workflow(workflow_file)
-
-            payload = json.dumps(config)
-
-            inputs = {"payload": payload}
-            if lang == "py":
-                inputs["requirements"] = "numpy\ntorch\nsetuptools\nninja\ntriton"
-
-            success = workflow.create_dispatch(
-                get_github_branch_name(),
-                inputs=inputs
-            )
-            if success:
-                await asyncio.sleep(2)
-                runs = list(workflow.get_runs())
-
-                for run in runs:
-                    if run.created_at.replace(tzinfo=timezone.utc) > trigger_time:
-                        return run.id
-            return None
-
-        except Exception as e:
-            logger.error(f"Error in trigger_github_action: {str(e)}", exc_info=True)
-            return None
-
-    async def trigger_github_amd(
-        self,
-        script_content,
-        filename,
-        gpu_type,
-        reference_content=None,
-        eval_content=None,
-    ):
-        logger.info(f"Attempting to trigger GitHub action for {gpu_type.name} GPU")
+        logger.info(f"Attempting to trigger GitHub action for {lang_name} on {gpu_type.name}")
         gh = Github(GITHUB_TOKEN)
         repo = gh.get_repo(GITHUB_REPO)
 
@@ -189,27 +132,16 @@ class GitHubCog(commands.Cog):
             workflow_file = gpu_type.value
             workflow = repo.get_workflow(workflow_file)
 
-            if reference_content is not None:
-                eval_filename = "eval.py" if filename.endswith(".py") else "eval.cu"
-                reference_filename = "reference.py" if filename.endswith(".py") else "reference.cuh"
-                filename = "train.py" if filename.endswith(".py") else "train.cuh"
-                success = workflow.create_dispatch(
-                    get_github_branch_name(),
-                    {
-                        "script_content": script_content,
-                        "filename": filename,
-                        "reference_content": reference_content,
-                        "reference_filename": reference_filename,
-                        "eval_content": eval_content,
-                        "eval_filename": eval_filename,
-                    },
-                )
-            else:
-                success = workflow.create_dispatch(
-                    get_github_branch_name(),
-                    {"script_content": script_content, "filename": filename},
-                )
+            payload = json.dumps(config)
 
+            inputs = {"payload": payload}
+            if lang == "py":
+                if gpu_type == GPUType.NVIDIA:
+                    inputs["requirements"] = nvidia_requirements
+                else:
+                    inputs["requirements"] = amd_requirements
+
+            success = workflow.create_dispatch(get_github_branch_name(), inputs=inputs)
             if success:
                 await asyncio.sleep(2)
                 runs = list(workflow.get_runs())
@@ -258,10 +190,7 @@ class GitHubCog(commands.Cog):
                     )
 
                 if run.status == "completed":
-                    if gpu_type.value == "nvidia":
-                        result = await self.download_results(run_id)
-                    else:
-                        result = await self.handle_training_log(run_id)
+                    result = await self.download_results(run_id)
                     return run.conclusion, result, run.html_url
 
                 await thread.send(
@@ -271,6 +200,7 @@ class GitHubCog(commands.Cog):
                 )
                 await asyncio.sleep(20)
             except Exception as e:
+                logger.error("Error", exc_info=e)
                 return "error", str(e), None
 
     async def download_results(self, run_id) -> FullResult:
@@ -285,20 +215,13 @@ class GitHubCog(commands.Cog):
             run = RunResult(**data["run"])
             return FullResult(success=True, error="", compile=comp, run=run)
         except Exception as e:
+            logger.error("Error downloading artifacts", exc_info=e)
             return FullResult(
                 success=False,
-                error=f"Error downloading artifacts: {str(e)}",
+                error=f"Error downloading artifacts: {repr(e)}",
                 compile=None,
                 run=None,
             )
-
-    async def handle_training_log(self, run_id):
-        try:
-            data = await self.download_artifact(run_id, name="training-artifacts")
-            logs = data["training.log"].decode("utf-8")
-            return logs
-        except Exception as e:
-            return f"Error downloading artifacts: {str(e)}"
 
     async def download_artifact(self, run_id, name: str):
         logger.info(f"Attempting to download artifact {name} for run {run_id}")
@@ -330,4 +253,4 @@ class GitHubCog(commands.Cog):
                     raise RuntimeError(
                         f"Failed to download artifact. Status code: {response.status_code}"
                     )
-        return RuntimeError(f"Could not find artifact {name}")
+        raise RuntimeError(f"Could not find artifact {name}")

@@ -21,7 +21,10 @@ if config["lang"] == "cu":
     result = {"compile": asdict(comp), "run": asdict(run)}
 else:
     run = run_pytorch_script(
-        config.get("eval.py", py_eval), config.get("reference.py", None), config.get("submission.py", None), arch=None
+        config.get("eval.py", py_eval),
+        config.get("reference.py", None),
+        config.get("submission.py", None),
+        arch=None,
     )
     result = {"run": asdict(run)}
 

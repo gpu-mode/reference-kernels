@@ -150,7 +150,8 @@ def run_program(args: list[str]) -> RunResult:
     result_dict = {}
     for line in result.splitlines():
         key, _, value = line.partition(":")
-        result_dict[key.strip()] = value.strip()
+        if key != "" or value != "":
+            result_dict[key.strip()] = value.strip()
 
     return RunResult(
         success=(

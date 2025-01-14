@@ -1,102 +1,60 @@
 name: AMD PyTorch Job
-
 on:
   workflow_dispatch:
     inputs:
-      script_content:
-        description: 'Content of Python script'
+      payload:
+        description: 'Content of the user submission, as json string'
         required: true
         type: string
-      filename:
-        description: 'Name of Python script'
-        required: true
-        type: string
-      reference_content:
-        description: 'Content of the reference code script (optional)'
-        required: false
-        type: string
-      reference_filename:
-        description: 'Name of reference script (supports .py or .cu)'
-        required: false
-        type: string
-      eval_content:
-        description: 'Content of the outer eval code script (optional)'
-        required: false
-        type: string
-      eval_filename:
-        description: 'Name of outer eval script (supports .py or .cu)'
+      requirements:
+        description: 'Contents for a requirements.txt file'
         required: false
         type: string
 
 jobs:
-  train:
+  run:
     runs-on: [amdgpu-mi250-x86-64]
     timeout-minutes: 10
     env:
       VENV_DIR: /groups/aig_sharks/pytorch_venv
     steps:
+    - uses: actions/checkout@v3
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    - name: Create script
-      shell: python
-      run: |
-        with open('${{ github.event.inputs.filename }}', 'w') as f:
-            f.write('''${{ github.event.inputs.script_content }}''')
 
-    - name: Create reference scripts if provided
+    - name: Create input files
       shell: bash
       run: |
-        if [[ -n "${{ github.event.inputs.reference_filename }}" ]]; then
-          echo "Creating reference script..."
-          cat > "${{ github.event.inputs.reference_filename }}" <<EOL
-        ${{ github.event.inputs.reference_content }}
+        cat > "payload.json" <<'EOL'
+        ${{ github.event.inputs.payload }}
         EOL
-            cat "${{ github.event.inputs.reference_filename }}"  # Debug: Show file contents
-          else
-              echo "No reference content provided."
-          fi
-
-    - name: Create eval scripts if provided
-      shell: bash
-      run: |
-        if [[ -n "${{ github.event.inputs.eval_filename }}" ]]; then
-          echo "Creating reference script..."
-          cat > "${{ github.event.inputs.eval_filename }}" <<EOL
-        ${{ github.event.inputs.eval_content }}
-        EOL
-            cat "${{ github.event.inputs.eval_filename }}"  # Debug: Show file contents
-          else
-              echo "No eval content provided."
-          fi
 
     - name: Setup Virtual Environment and Install Dependencies
+      shell: bash
       run: |
         python -m venv ${VENV_DIR}
         source ${VENV_DIR}/bin/activate
         pip install --upgrade pip
-        pip install --pre pytorch-triton-rocm==3.1.0+cf34004b8a torch==2.6.0.dev20241023+rocm6.2 --index-url https://download.pytorch.org/whl/nightly/rocm6.2
 
+        if [[ -n "${{ github.event.inputs.requirements }}" ]]; then
+          cat > "requirements.txt" <<'EOL'
+          ${{ github.event.inputs.requirements }}
+        EOL
+        pip install -r "requirements.txt"
+        fi
     - name: Run script
       shell: bash
       run: |
-        if [[ -n "${{ github.event.inputs.eval_content }}" ]]; then
-          echo "Running Python file..."
-          python3 "${{ github.event.inputs.eval_filename }}" > training.log 2>&1
-          cat training.log  # Debug: show output
-        else
-          echo "Running Python file..."
-          python3 "${{ github.event.inputs.filename }}" > training.log 2>&1
-          cat training.log  # Debug: show output
-        fi
+        python3 .github/workflows/runner.py
+        cat result.json  # Debug: show output
 
     - name: Upload training artifacts
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: training-artifacts
+        name: run-result
         path: |
-          training.log
-          ${{ github.event.inputs.filename }}
+          result.json
