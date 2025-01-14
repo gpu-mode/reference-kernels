@@ -41,6 +41,6 @@ def generate_input() -> List[torch.Tensor]:
 
 
 if __name__ == "__main__":
-    inputs = generate_input(seed=42)
+    inputs = generate_input()
     for idx, tensor in enumerate(inputs):
         print(f"Input Tensor {idx + 1} (Shape: {tensor.shape}):\n{tensor}")

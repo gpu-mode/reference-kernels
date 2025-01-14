@@ -151,11 +151,13 @@ class GitHubCog(commands.Cog):
 
             payload = json.dumps(config)
 
+            inputs = {"payload": payload}
+            if lang == "py":
+                inputs["requirements"] = "numpy\ntorch\nsetuptools\nninja\ntriton"
+
             success = workflow.create_dispatch(
                 get_github_branch_name(),
-                {
-                    "payload": payload,
-                },
+                inputs=inputs
             )
             if success:
                 await asyncio.sleep(2)

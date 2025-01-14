@@ -6,6 +6,10 @@ on:
         description: 'Content of the user submission, as json string'
         required: true
         type: string
+      requirements:
+        description: 'Contents for a requirements.txt file'
+        required: false
+        type: string
 
 jobs:
   run:
@@ -14,47 +18,52 @@ jobs:
     container:
       image: nvidia/cuda:12.4.0-devel-ubuntu22.04
     steps:
-      - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: "latest"
+    - name: Create input files
+      shell: bash
+      run: |
+        cat > "payload.json" <<'EOL'
+        ${{ github.event.inputs.payload }}
+        EOL
 
-      - name: Setup Python environment
-        run: |
-          uv venv .venv
-          echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
-          echo "$PWD/.venv/bin" >> $GITHUB_PATH
-          # TODO the old script was more selective!
-          uv pip install numpy torch setuptools ninja
-          uv pip install triton
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
 
-      - name: Create input files
-        shell: bash
-        run: |
-          cat > "payload.json" <<EOL
-          ${{ github.event.inputs.payload }}
-          EOL
+    - name: Setup Python environment
+      shell: bash
+      run: |
+        uv venv .venv
+        echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
+        echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
-      - name: Run script
-        shell: bash
-        run: |
-          python .github/workflows/runner.py
-          cat result.json  # Debug: show output
+        if [[ -n "${{ github.event.inputs.requirements }}" ]]; then
+          cat > "requirements.txt" <<'EOL'
+          ${{ github.event.inputs.requirements }}
+        EOL
+        uv pip install -r "requirements.txt"
+        fi
 
-      - name: Upload training artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: run-result
-          path: |
-            result.json
+    - name: Run script
+      shell: bash
+      run: |
+        python .github/workflows/runner.py
+        cat result.json  # Debug: show output
+
+    - name: Upload training artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: run-result
+        path: |
+          result.json
 
     env:
       CUDA_VISIBLE_DEVICES: 0
