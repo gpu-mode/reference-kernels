@@ -7,6 +7,7 @@ if Path().resolve().name == "scripts":
 
 sys.path.append("src/discord-cluster-manager")
 
+from consts import ExitCode
 from leaderboard_eval import py_eval
 from run_eval import run_pytorch_script
 
@@ -21,7 +22,7 @@ def test_does_not_import():
 
     run = run_pytorch_script(py_eval, ref.read_text(), sub, arch=None)
     assert run.success is False
-    assert run.exit_code == 1
+    assert run.exit_code != ExitCode.SUCCESS
     assert "IndentationError: unexpected indent\n" in run.stderr
 
 
@@ -38,7 +39,7 @@ def custom_kernel(input):
     # we never reach the benchmark part, because the test fails
     assert "warming up..." not in run.stdout
     assert "mismatch found! custom implementation doesnt match reference." in run.stdout
-    assert run.exit_code == 112
+    assert run.exit_code == ExitCode.VALIDATE_FAIL
     assert run.result["check"] == "fail"
 
 
@@ -48,5 +49,5 @@ def test_correct():
     run = run_pytorch_script(py_eval, ref.read_text(), sub, arch=None)
     assert run.success is True
     assert "warming up..." in run.stdout
-    assert run.exit_code == 0
+    assert run.exit_code == ExitCode.SUCCESS
     assert run.result["check"] == "pass"

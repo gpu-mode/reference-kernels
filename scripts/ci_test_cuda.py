@@ -7,6 +7,7 @@ if Path().resolve().name == "scripts":
 
 sys.path.append("src/discord-cluster-manager")
 
+from consts import ExitCode
 from leaderboard_eval import cu_eval
 from run_eval import run_cuda_script
 
@@ -23,6 +24,7 @@ def test_does_not_compile():
     assert comp.success is False
     assert run.success is False
     assert comp.nvcc_found is True
+    assert comp.exit_code != ExitCode.SUCCESS
     assert comp.stdout == ""
     assert 'train.cuh(2): error: identifier "input_tt" is undefined' in comp.stderr
     assert '1 error detected in the compilation of "eval.cu".' in comp.stderr
@@ -57,7 +59,7 @@ output_t custom_kernel(input_t data)
     assert "warming up..." in run.stdout
     assert "cudaDeviceSynchronize() at eval.cu(63) in `measure_runtime`" in run.stderr
     assert "an illegal memory access was encountered" in run.stderr
-    assert run.exit_code == 110
+    assert run.exit_code == ExitCode.CUDA_FAIL
     assert len(run.result) == 0
 
 
@@ -85,7 +87,7 @@ def test_cuda_validation_fail():
     # we never reach the benchmark part, because the test fails
     assert "warming up..." not in run.stdout
     assert "ERROR AT 0, 0" in run.stderr
-    assert run.exit_code == 112
+    assert run.exit_code == ExitCode.VALIDATE_FAIL
     assert run.result["check"] == "fail"
 
 
@@ -96,5 +98,5 @@ def test_cuda_correct():
     assert comp.success is True
     assert run.success is True
     assert "warming up..." in run.stdout
-    assert run.exit_code == 0
+    assert run.exit_code == ExitCode.SUCCESS
     assert run.result["check"] == "pass"

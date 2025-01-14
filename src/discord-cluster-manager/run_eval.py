@@ -5,7 +5,7 @@ import subprocess
 import time
 from typing import Optional
 
-from consts import CUDA_FLAGS
+from consts import CUDA_FLAGS, ExitCode
 
 
 @dataclasses.dataclass
@@ -141,10 +141,8 @@ def run_program(args: list[str]) -> RunResult:
         key, _, value = line.partition(":")
         result_dict[key.strip()] = value.strip()
 
-    # 0     everything was fine
-    # 112   program ran fine, but we detected a test failure
     return RunResult(
-        success=run_process.returncode == 0,
+        success=run_process.returncode == ExitCode.SUCCESS,
         command=_make_cmd(run_process.args),
         stdout=run_process.stdout,
         stderr=run_process.stderr,

@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import Type
 
 
@@ -23,6 +23,22 @@ class ModalGPU(Enum):
     L4 = "L4"
     A100 = "A100"
     H100 = "H100"
+
+
+class ExitCode(IntEnum):
+    """
+    Exit codes for our runners. These are just the codes actively return,
+    others are possible (e.g., exiting due to segfault, permissions, signal, ...)
+    """
+
+    # program ran successfully
+    SUCCESS = 0
+    # a cuda API call failed
+    CUDA_FAIL = 110
+    # could not setup file descriptor for custom pipe
+    PIPE_FAILED = 111
+    # didn't crash, but tests failed
+    VALIDATE_FAIL = 112
 
 
 def combine_enums(enums: list[Type[Enum]], combined_name: str) -> Enum:
