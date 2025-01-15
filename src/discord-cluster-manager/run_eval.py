@@ -3,7 +3,7 @@ import os
 import shlex
 import subprocess
 import time
-from typing import Optional
+from pathlib import Path
 
 from consts import CUDA_FLAGS, ExitCode
 
@@ -169,9 +169,8 @@ def run_program(args: list[str]) -> RunResult:
 
 
 def run_cuda_script(  # # noqa: C901
-    script_content: str,
-    reference_content: str = None,
-    submission_content: str = None,
+    sources: dict[str, str],
+    headers: dict[str, str] = None,
     arch: int = None,
     include_dirs: list[str] = None,
 ) -> tuple[CompileResult, RunResult]:
@@ -179,9 +178,10 @@ def run_cuda_script(  # # noqa: C901
     Executes the provided CUDA kernel in an isolated environment
 
     Args:
-        script_content: The CUDA script containing the GPU kernel
-        reference_content: The (optional) reference code, used for leaderboards.
-        submission_content: The (optional) submission code, used for leaderboards.
+        sources: The source files to compile. Mapping file name to content.
+        headers: Additional header files to create for the compile run.
+            Mapping of file name to file contents. These files will _not_ be added to the
+            compile command.
         arch: The arch code for the compute/sm versions. If None, native arch is used.
         include_dirs: Additional include directories, e.g., for thunderkittens/cutlass etc
 
@@ -193,19 +193,14 @@ def run_cuda_script(  # # noqa: C901
 
     try:
         # Write submission files to directory
-        if reference_content is not None:
-            with open("reference.cuh", "w") as f:
-                f.write(reference_content)
+        for source, content in sources.items():
+            Path(source).write_text(content)
 
-        if submission_content is not None:
-            with open("train.cuh", "w") as f:
-                f.write(submission_content)
-
-        with open("eval.cu", "w") as f:
-            f.write(script_content)
+        for header, content in headers.items():
+            Path(header).write_text(content)
 
         compile_result = compile_cuda_script(
-            files=["eval.cu"],
+            files=list(sources.keys()),
             arch=arch,
             include_dirs=include_dirs,
             verbose=True,
@@ -226,48 +221,54 @@ def run_cuda_script(  # # noqa: C901
         run_result = run_program(["./eval.out"])
         return compile_result, run_result
 
+    # cleaning up all source files _before_ we let the user code run, just in
+    # case there's something in there that the user isn't supposed to snoop
     finally:
-        tmp_files = ["reference.cuh", "train.cuh", "eval.cu", "eval.out"]
+        tmp_files = list(sources.keys()) + list(headers.keys())
         for f in tmp_files:
             if os.path.exists(f):
                 os.remove(f)
 
+    if not compile_result.success:
+        return compile_result, RunResult(
+            success=False,
+            command="",
+            stdout="",
+            stderr="",
+            exit_code=-1,
+            duration=0.0,
+            result={},
+        )
+
+    run_result = run_program(["./eval.out"])
+    return compile_result, run_result
+
 
 def run_pytorch_script(  # noqa: C901
-    script_content: str,
-    reference_content: Optional[str] = None,
-    submission_content: Optional[str] = None,
+    sources: dict[str, str],
+    main: str,
     arch: int = None,
 ) -> RunResult:
     """
     Executes the provided PyTorch GPU kernel in an isolated environment
 
     Args:
-        script_content: The PyTorch script containing the GPU kernel to benchmark
-        reference_content: The (optional) reference code, used for leaderboards.
-        submission_content: The (optional) submission code, used for leaderboards.
+        sources: Files to generate
+        main: Which file to run. Must be one of the keys in sources.
         arch: The arch code for the compute/sm versions.
 
     Returns:
         RunResult
     """
     try:
+        assert main in sources.keys()
+
         # Write submission files to directory
-        if reference_content is not None:
-            with open("reference.py", "w") as f:
-                f.write(reference_content)
-
-        if submission_content is not None:
-            with open("train.py", "w") as f:
-                f.write(submission_content)
-
-        with open("eval.py", "w") as f:
-            f.write(script_content)
-
-        return run_program(["python", "eval.py"])
+        for source, content in sources.items():
+            Path(source).write_text(content)
+        return run_program(["python", main])
 
     finally:
-        tmp_files = ["eval.py", "reference.py", "train.py"]
-        for f in tmp_files:
+        for f in sources.keys():
             if os.path.exists(f):
                 os.remove(f)

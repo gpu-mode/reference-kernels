@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "reference.cuh"
-#include "train.cuh"
+#include "submission.cuh"
 
 #define WARMUP_RUNS 10
 #define TIMED_RUNS 100

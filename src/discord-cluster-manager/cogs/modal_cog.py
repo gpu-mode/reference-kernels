@@ -59,7 +59,7 @@ class ModalCog(commands.Cog):
                 "**Running on Modal...**\n> ⏳ Waiting for available GPU..."
             )
 
-            filename = "train.py" if script.filename.endswith(".py") else "train.cu"
+            filename = "submission.py" if script.filename.endswith(".py") else "train.cu"
             reference_content = None
             if reference_script is not None or reference_code is not None:
                 reference_content = (

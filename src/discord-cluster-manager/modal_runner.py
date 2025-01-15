@@ -20,7 +20,12 @@ tag = f"{cuda_version}-{flavor}-{operating_sys}"
 
 # Move this to another file later:
 python_image = Image.debian_slim(python_version="3.10").pip_install(
-    ["torch", "triton", "jax[cuda12]", "jax2torch"]
+    [
+        "torch",
+        "triton",
+        "jax[cuda12]",
+        "jax2torch",
+    ]
 )
 
 cuda_image = (
@@ -80,10 +85,12 @@ def modal_run_pytorch_script(  # noqa: C901
     try:
         with timeout(timeout_seconds):
             run_result = run_pytorch_script(
-                script_content=script_content,
-                reference_content=reference_content,
-                submission_content=submission_content,
-                arch=arch,
+                {
+                    "eval.py": script_content,
+                    "reference.py": reference_content,
+                    "submission.py": submission_content,
+                },
+                "eval.py",
             )
             return FullResult(success=True, error="", compile=None, run=run_result)
         # TODO fixup error handling!
@@ -106,9 +113,8 @@ def modal_run_cuda_script(  # # noqa: C901
     try:
         with timeout(timeout_seconds):
             comp, run = run_cuda_script(
-                script_content,
-                reference_content=reference_content,
-                submission_content=submission_content,
+                {"eval.cu": script_content},
+                {"reference.cuh": reference_content, "submission.cuh": submission_content},
                 arch=arch,
                 include_dirs=MODAL_CUDA_INCLUDE_DIRS,
             )

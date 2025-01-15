@@ -5,7 +5,7 @@ import time
 
 import torch
 from reference import check_implementation, generate_input, ref_kernel
-from train import custom_kernel
+from submission import custom_kernel
 
 
 class PopcornLogger:

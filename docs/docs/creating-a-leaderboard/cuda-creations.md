@@ -56,7 +56,7 @@ Let's break down what's going on in this relatively short file:
 #include <iostream>
 
 #include "reference.cuh"
-#include "train.cuh"
+#include "submission.cuh"
 
 #define WARMUP_RUNS 10
 #define TIMED_RUNS 100
@@ -118,7 +118,7 @@ int main() {
     return 0;
 }
 ```
-You'll notice that we include from headers named `reference.cuh` and `train.cuh`. These are the reference
+You'll notice that we include from headers named `reference.cuh` and `submission.cuh`. These are the reference
 code and submission code respectively, just renamed to a fix module so we can include them. The
 general idea is that the evaluation code can treat the leaderboard as a basic abstraction, and only
 concern itself with three things:

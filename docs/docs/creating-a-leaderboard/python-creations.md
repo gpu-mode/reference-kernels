@@ -53,7 +53,7 @@ Let's break down what's going on in this relatively short file:
 import torch
 import time
 from reference import ref_kernel, generate_input, check_implementation
-from train import custom_kernel
+from submission import custom_kernel
 
 
 def correctness() -> bool:
