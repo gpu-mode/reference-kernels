@@ -17,7 +17,6 @@ from leaderboard_eval import cu_eval, py_eval
 from ui.misc import DeleteConfirmationModal, GPUSelectionView
 from ui.table import create_table
 from utils import (
-    extract_score,
     get_user_from_id,
     send_discord_message,
     setup_logging,
@@ -44,7 +43,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         runner_name: str = "GitHub",
     ):
         try:
-            discord_thread = await command.callback(
+            discord_thread, result = await command.callback(
                 cog,
                 interaction,
                 script,
@@ -58,55 +57,40 @@ class LeaderboardSubmitCog(app_commands.Group):
             print(f"Webhook not found: {e}")
             await send_discord_message(interaction, "❌ The webhook was not found.")
 
-        message_contents = [msg.content async for msg in discord_thread.history(limit=None)]
-
         try:
-            # For CUDA leaderboards, make more robust
-            if "check_implementation failed" in message_contents:
-                await send_discord_message(
-                    interaction,
-                    "check_implementation failed. User kernel and reference kernel do not match.",
-                    ephemeral=True,
-                )
-                return
+            if result.success:
+                score = float(result.run.result["duration.mean"]) / 1e9
 
-            # TODO: Make this more robust later
-            score = extract_score("".join(message_contents))
+                with self.bot.leaderboard_db as db:
+                    db.create_submission(
+                        {
+                            "submission_name": script.filename,
+                            "submission_time": datetime.now(),
+                            "leaderboard_name": leaderboard_name,
+                            "code": submission_content,
+                            "user_id": interaction.user.id,
+                            "submission_score": score,
+                            "gpu_type": gpu.name,
+                        }
+                    )
 
-            with self.bot.leaderboard_db as db:
-                db.create_submission(
-                    {
-                        "submission_name": script.filename,
-                        "submission_time": datetime.now(),
-                        "leaderboard_name": leaderboard_name,
-                        "code": submission_content,
-                        "user_id": interaction.user.id,
-                        "submission_score": score,
-                        "gpu_type": gpu.name,
-                    }
+                user_id = (
+                    interaction.user.global_name
+                    if interaction.user.nick is None
+                    else interaction.user.nick
                 )
 
-            user_id = (
-                interaction.user.global_name
-                if interaction.user.nick is None
-                else interaction.user.nick
-            )
-
-            await send_discord_message(
-                interaction,
-                f"Successfully ran on {gpu.name} using {runner_name} runners!\n"
-                + f"Leaderboard '{leaderboard_name}'.\n"
-                + f"Submission title: {script.filename}.\n"
-                + f"Submission user: {user_id}.\n"
-                + f"Runtime: {score:.9f} seconds.",
-                ephemeral=True,
-            )
+                await discord_thread.send(
+                    f"Successfully ran on {gpu.name} using {runner_name} runners!\n"
+                    + f"Leaderboard '{leaderboard_name}'.\n"
+                    + f"Submission title: {script.filename}.\n"
+                    + f"Submission user: {user_id}.\n"
+                    + f"Runtime: {score:.9f} seconds.",
+                )
         except Exception:
-            await send_discord_message(
-                interaction,
+            await discord_thread.send(
                 f"Leaderboard submission to '{leaderboard_name}' on {gpu.name} "
                 + f"using {runner_name} runners failed!\n",
-                ephemeral=True,
             )
 
     async def select_gpu_view(

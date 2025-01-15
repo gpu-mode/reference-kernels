@@ -38,7 +38,7 @@ async def _send_split_log(thread: discord.Thread, partial_message: str, header: 
         return ""
 
 
-async def generate_report(thread: discord.Thread, result: FullResult):
+async def generate_report(thread: discord.Thread, result: FullResult):  # noqa: C901
     message = ""
     if not result.success:
         message += "# Failure\n"
@@ -106,7 +106,7 @@ async def generate_report(thread: discord.Thread, result: FullResult):
         if len(message) != 0:
             await thread.send(message)
 
-        # TODO dedicated "error" entry in our results dict that gets populated by check_implementation
+        # TODO dedicated "error" entry in our results that gets populated by check_implementation
         return
 
     # OK, we were successful

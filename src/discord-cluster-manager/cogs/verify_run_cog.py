@@ -55,7 +55,7 @@ class VerifyRunCog(commands.Cog):
             )
             ref_code = Path("examples/identity_cuda/reference.cuh").read_text()
 
-        github_thread = await github_command.callback(
+        github_thread, result = await github_command.callback(
             github_cog, interaction, sub_code, choice, reference_code=ref_code
         )
 
@@ -89,7 +89,8 @@ class VerifyRunCog(commands.Cog):
             ]
             await send_discord_message(
                 interaction,
-                f"❌ GitHub run ({choice.name}) for {lang} verification failed. Missing expected messages:\n"
+                f"❌ GitHub run ({choice.name}) for {lang} verification failed. "
+                + "Missing expected messages:\n"
                 + "\n".join(f"- {pattern}" for pattern in missing_patterns),
             )
             return False
@@ -111,7 +112,7 @@ class VerifyRunCog(commands.Cog):
             )
             ref_code = Path("examples/identity_cuda/reference.cuh").read_text()
 
-        modal_thread = await modal_command.callback(
+        modal_thread, result = await modal_command.callback(
             modal_cog, interaction, sub_code, t4, reference_code=ref_code
         )
 

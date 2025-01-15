@@ -44,12 +44,12 @@ class GitHubCog(commands.Cog):
         gpu_type: app_commands.Choice[str],
         reference_script: discord.Attachment = None,
         reference_code: str = None,
-    ) -> discord.Thread:
+    ) -> tuple[discord.Thread, FullResult]:
         if not script.filename.endswith((".py", ".cu", ".cuh", ".cpp")):
             await send_discord_message(
                 interaction, "Please provide a Python (.py) or CUDA (.cu / .cuh / .cpp) file"
             )
-            return None
+            return None, None
 
         thread = await self.bot.create_thread(interaction, gpu_type.name, "GitHub Job")
         await thread.send(f"Processing `{script.filename}` with {gpu_type.name}...")
@@ -98,7 +98,7 @@ class GitHubCog(commands.Cog):
                     "Failed to trigger GitHub Action. Please check the configuration."
                 )
 
-            return thread
+            return thread, result
 
         except Exception as e:
             logger.error(f"Error processing request: {str(e)}", exc_info=True)
