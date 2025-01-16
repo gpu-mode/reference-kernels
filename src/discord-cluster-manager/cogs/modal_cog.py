@@ -17,9 +17,9 @@ class ModalCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-        self.run_modal = bot.run_group.command(
+        self.run_submission = bot.run_group.command(
             name="modal", description="Run a script using Modal"
-        )(self.run_modal)
+        )(self.run_submission)
 
     @app_commands.describe(
         script="The Python script file to run", gpu_type="Choose the GPU type for Modal"
@@ -27,7 +27,7 @@ class ModalCog(commands.Cog):
     @app_commands.choices(
         gpu_type=[app_commands.Choice(name=gpu.name, value=gpu.value) for gpu in ModalGPU]
     )
-    async def run_modal(
+    async def run_submission(
         self,
         interaction: discord.Interaction,
         script: discord.Attachment,
@@ -67,13 +67,17 @@ class ModalCog(commands.Cog):
                     else (await reference_script.read()).decode("utf-8")
                 )
 
+            config = build_task_config(
+                lang="py" if filename.endswith(".py") else "cu",
+                reference_content=reference_content,
+                submission_content=script_content,
+                arch=GPU_TO_SM[gpu_type.value.upper()],
+            )
+
             result = await self.handle_modal_execution(
-                interaction,
                 thread,
-                script_content,
-                filename,
                 gpu_type.value,
-                reference_content,
+                config,
                 status_msg,
             )
             return thread, result
@@ -87,26 +91,15 @@ class ModalCog(commands.Cog):
 
     async def handle_modal_execution(
         self,
-        interaction: discord.Interaction,
         thread: discord.Thread,
-        script_content: str,
-        filename: str,
         gpu_type: str,
-        reference_content: Optional[str],
+        config: dict,
         status_msg: discord.Message,
     ) -> FullResult:
         try:
             loop = asyncio.get_event_loop()
-            func_type = "pytorch" if filename.endswith(".py") else "cuda"
-            lang = "py" if filename.endswith(".py") else "cu"
+            func_type = "pytorch" if config["lang"] == "py" else "cuda"
             func_name = f"run_{func_type}_script_{gpu_type.lower()}"
-
-            config = build_task_config(
-                lang=lang,
-                reference_content=reference_content,
-                submission_content=script_content,
-                arch=GPU_TO_SM[gpu_type.upper()],
-            )
 
             result = await loop.run_in_executor(
                 None,
@@ -116,7 +109,6 @@ class ModalCog(commands.Cog):
             )
 
             # Send results
-            await thread.send(f"\n**Script size:** {len(script_content)} bytes")
             await generate_report(thread, result)
             return result
 

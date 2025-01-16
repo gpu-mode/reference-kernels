@@ -6,6 +6,7 @@ from typing import List, Optional
 
 import discord
 from consts import (
+    GPU_SELECTION,
     AllGPU,
     GitHubGPU,
     ModalGPU,
@@ -236,15 +237,32 @@ class LeaderboardSubmitCog(app_commands.Group):
         script="The Python / CUDA script file to run",
     )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
-    # TODO: Modularize this so all the write functionality is in here. Haven't figured
-    # a good way to do this yet.
     async def submit(
         self,
+        runner_name: str,
         interaction: discord.Interaction,
         leaderboard_name: str,
         script: discord.Attachment,
     ):
-        pass
+        # Call Modal runner
+        runner_cog = self.bot.get_cog(f"{runner_name}Cog")
+
+        if not all([runner_cog]):
+            await send_discord_message(interaction, f"❌ Required {runner_name} cogs not found!")
+            return
+
+        runner_command = runner_cog.run_submission
+
+        success = await self.on_submit_hook(
+            interaction,
+            leaderboard_name,
+            script,
+            runner_command,
+            runner_cog,
+            GPU_SELECTION[runner_name],
+            runner_name,
+        )
+        return success
 
     @app_commands.command(name="modal", description="Submit leaderboard data for modal")
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
@@ -254,24 +272,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         leaderboard_name: str,
         script: discord.Attachment,
     ):
-        # Call Modal runner
-        modal_cog = self.bot.get_cog("ModalCog")
-
-        if not all([modal_cog]):
-            await send_discord_message(interaction, "❌ Required Modal cogs not found!")
-            return
-        modal_runner_command = modal_cog.run_modal
-
-        success = await self.on_submit_hook(
-            interaction,
-            leaderboard_name,
-            script,
-            modal_runner_command,
-            modal_cog,
-            ModalGPU,
-            "Modal",
-        )
-        return success
+        return await self.submit("Modal", interaction, leaderboard_name, script)
 
     @app_commands.command(name="github", description="Submit leaderboard data for GitHub")
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
@@ -281,24 +282,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         leaderboard_name: str,
         script: discord.Attachment,
     ):
-        # Call GH runner
-        github_cog = self.bot.get_cog("GitHubCog")
-
-        if not all([github_cog]):
-            await send_discord_message(interaction, "❌ Required cogs not found!")
-            return
-        gh_runner_command = github_cog.run_github
-
-        success = await self.on_submit_hook(
-            interaction,
-            leaderboard_name,
-            script,
-            gh_runner_command,
-            github_cog,
-            GitHubGPU,
-            "GitHub",
-        )
-        return success
+        return await self.submit("GitHub", interaction, leaderboard_name, script)
 
 
 class LeaderboardCog(commands.Cog):

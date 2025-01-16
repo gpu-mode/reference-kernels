@@ -43,7 +43,7 @@ class VerifyRunCog(commands.Cog):
         interaction: discord.Interaction,
         lang: str,
     ) -> bool:
-        github_command = github_cog.run_github
+        github_command = github_cog.run_submission
         if lang == "py":
             sub_code = create_mock_attachment(
                 "submission.py", Path("examples/identity_py/submission.py").read_text()
@@ -93,7 +93,7 @@ class VerifyRunCog(commands.Cog):
         self, modal_cog: ModalCog, interaction: discord.Interaction, lang: str
     ) -> bool:
         t4 = app_commands.Choice(name="T4", value="t4")
-        modal_command = modal_cog.run_modal
+        modal_command = modal_cog.run_submission
 
         if lang == "py":
             sub_code = create_mock_attachment(

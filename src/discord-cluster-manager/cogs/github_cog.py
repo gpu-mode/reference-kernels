@@ -1,5 +1,4 @@
 import json
-from typing import Optional
 
 import discord
 from consts import GPUType
@@ -17,9 +16,9 @@ logger = setup_logging()
 class GitHubCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.run_github = bot.run_group.command(
+        self.run_submission = bot.run_group.command(
             name="github", description="Run a script using GitHub Actions"
-        )(self.run_github)
+        )(self.run_submission)
 
     @app_commands.describe(
         script="The Python script file to run",
@@ -31,7 +30,7 @@ class GitHubCog(commands.Cog):
             app_commands.Choice(name="AMD", value="amd"),
         ]
     )
-    async def run_github(
+    async def run_submission(
         self,
         interaction: discord.Interaction,
         script: discord.Attachment,
@@ -62,11 +61,16 @@ class GitHubCog(commands.Cog):
             else:
                 reference_content = None
 
-            artifacts = await self.execute_github_run(
+            config = build_task_config(
                 lang=lang,
-                gpu_type=selected_gpu,
-                script_content=script_content,
                 reference_content=reference_content,
+                submission_content=script_content,
+                arch=None,
+            )
+
+            artifacts = await self.execute_github_run(
+                gpu_type=selected_gpu,
+                config=config,
                 thread=thread,
             )
 
@@ -89,24 +93,16 @@ class GitHubCog(commands.Cog):
 
     async def execute_github_run(
         self,
-        lang: str,
         gpu_type: GPUType,
-        script_content: str,
-        reference_content: Optional[str],
+        config: dict,
         thread: discord.Thread,
     ) -> dict:
+        lang = config["lang"]
         if lang == "cu" and gpu_type == GPUType.AMD:
             # TODO implement HIP
             raise ValueError("Cannot use CUDA runs with AMD GPUs")
 
         lang_name = {"py": "Python", "cu": "CUDA"}[lang]
-
-        config = build_task_config(
-            lang=lang,
-            reference_content=reference_content,
-            submission_content=script_content,
-            arch=None,
-        )
 
         logger.info(f"Attempting to trigger GitHub action for {lang_name} on {gpu_type.name}")
 

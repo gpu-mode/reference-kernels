@@ -25,6 +25,9 @@ class ModalGPU(Enum):
     H100 = "H100"
 
 
+GPU_SELECTION = {"Modal": ModalGPU, "Github": GitHubGPU}
+
+
 class ExitCode(IntEnum):
     """
     Exit codes for our runners. These are just the codes actively return,
