@@ -3,13 +3,12 @@ from typing import Optional
 
 import discord
 import modal
-from consts import ModalGPU
+from consts import GPU_TO_SM, ModalGPU
 from discord import app_commands
 from discord.ext import commands
-from leaderboard_eval import cu_eval, py_eval
 from report import generate_report
 from run_eval import FullResult
-from utils import send_discord_message, setup_logging
+from utils import build_task_config, send_discord_message, setup_logging
 
 logger = setup_logging()
 
@@ -99,41 +98,27 @@ class ModalCog(commands.Cog):
         try:
             loop = asyncio.get_event_loop()
             func_type = "pytorch" if filename.endswith(".py") else "cuda"
+            lang = "py" if filename.endswith(".py") else "cu"
             func_name = f"run_{func_type}_script_{gpu_type.lower()}"
 
-            if reference_content is not None:
-                result = await loop.run_in_executor(
-                    None,
-                    lambda: modal.Function.lookup("discord-bot-runner", func_name).remote(
-                        py_eval if filename.endswith(".py") else cu_eval,
-                        reference_content=reference_content,
-                        submission_content=script_content,
-                    ),
-                )
+            config = build_task_config(
+                lang=lang,
+                reference_content=reference_content,
+                submission_content=script_content,
+                arch=GPU_TO_SM[gpu_type.upper()],
+            )
 
-                # Send results
-                await thread.send(f"\n**Script size:** {len(script_content)} bytes")
-                await generate_report(thread, result)
-                return result
+            result = await loop.run_in_executor(
+                None,
+                lambda: modal.Function.lookup("discord-bot-runner", func_name).remote(
+                    config=config
+                ),
+            )
 
-            else:
-                # Currently broken?
-                result = await loop.run_in_executor(
-                    None,
-                    lambda: modal.Function.lookup("discord-bot-runner", func_name).remote(
-                        script_content,
-                    ),
-                )
-                await send_discord_message(
-                    interaction, f"Modal job completed in thread {thread.jump_url}", ephemeral=True
-                )
-
-                # Send results
-                await thread.send(f"\n**Script size:** {len(script_content)} bytes")
-                await thread.send(f"**Execution time:** {result.run.duration:.3f} s\n")
-
-                await status_msg.edit(content="**Running on Modal...**\n> ✅ Job completed!")
-                return result
+            # Send results
+            await thread.send(f"\n**Script size:** {len(script_content)} bytes")
+            await generate_report(thread, result)
+            return result
 
         except Exception as e:
             logger.error(f"Error in handle_modal_execution: {str(e)}", exc_info=True)

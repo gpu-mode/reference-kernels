@@ -38,10 +38,10 @@ class RunResult:
 @dataclasses.dataclass
 class FullResult:
     # fmt: off
-    success: bool               # did the runner (github/modal) execute successfully
-    error: str                  # if not success, an error message
-    compile: CompileResult      # results of compilation
-    run: RunResult              # results of running
+    success: bool                  # did the runner (github/modal) execute successfully
+    error: str                     # if not success, an error message
+    compile: CompileResult | None  # results of compilation
+    run: RunResult | None          # results of running
     # fmt: on
 
 
@@ -263,3 +263,21 @@ def run_pytorch_script(  # noqa: C901
         for f in sources.keys():
             if os.path.exists(f):
                 os.remove(f)
+
+
+def run_config(config: dict):
+    if config["lang"] == "py":
+        run_result = run_pytorch_script(
+            sources=config["sources"], main=config["main"], arch=config.get("arch", None)
+        )
+        return FullResult(success=True, error="", compile=None, run=run_result)
+    elif config["lang"] == "cu":
+        comp, run = run_cuda_script(
+            sources=config["sources"],
+            headers=config.get("headers", {}),
+            arch=config.get("arch", None),
+            include_dirs=config.get("include_dirs", []),
+        )
+        return FullResult(success=True, error="", compile=comp, run=run)
+    else:
+        raise ValueError(f"Invalid language {config['lang']}")

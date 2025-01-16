@@ -5,6 +5,8 @@ import subprocess
 from typing import Any, List, NotRequired, TypedDict
 
 import discord
+from consts import MODAL_CUDA_INCLUDE_DIRS
+from leaderboard_eval import cu_eval, py_eval
 
 
 def setup_logging():
@@ -182,3 +184,48 @@ class SubmissionItem(TypedDict):
     gpu_type: str
     stdout: NotRequired[str]
     profiler_output: NotRequired[str]
+
+
+def build_task_config(
+    lang: str, reference_content: str = None, submission_content: str = None, arch: str = None
+) -> dict:
+    eval_name = {"py": "eval.py", "cu": "eval.cu"}[lang]
+
+    config = {
+        "lang": lang,
+        "arch": arch,
+    }
+
+    if lang == "py":
+        config["main"] = "eval.py"
+    else:
+        config["include_dirs"] = MODAL_CUDA_INCLUDE_DIRS
+
+    if reference_content is None:
+        return {
+            **config,
+            "sources": {
+                eval_name: submission_content,
+            },
+        }
+    else:
+        if lang == "py":
+            return {
+                **config,
+                "sources": {
+                    "eval.py": py_eval,
+                    "reference.py": reference_content,
+                    "submission.py": submission_content,
+                },
+            }
+        else:
+            return {
+                **config,
+                "sources": {
+                    "eval.cu": cu_eval,
+                },
+                "headers": {
+                    "reference.cuh": reference_content,
+                    "submission.cuh": submission_content,
+                },
+            }

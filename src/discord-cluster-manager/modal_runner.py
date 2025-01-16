@@ -1,10 +1,10 @@
 import signal
+import traceback
 from contextlib import contextmanager
-from typing import Optional
 
-from consts import MODAL_CUDA_INCLUDE_DIRS, MODAL_PATH
+from consts import MODAL_PATH
 from modal import App, Image, Mount
-from run_eval import FullResult, run_cuda_script, run_pytorch_script
+from run_eval import FullResult, run_config
 
 # Create a stub for the Modal app
 # IMPORTANT: This has to stay in separate file or modal breaks
@@ -74,55 +74,18 @@ def timeout(seconds: int):
         signal.signal(signal.SIGALRM, original_handler)
 
 
-def modal_run_pytorch_script(  # noqa: C901
-    script_content: str,
-    reference_content: Optional[str] = None,
-    submission_content: Optional[str] = None,
+def modal_run_config(  # noqa: C901
+    config: dict,
     timeout_seconds: int = 300,
-    arch: int = None,
 ) -> FullResult:
     """Modal version of run_pytorch_script, handling timeouts"""
     try:
         with timeout(timeout_seconds):
-            run_result = run_pytorch_script(
-                {
-                    "eval.py": script_content,
-                    "reference.py": reference_content,
-                    "submission.py": submission_content,
-                },
-                "eval.py",
-            )
-            return FullResult(success=True, error="", compile=None, run=run_result)
-        # TODO fixup error handling!
+            return run_config(config)
     except TimeoutException as e:
         return FullResult(success=False, error=f"Timeout Error: {str(e)}", compile=None, run=None)
     except Exception as e:
+        exception = "".join(traceback.format_exception(e))
         return FullResult(
-            success=False, error=f"Error executing script: {str(e)}", compile=None, run=None
-        )
-
-
-def modal_run_cuda_script(  # # noqa: C901
-    script_content: str,
-    reference_content: str = None,
-    submission_content: str = None,
-    timeout_seconds: int = 600,
-    arch: int = None,
-) -> FullResult:
-    """Modal version of run_cuda_script, handling timeouts"""
-    try:
-        with timeout(timeout_seconds):
-            comp, run = run_cuda_script(
-                {"eval.cu": script_content},
-                {"reference.cuh": reference_content, "submission.cuh": submission_content},
-                arch=arch,
-                include_dirs=MODAL_CUDA_INCLUDE_DIRS,
-            )
-        return FullResult(success=True, error="", compile=comp, run=run)
-    # TODO fixup error handling!
-    except TimeoutException as e:
-        return FullResult(success=False, error=f"Timeout Error: {str(e)}", compile=None, run=None)
-    except Exception as e:
-        return FullResult(
-            success=False, error=f"Error executing script: {str(e)}", compile=None, run=None
+            success=False, error=f"Error executing script:\n{exception}", compile=None, run=None
         )

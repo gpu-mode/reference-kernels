@@ -56,10 +56,10 @@ AllGPU = combine_enums([ModalGPU, GitHubGPU], "AllGPU")
 
 
 GPU_TO_SM = {
-    "T4": 75,
-    "L4": 80,
-    "A100": 80,
-    "H100": 90,
+    "T4": "75",
+    "L4": "80",
+    "A100": "80",
+    "H100": "90a",
 }
 
 

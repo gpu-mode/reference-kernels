@@ -15,7 +15,7 @@ from github import Github
 from leaderboard_eval import amd_requirements, nvidia_requirements
 from report import generate_report
 from run_eval import CompileResult, FullResult, RunResult
-from utils import get_github_branch_name, send_discord_message, setup_logging
+from utils import build_task_config, get_github_branch_name, send_discord_message, setup_logging
 
 logger = setup_logging()
 
@@ -113,15 +113,14 @@ class GitHubCog(commands.Cog):
             # TODO implement HIP
             raise ValueError("Cannot use CUDA runs with AMD GPUs")
 
-        eval_name = {"py": "eval.py", "cu": "eval.cu"}[lang]
-        ref_name = {"py": "reference.py", "cu": "reference.cuh"}[lang]
-        sub_name = {"py": "submission.py", "cu": "submission.cuh"}[lang]
         lang_name = {"py": "Python", "cu": "CUDA"}[lang]
 
-        if reference_content is None:
-            config = {eval_name: script_content, "lang": lang}
-        else:
-            config = {ref_name: reference_content, sub_name: script_content, "lang": lang}
+        config = build_task_config(
+            lang=lang,
+            reference_content=reference_content,
+            submission_content=script_content,
+            arch=None,
+        )
 
         logger.info(f"Attempting to trigger GitHub action for {lang_name} on {gpu_type.name}")
         gh = Github(GITHUB_TOKEN)
@@ -208,7 +207,7 @@ class GitHubCog(commands.Cog):
             data = await self.download_artifact(run_id, name="run-result")
             logs = data["result.json"].decode("utf-8")
             data = json.loads(logs)
-            if "compile" in data:
+            if "compile" in data and data["compile"] is not None:
                 comp = CompileResult(**data["compile"])
             else:
                 comp = None
