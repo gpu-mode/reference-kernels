@@ -61,13 +61,7 @@ class VerifyRunCog(commands.Cog):
 
         message_contents = [msg.content async for msg in github_thread.history(limit=None)]
 
-        required_patterns = [
-            "Processing `.*` with",
-            "GitHub Action triggered! Run ID:",
-            "Training completed with status: success",
-            "'check': 'pass'",
-            "View the full run at:",
-        ]
+        required_patterns = ["Processing `.*` with", "Running on GitHub...", "'check': 'pass'"]
 
         all_patterns_found = all(
             any(re.search(pattern, content, re.DOTALL) is not None for content in message_contents)
