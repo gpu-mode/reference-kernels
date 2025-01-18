@@ -11,7 +11,7 @@ from consts import (
     ModalGPU,
 )
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 from leaderboard_db import leaderboard_name_autocomplete
 from leaderboard_eval import cu_eval, py_eval
 from ui.misc import DeleteConfirmationModal, GPUSelectionView
@@ -62,17 +62,15 @@ class LeaderboardSubmitCog(app_commands.Group):
                 score = float(result.run.result["duration.mean"]) / 1e9
 
                 with self.bot.leaderboard_db as db:
-                    db.create_submission(
-                        {
-                            "submission_name": script.filename,
-                            "submission_time": datetime.now(),
-                            "leaderboard_name": leaderboard_name,
-                            "code": submission_content,
-                            "user_id": interaction.user.id,
-                            "submission_score": score,
-                            "gpu_type": gpu.name,
-                        }
-                    )
+                    db.create_submission({
+                        "submission_name": script.filename,
+                        "submission_time": datetime.now(),
+                        "leaderboard_name": leaderboard_name,
+                        "code": submission_content,
+                        "user_id": interaction.user.id,
+                        "submission_score": score,
+                        "gpu_type": gpu.name,
+                    })
 
                 user_id = (
                     interaction.user.global_name
@@ -336,9 +334,48 @@ class LeaderboardCog(commands.Cog):
             name="eval-code", description="Get leaderboard evaluation codes"
         )(self.get_leaderboard_eval)
 
+        # Start updating leaderboard
+        self.leaderboard_update.start()
+
+    # --------------------------------------------------------------------------
+    # |                           LOOPING FUNCTIONS                            |
+    # --------------------------------------------------------------------------
+    @tasks.loop(minutes=1)
+    async def leaderboard_update(self):
+        """Task that updates the leaderboard every minute."""
+        for guild in self.bot.guilds:
+            channel = await self.ensure_channel_exists(guild, "active-leaderboards")
+
+            # Get the pinned message or create a new one
+            pinned_messages = await channel.pins()
+            if pinned_messages:
+                message = pinned_messages[0]
+            else:
+                message = await channel.send("Loading leaderboard...")
+                await message.pin()
+
+            # Update the leaderboard message
+            embed, view = await self._get_leaderboard_helper()
+
+            if embed:
+                await message.edit(content="", embed=embed, view=view)
+            else:
+                await message.edit(content="No active leaderboards.")
+
+    @leaderboard_update.before_loop
+    async def before_leaderboard_update(self):
+        """Wait for the bot to be ready before starting the task."""
+        await self.bot.wait_until_ready()
+
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
     # --------------------------------------------------------------------------
+    async def ensure_channel_exists(self, guild, channel_name):
+        """Ensure the leaderboard channel exists, and create it if not."""
+        channel = discord.utils.get(guild.text_channels, name=channel_name)
+        if not channel:
+            channel = await guild.create_text_channel(channel_name)
+        return channel
 
     async def admin_check(self, interaction: discord.Interaction) -> bool:
         if not interaction.user.get_role(self.bot.leaderboard_admin_role_id):
@@ -479,20 +516,16 @@ class LeaderboardCog(commands.Cog):
                     interaction, "An unknown error occurred.", ephemeral=True
                 )
 
-    # --------------------------------------------------------------------------
-    # |                           COMMANDS                                      |
-    # --------------------------------------------------------------------------
-
-    async def get_leaderboards(self, interaction: discord.Interaction):
-        """Display all leaderboards in a table format"""
-        await interaction.response.defer(ephemeral=True)
-
+    async def _get_leaderboard_helper(self):
+        """
+        Helper for grabbing the leaderboard DB and forming the
+        renderable item.
+        """
         with self.bot.leaderboard_db as db:
             leaderboards = db.get_leaderboards()
 
         if not leaderboards:
-            await send_discord_message(interaction, "No leaderboards found.", ephemeral=True)
-            return
+            return None, None
 
         to_show = [
             {
@@ -514,6 +547,22 @@ class LeaderboardCog(commands.Cog):
             items_per_page=5,
             column_widths=column_widths,
         )
+
+        return embed, view
+
+    # --------------------------------------------------------------------------
+    # |                           COMMANDS                                      |
+    # --------------------------------------------------------------------------
+
+    async def get_leaderboards(self, interaction: discord.Interaction):
+        """Display all leaderboards in a table format"""
+        await interaction.response.defer(ephemeral=True)
+
+        embed, view = await self._get_leaderboard_helper()
+
+        if not embed:
+            await send_discord_message(interaction, "No leaderboards found.", ephemeral=True)
+            return
 
         await send_discord_message(
             interaction,
@@ -608,7 +657,6 @@ class LeaderboardCog(commands.Cog):
             return
 
         # Try parsing with time first
-        # Try parsing with time first
         try:
             date_value = datetime.strptime(deadline, "%Y-%m-%d %H:%M")
         except ValueError:
@@ -640,15 +688,13 @@ class LeaderboardCog(commands.Cog):
             template_content = await reference_code.read()
 
             with self.bot.leaderboard_db as db:
-                err = db.create_leaderboard(
-                    {
-                        "name": leaderboard_name,
-                        "deadline": date_value,
-                        "reference_code": template_content.decode("utf-8"),
-                        "gpu_types": view.selected_gpus,
-                        "creator_id": interaction.user.id,
-                    }
-                )
+                err = db.create_leaderboard({
+                    "name": leaderboard_name,
+                    "deadline": date_value,
+                    "reference_code": template_content.decode("utf-8"),
+                    "gpu_types": view.selected_gpus,
+                    "creator_id": interaction.user.id,
+                })
 
                 if err:
                     if "duplicate key" in err:

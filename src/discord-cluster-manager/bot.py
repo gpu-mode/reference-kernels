@@ -97,6 +97,7 @@ class ClusterBot(commands.Bot):
         forum_channel = None
         submission_channel = None
         general_channel = None
+        leaderboard_channel = None
         for channel in category.channels:
             if channel.name == "central" and isinstance(channel, discord.ForumChannel):
                 forum_channel = channel
@@ -104,6 +105,8 @@ class ClusterBot(commands.Bot):
                 submission_channel = channel
             elif channel.name == "general" and isinstance(channel, discord.TextChannel):
                 general_channel = channel
+            elif channel.name == "active-leaderboards" and isinstance(channel, discord.TextChannel):
+                leaderboard_channel = channel
 
         if not forum_channel:
             forum_channel = await category.create_forum(
@@ -113,6 +116,19 @@ class ClusterBot(commands.Bot):
         if not general_channel:
             general_channel = await category.create_text_channel(
                 name="general", reason="Created for leaderboard general"
+            )
+
+        if not leaderboard_channel:
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(
+                    read_messages=True, send_messages=False
+                ),
+                guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+            }
+            leaderboard_channel = await category.create_text_channel(
+                name="active-leaderboards",
+                reason="Created for viewing leaderboards",
+                overwrites=overwrites,
             )
 
         if not submission_channel:
