@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 from enum import Enum
 from io import StringIO
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import discord
 from consts import (
@@ -36,7 +36,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         interaction: discord.Interaction,
         leaderboard_name: str,
         script: discord.Attachment,
-        command,
+        command: Callable,
         reference_code,
         submission_content,
         cog: commands.Cog,
@@ -44,8 +44,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         runner_name: str = "GitHub",
     ):
         try:
-            discord_thread, result = await command.callback(
-                cog,
+            discord_thread, result = await command(
                 interaction,
                 script,
                 app_commands.Choice(
@@ -173,7 +172,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         interaction: discord.Interaction,
         leaderboard_name: str,
         script: discord.Attachment,
-        command,
+        command: Callable,
         cog: commands.Cog,
         GPUsEnum: Enum,
         runner_name: str,
@@ -251,7 +250,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             await send_discord_message(interaction, f"❌ Required {runner_name} cogs not found!")
             return
 
-        runner_command = runner_cog.run_submission
+        runner_command = runner_cog.submit_leaderboard
 
         success = await self.on_submit_hook(
             interaction,

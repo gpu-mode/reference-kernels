@@ -38,7 +38,7 @@ async def _send_split_log(thread: discord.Thread, partial_message: str, header: 
         return ""
 
 
-async def generate_report(thread: discord.Thread, result: FullResult):  # noqa: C901
+async def generate_report(thread: discord.Thread, result: FullResult, has_tests: bool):  # noqa: C901
     message = ""
     if not result.success:
         message += "# Failure\n"
@@ -91,23 +91,31 @@ async def generate_report(thread: discord.Thread, result: FullResult):  # noqa: 
 
         return
 
-    if not run.passed:
-        message += "# Testing failed\n"
-        message += "Command "
-        message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
-        message += f"ran successfully in {run.duration:.2} seconds, but did not pass all tests.\n"
+    if has_tests:
+        if not run.passed:
+            message += "# Testing failed\n"
+            message += "Command "
+            message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
+            message += (
+                f"ran successfully in {run.duration:.2} seconds, but did not pass all tests.\n"
+            )
 
-        if len(run.stderr.strip()) > 0:
-            message = await _send_split_log(thread, message, "Program stderr", run.stderr.strip())
+            if len(run.stderr.strip()) > 0:
+                message = await _send_split_log(
+                    thread, message, "Program stderr", run.stderr.strip()
+                )
 
-        if len(run.stdout.strip()) > 0:
-            message = await _send_split_log(thread, message, "Program stdout", run.stdout.strip())
+            if len(run.stdout.strip()) > 0:
+                message = await _send_split_log(
+                    thread, message, "Program stdout", run.stdout.strip()
+                )
 
-        if len(message) != 0:
-            await thread.send(message)
+            if len(message) != 0:
+                await thread.send(message)
 
-        # TODO dedicated "error" entry in our results that gets populated by check_implementation
-        return
+            # TODO dedicated "error" entry in our results that gets
+            # populated by check_implementation
+            return
 
     # OK, we were successful
     message += "# Success!\n"
@@ -115,7 +123,8 @@ async def generate_report(thread: discord.Thread, result: FullResult):  # noqa: 
     message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
     message += f"ran successfully in {run.duration:.2} seconds.\n"
 
-    message = await _send_split_log(thread, message, "Result", pprint.pformat(run.result))
+    if has_tests:
+        message = await _send_split_log(thread, message, "Result", pprint.pformat(run.result))
 
     if len(run.stderr.strip()) > 0:
         message = await _send_split_log(thread, message, "Program stderr", run.stderr.strip())
