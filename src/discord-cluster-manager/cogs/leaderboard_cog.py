@@ -85,7 +85,8 @@ class LeaderboardSubmitCog(app_commands.Group):
                     + f"Submission user: {user_id}.\n"
                     + f"Runtime: {score:.9f} seconds.",
                 )
-        except Exception:
+        except Exception as e:
+            logger.error("Error in leaderboard submission", exc_info=e)
             await discord_thread.send(
                 f"Leaderboard submission to '{leaderboard_name}' on {gpu.name} "
                 + f"using {runner_name} runners failed!\n",
@@ -504,7 +505,7 @@ class LeaderboardCog(commands.Cog):
                 )
 
         except Exception as e:
-            logger.error(str(e))
+            logger.error(str(e), exc_info=e)
             if "'NoneType' object is not subscriptable" in str(e):
                 await send_discord_message(
                     interaction,
@@ -754,7 +755,7 @@ class LeaderboardCog(commands.Cog):
                 ephemeral=True,
             )
         except Exception as e:
-            logger.error(f"Error in leaderboard creation: {e}")
+            logger.error(f"Error in leaderboard creation: {e}", exc_info=e)
             # Handle any other errors
             await send_discord_message(
                 interaction,

@@ -79,7 +79,7 @@ class ClusterBot(commands.Bot):
                 commands = await self.tree.fetch_commands(guild=guild)
                 logger.info(f"Synced commands: {[cmd.name for cmd in commands]}")
         except Exception as e:
-            logger.error(f"Failed to sync commands: {e}")
+            logger.error(f"Failed to sync commands: {e}", exc_info=e)
 
     async def _setup_leaderboards(self):  # noqa: C901
         assert len(self.guilds) == 1, "Bot must be in only one guild"

@@ -19,6 +19,8 @@ class BotManagerCog(commands.Cog):
 
     @app_commands.command(name="resync")
     async def resync(self, interaction: discord.Interaction):
+        logger.info("Resyncing commands")
+
         """Admin command to resync slash commands"""
         if interaction.user.guild_permissions.administrator:
             try:
@@ -27,13 +29,13 @@ class BotManagerCog(commands.Cog):
                 self.bot.tree.clear_commands(guild=interaction.guild)
                 await self.bot.tree.sync(guild=interaction.guild)
                 commands = await self.bot.tree.fetch_commands(guild=interaction.guild)
-                send_discord_message(
+                await send_discord_message(
                     interaction,
                     "Resynced commands:\n" + "\n".join([f"- /{cmd.name}" for cmd in commands]),
                 )
             except Exception as e:
                 logger.error(f"Error in resync command: {str(e)}", exc_info=True)
-                send_discord_message(interaction, f"Error: {str(e)}")
+                await send_discord_message(interaction, f"Error: {str(e)}")
         else:
             await send_discord_message(
                 interaction, "You need administrator permissions to use this command"
