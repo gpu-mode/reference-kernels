@@ -25,7 +25,7 @@ class ModalGPU(Enum):
     H100 = "H100"
 
 
-GPU_SELECTION = {"Modal": ModalGPU, "Github": GitHubGPU}
+GPU_SELECTION = {"Modal": ModalGPU, "GitHub": GitHubGPU}
 
 
 class ExitCode(IntEnum):
