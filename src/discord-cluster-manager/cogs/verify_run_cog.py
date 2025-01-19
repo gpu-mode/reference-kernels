@@ -43,7 +43,7 @@ class VerifyRunCog(commands.Cog):
         interaction: discord.Interaction,
         lang: str,
     ) -> bool:
-        github_command = github_cog.run_submission
+        github_command = github_cog.submit_leaderboard
         if lang == "py":
             sub_code = create_mock_attachment(
                 "submission.py", Path("examples/identity_py/submission.py").read_text()
@@ -55,13 +55,16 @@ class VerifyRunCog(commands.Cog):
             )
             ref_code = Path("examples/identity_cuda/reference.cuh").read_text()
 
-        github_thread, result = await github_command.callback(
-            github_cog, interaction, sub_code, choice, reference_code=ref_code
+        github_thread, _ = await github_command(
+            interaction,
+            sub_code,
+            choice,
+            ref_code,
         )
 
         message_contents = [msg.content async for msg in github_thread.history(limit=None)]
 
-        required_patterns = ["Processing `.*` with", "Running on GitHub...", "'check': 'pass'"]
+        required_patterns = ["Running on GitHub...", "'check': 'pass'"]
 
         all_patterns_found = all(
             any(re.search(pattern, content, re.DOTALL) is not None for content in message_contents)
@@ -93,7 +96,7 @@ class VerifyRunCog(commands.Cog):
         self, modal_cog: ModalCog, interaction: discord.Interaction, lang: str
     ) -> bool:
         t4 = app_commands.Choice(name="T4", value="t4")
-        modal_command = modal_cog.run_submission
+        modal_command = modal_cog.submit_leaderboard
 
         if lang == "py":
             sub_code = create_mock_attachment(
@@ -106,8 +109,11 @@ class VerifyRunCog(commands.Cog):
             )
             ref_code = Path("examples/identity_cuda/reference.cuh").read_text()
 
-        modal_thread, result = await modal_command.callback(
-            modal_cog, interaction, sub_code, t4, reference_code=ref_code
+        modal_thread, _ = await modal_command(
+            interaction,
+            sub_code,
+            t4,
+            reference_code=ref_code,
         )
 
         message_contents = [msg.content async for msg in modal_thread.history(limit=None)]
