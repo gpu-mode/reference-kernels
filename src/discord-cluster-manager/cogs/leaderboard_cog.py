@@ -52,20 +52,26 @@ class LeaderboardSubmitCog(app_commands.Group):
             reference_code=reference_code,
         )
 
+        # no point going further if this already failed
+        if discord_thread is None:
+            return -1
+
         try:
             if result.success:
                 score = float(result.run.result["duration.mean"]) / 1e9
 
                 with self.bot.leaderboard_db as db:
-                    db.create_submission({
-                        "submission_name": script.filename,
-                        "submission_time": datetime.now(),
-                        "leaderboard_name": leaderboard_name,
-                        "code": submission_content,
-                        "user_id": interaction.user.id,
-                        "submission_score": score,
-                        "gpu_type": gpu.name,
-                    })
+                    db.create_submission(
+                        {
+                            "submission_name": script.filename,
+                            "submission_time": datetime.now(),
+                            "leaderboard_name": leaderboard_name,
+                            "code": submission_content,
+                            "user_id": interaction.user.id,
+                            "submission_score": score,
+                            "gpu_type": gpu.name,
+                        }
+                    )
 
                 user_id = (
                     interaction.user.global_name
@@ -673,13 +679,15 @@ class LeaderboardCog(commands.Cog):
             template_content = await reference_code.read()
 
             with self.bot.leaderboard_db as db:
-                err = db.create_leaderboard({
-                    "name": leaderboard_name,
-                    "deadline": date_value,
-                    "reference_code": template_content.decode("utf-8"),
-                    "gpu_types": view.selected_gpus,
-                    "creator_id": interaction.user.id,
-                })
+                err = db.create_leaderboard(
+                    {
+                        "name": leaderboard_name,
+                        "deadline": date_value,
+                        "reference_code": template_content.decode("utf-8"),
+                        "gpu_types": view.selected_gpus,
+                        "creator_id": interaction.user.id,
+                    }
+                )
 
                 if err:
                     if "duplicate key" in err:
