@@ -198,7 +198,13 @@ class LeaderboardSubmitCog(app_commands.Group):
             )
             return -1
 
-        view = await self.select_gpu_view(interaction, leaderboard_name, gpus)
+        # if there is more than one candidate GPU, display UI to let user select,
+        # otherwise just run on that GPU
+        if len(gpus) == 1:
+            selected_gpus = gpus
+        else:
+            view = await self.select_gpu_view(interaction, leaderboard_name, gpus)
+            selected_gpus = view.selected_gpus
 
         tasks = [
             self.async_submit_cog_job(
@@ -211,7 +217,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 AllGPU[gpu],
                 runner_name,
             )
-            for gpu in view.selected_gpus
+            for gpu in selected_gpus
         ]
 
         await asyncio.gather(*tasks)
@@ -734,13 +740,13 @@ class LeaderboardCog(commands.Cog):
                     auto_archive_duration=10080,  # 7 days
                 )
 
-            await send_discord_message(
-                interaction,
-                f"Leaderboard '{leaderboard_name}'.\n"
-                + f"Reference code: {reference_code}. Submission deadline: {date_value}"
-                + f"\nForum thread: {thread.thread.mention}",
-            )
-            return
+                await send_discord_message(
+                    interaction,
+                    f"Leaderboard '{leaderboard_name}'.\n"
+                    + f"Reference code: {reference_code}. Submission deadline: {date_value}"
+                    + f"\nForum thread: {thread.thread.mention}",
+                )
+                return
 
         except discord.Forbidden:
             await send_discord_message(
