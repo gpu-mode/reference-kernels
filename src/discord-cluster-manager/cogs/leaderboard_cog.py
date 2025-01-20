@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 from enum import Enum
 from io import StringIO
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Type
 
 import discord
 from consts import (
@@ -39,23 +39,18 @@ class LeaderboardSubmitCog(app_commands.Group):
         command: Callable,
         reference_code,
         submission_content,
-        cog: commands.Cog,
         gpu: AllGPU,
         runner_name: str = "GitHub",
     ):
-        try:
-            discord_thread, result = await command(
-                interaction,
-                script,
-                app_commands.Choice(
-                    name=gpu.name,
-                    value=gpu.value,
-                ),
-                reference_code=reference_code,
-            )
-        except discord.errors.NotFound as e:
-            print(f"Webhook not found: {e}")
-            await send_discord_message(interaction, "❌ The webhook was not found.")
+        discord_thread, result = await command(
+            interaction,
+            script,
+            app_commands.Choice(
+                name=gpu.name,
+                value=gpu.value,
+            ),
+            reference_code=reference_code,
+        )
 
         try:
             if result.success:
@@ -173,8 +168,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         leaderboard_name: str,
         script: discord.Attachment,
         command: Callable,
-        cog: commands.Cog,
-        GPUsEnum: Enum,
+        GPUsEnum: Type[Enum],
         runner_name: str,
     ) -> int:
         """
@@ -211,7 +205,6 @@ class LeaderboardSubmitCog(app_commands.Group):
                 command,
                 reference_code,
                 submission_content,
-                cog,
                 AllGPU[gpu],
                 runner_name,
             )
@@ -257,7 +250,6 @@ class LeaderboardSubmitCog(app_commands.Group):
             leaderboard_name,
             script,
             runner_command,
-            runner_cog,
             GPU_SELECTION[runner_name],
             runner_name,
         )
