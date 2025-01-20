@@ -171,7 +171,9 @@ class SubmitCog(commands.Cog):
         # check file extension
         if not script.filename.endswith((".py", ".cu", ".cuh", ".cpp")):
             await send_discord_message(
-                interaction, "Please provide a Python (.py) or CUDA (.cu / .cuh / .cpp) file"
+                interaction,
+                "Please provide a Python (.py) or CUDA (.cu / .cuh / .cpp) file",
+                ephemeral=True,
             )
             return None
 
