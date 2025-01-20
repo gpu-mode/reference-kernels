@@ -174,14 +174,11 @@ class LeaderboardSubmitCog(app_commands.Group):
         """
         Called as the main body of a submission to route to the correct runner.
         """
-        try:
-            submission_content, reference_code, gpus = await self.before_submit_hook(
-                interaction,
-                leaderboard_name,
-                script,
-            )
-        except Exception:
-            return -1
+        submission_content, reference_code, gpus = await self.before_submit_hook(
+            interaction,
+            leaderboard_name,
+            script,
+        )
 
         # GPU selection View
         gpu_enums = {e.name for e in GPUsEnum}
@@ -239,15 +236,25 @@ class LeaderboardSubmitCog(app_commands.Group):
 
         runner_command = runner_cog.submit_leaderboard
 
-        success = await self.on_submit_hook(
-            interaction,
-            leaderboard_name,
-            script,
-            runner_command,
-            GPU_SELECTION[runner_name],
-            runner_name,
-        )
-        return success
+        try:
+            return await self.on_submit_hook(
+                interaction,
+                leaderboard_name,
+                script,
+                runner_command,
+                GPU_SELECTION[runner_name],
+                runner_name,
+            )
+        except Exception as e:
+            logger.error("Error handling leaderboard submission", exc_info=e)
+            # don't leak any information, but at least acknowledge that the command failed.
+            await send_discord_message(
+                interaction,
+                f"An error occurred when submitting to leaderboard "
+                f"`{leaderboard_name}` on runner `{runner_name}`.",
+                ephemeral=True,
+            )
+            return -1
 
     @app_commands.command(name="modal", description="Submit leaderboard data for modal")
     @app_commands.describe(
