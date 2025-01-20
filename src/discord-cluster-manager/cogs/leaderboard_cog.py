@@ -223,12 +223,6 @@ class LeaderboardSubmitCog(app_commands.Group):
             return False
         return True
 
-    # Parent command that defines global options
-    @app_commands.describe(
-        leaderboard_name="Name of the competition / kernel to optimize",
-        script="The Python / CUDA script file to run",
-    )
-    @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def submit(
         self,
         runner_name: str,
@@ -256,6 +250,10 @@ class LeaderboardSubmitCog(app_commands.Group):
         return success
 
     @app_commands.command(name="modal", description="Submit leaderboard data for modal")
+    @app_commands.describe(
+        leaderboard_name="Name of the competition / kernel to optimize",
+        script="The Python / CUDA script file to run",
+    )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def submit_modal(
         self,
@@ -266,6 +264,10 @@ class LeaderboardSubmitCog(app_commands.Group):
         return await self.submit("Modal", interaction, leaderboard_name, script)
 
     @app_commands.command(name="github", description="Submit leaderboard data for GitHub")
+    @app_commands.describe(
+        leaderboard_name="Name of the competition / kernel to optimize",
+        script="The Python / CUDA script file to run",
+    )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def submit_github(
         self,
