@@ -662,6 +662,14 @@ class LeaderboardCog(commands.Cog):
                 )
                 return
 
+        if date_value < datetime.now():
+            await send_discord_message(
+                interaction,
+                f"Deadline {date_value} has already passed.",
+                ephemeral=True,
+            )
+            return
+
         # Ask the user to select GPUs
         view = GPUSelectionView([gpu.name for gpu in GitHubGPU] + [gpu.name for gpu in ModalGPU])
 
