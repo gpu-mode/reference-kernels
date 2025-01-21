@@ -34,7 +34,7 @@ async def _send_split_log(thread: discord.Thread, partial_message: str, header: 
 
         # now, format the chunks
         for i, chunk in enumerate(chunks):
-            partial_message += f"\n\n## {header} ({i+1}/{len(chunks)}):\n"
+            partial_message = f"\n\n## {header} ({i+1}/{len(chunks)}):\n"
             partial_message += f"```\n{_limit_length(chunk, 1900)}```"
             await thread.send(partial_message)
 
