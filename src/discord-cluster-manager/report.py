@@ -1,7 +1,7 @@
 import pprint
 
 import discord
-from run_eval import FullResult
+from run_eval import CompileResult, FullResult, RunResult
 
 
 def _limit_length(text: str, maxlen: int):
@@ -41,10 +41,69 @@ async def _send_split_log(thread: discord.Thread, partial_message: str, header: 
         return ""
 
 
-async def generate_report(thread: discord.Thread, result: FullResult, has_tests: bool):  # noqa: C901
+async def _generate_compile_report(thread: discord.Thread, comp: CompileResult):
     message = ""
+    if not comp.nvcc_found:
+        message += "# Compilation failed\nNVCC could not be found.\n"
+        message += "This indicates a bug in the runner configuration, _not in your code_.\n"
+        message += "Please notify the server admins of this problem"
+        await thread.send(message)
+        return
+
+    # ok, we found nvcc
+    message += "# Compilation failed\n"
+    message += "Command "
+    message += f"```bash\n>{_limit_length(comp.command, 1000)}```\n"
+    message += f"exited with code **{comp.exit_code}**."
+
+    message = await _send_split_log(thread, message, "Compiler stderr", comp.stderr.strip())
+
+    if len(comp.stdout.strip()) > 0:
+        message = await _send_split_log(thread, message, "Compiler stdout", comp.stdout.strip())
+
+    if len(message) != 0:
+        await thread.send(message)
+
+
+async def _generate_crash_report(thread: discord.Thread, run: RunResult):
+    message = "# Running failed\n"
+    message += "Command "
+    message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
+    message += f"exited with error code **{run.exit_code}** after {run.duration:.2} seconds."
+
+    if len(run.stderr.strip()) > 0:
+        message = await _send_split_log(thread, message, "Program stderr", run.stderr.strip())
+
+    if len(run.stdout.strip()) > 0:
+        message = await _send_split_log(thread, message, "Program stdout", run.stdout.strip())
+
+    if len(message) != 0:
+        await thread.send(message)
+
+
+async def _generate_test_report(thread: discord.Thread, run: RunResult):
+    message = "# Testing failed\n"
+    message += "Command "
+    message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
+    message += f"ran successfully in {run.duration:.2} seconds, but did not pass all tests.\n"
+
+    if len(run.stderr.strip()) > 0:
+        message = await _send_split_log(thread, message, "Program stderr", run.stderr.strip())
+
+    if len(run.stdout.strip()) > 0:
+        message = await _send_split_log(thread, message, "Program stdout", run.stdout.strip())
+
+    if len(message) != 0:
+        await thread.send(message)
+
+    # TODO dedicated "error" entry in our results that gets
+    # populated by check_implementation
+    return
+
+
+async def generate_report(thread: discord.Thread, result: FullResult, has_tests: bool):  # noqa: C901
     if not result.success:
-        message += "# Failure\n"
+        message = "# Failure\n"
         message += result.error
         await thread.send(message)
         return
@@ -52,73 +111,18 @@ async def generate_report(thread: discord.Thread, result: FullResult, has_tests:
     comp = result.compile
     run = result.run
 
-    message = ""
     if comp is not None and not comp.success:
-        if not comp.nvcc_found:
-            message += "# Compilation failed\nNVCC could not be found.\n"
-            message += "This indicates a bug in the runner configuration, _not in your code_.\n"
-            message += "Please notify the server admins of this problem"
-            await thread.send(message)
-            return
-
-        # ok, we found nvcc
-        message += "# Compilation failed\n"
-        message += "Command "
-        message += f"```bash\n>{_limit_length(comp.command, 1000)}```\n"
-        message += f"exited with code **{comp.exit_code}**."
-
-        message = await _send_split_log(thread, message, "Compiler stderr", comp.stderr.strip())
-
-        if len(comp.stdout.strip()) > 0:
-            message = await _send_split_log(thread, message, "Compiler stdout", comp.stdout.strip())
-
-        if len(message) != 0:
-            await thread.send(message)
-
+        await _generate_compile_report(thread, comp)
         return
 
     if not run.success:
-        message += "# Running failed\n"
-        message += "Command "
-        message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
-        message += f"exited with error code **{run.exit_code}** after {run.duration:.2} seconds."
-
-        if len(run.stderr.strip()) > 0:
-            message = await _send_split_log(thread, message, "Program stderr", run.stderr.strip())
-
-        if len(run.stdout.strip()) > 0:
-            message = await _send_split_log(thread, message, "Program stdout", run.stdout.strip())
-
-        if len(message) != 0:
-            await thread.send(message)
-
+        await _generate_crash_report(thread, run)
         return
 
-    if has_tests:
-        if not run.passed:
-            message += "# Testing failed\n"
-            message += "Command "
-            message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
-            message += (
-                f"ran successfully in {run.duration:.2} seconds, but did not pass all tests.\n"
-            )
-
-            if len(run.stderr.strip()) > 0:
-                message = await _send_split_log(
-                    thread, message, "Program stderr", run.stderr.strip()
-                )
-
-            if len(run.stdout.strip()) > 0:
-                message = await _send_split_log(
-                    thread, message, "Program stdout", run.stdout.strip()
-                )
-
-            if len(message) != 0:
-                await thread.send(message)
-
-            # TODO dedicated "error" entry in our results that gets
-            # populated by check_implementation
-            return
+    message = ""
+    if has_tests and not run.passed:
+        await _generate_test_report(thread, run)
+        return
 
     # OK, we were successful
     message += "# Success!\n"
