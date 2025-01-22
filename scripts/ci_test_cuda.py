@@ -109,3 +109,33 @@ def test_cuda_correct():
     assert "warming up..." in run.stdout
     assert run.exit_code == ExitCode.SUCCESS
     assert run.result["check"] == "pass"
+
+
+def test_huge_output():
+    sub = """
+#include "reference.cuh"
+#include <iostream>
+output_t custom_kernel(input_t data)
+{
+    for(int i = 0; i < 10000; ++i) {
+        std::cout << "blah blah\\n";
+    }
+    return data;
+}
+    """
+
+    comp, run = run_cuda_script(
+        {"eval.cu": cu_eval}, {"reference.cuh": ref.read_text(), "submission.cuh": sub}, arch=None
+    )
+    assert run.success
+    assert len(run.stdout) < 16384
+    assert "[...]" in run.stdout
+
+    sub = sub.replace("std::cout", "std::cerr")
+
+    comp, run = run_cuda_script(
+        {"eval.cu": cu_eval}, {"reference.cuh": ref.read_text(), "submission.cuh": sub}, arch=None
+    )
+    assert run.success
+    assert len(run.stderr) < 16384
+    assert "[...]" in run.stderr

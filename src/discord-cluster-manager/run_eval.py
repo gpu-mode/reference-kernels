@@ -49,6 +49,17 @@ def _make_cmd(args: list[str]):
     return " ".join(map(shlex.quote, args))
 
 
+def _limit_length(text: str, max_len: int = 16384):
+    lines = text.split("\n")
+    size = 0
+    for i, line in enumerate(lines):
+        size += len(line) + 1
+        if size + 100 > max_len:
+            lines = lines[:i] + [f"[...] {len(lines)-i} lines omitted"]
+            return "\n".join(lines)
+    return text
+
+
 def compile_cuda_script(  # # noqa: C901
     files: list[str],
     arch: int = None,
@@ -88,8 +99,8 @@ def compile_cuda_script(  # # noqa: C901
             success=False,
             nvcc_version="",
             command=_make_cmd(e.cmd),
-            stdout=e.stdout,
-            stderr=e.stderr,
+            stdout=_limit_length(e.stdout),
+            stderr=_limit_length(e.stderr),
             exit_code=e.returncode,
         )
 
@@ -109,8 +120,8 @@ def compile_cuda_script(  # # noqa: C901
             success=False,
             nvcc_version=nvcc_version,
             command=_make_cmd(e.cmd),
-            stdout=e.stdout,
-            stderr=e.stderr,
+            stdout=_limit_length(e.stdout),
+            stderr=_limit_length(e.stderr),
             exit_code=e.returncode,
         )
 
@@ -119,8 +130,8 @@ def compile_cuda_script(  # # noqa: C901
         success=True,
         nvcc_version=nvcc_version,
         command=_make_cmd(compile_process.args),
-        stdout=compile_process.stdout,
-        stderr=compile_process.stderr,
+        stdout=_limit_length(compile_process.stdout),
+        stderr=_limit_length(compile_process.stderr),
         exit_code=compile_process.returncode,
     )
 
@@ -161,8 +172,8 @@ def run_program(args: list[str], seed: int) -> RunResult:
         ),
         passed=result_dict.get("check", None) == "pass",
         command=_make_cmd(run_process.args),
-        stdout=run_process.stdout,
-        stderr=run_process.stderr,
+        stdout=_limit_length(run_process.stdout),
+        stderr=_limit_length(run_process.stderr),
         exit_code=run_process.returncode,
         duration=execution_end_time - execution_start_time,
         result=result_dict,

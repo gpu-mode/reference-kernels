@@ -61,3 +61,29 @@ def test_correct():
     assert "warming up..." in run.stdout
     assert run.exit_code == ExitCode.SUCCESS
     assert run.result["check"] == "pass"
+
+
+def test_huge_output():
+    sub = """
+import sys
+def custom_kernel(input):
+    print("blah blah\\n" * 10000, file=sys.stdout)
+    return input
+"""
+    run = run_pytorch_script(
+        {"eval.py": py_eval, "reference.py": ref.read_text(), "submission.py": sub},
+        "eval.py",
+    )
+    assert run.success
+    assert len(run.stdout) < 16384
+    assert "[...]" in run.stdout
+
+    sub = sub.replace("sys.stdout", "sys.stderr")
+
+    run = run_pytorch_script(
+        {"eval.py": py_eval, "reference.py": ref.read_text(), "submission.py": sub},
+        "eval.py",
+    )
+    assert run.success
+    assert len(run.stderr) < 16384
+    assert "[...]" in run.stderr
