@@ -60,6 +60,19 @@ def _limit_length(text: str, max_len: int = 16384):
     return text
 
 
+def _create_files(files: dict[str, str]):
+    """
+    Create text files
+    Args:
+        files: A dictionary mapping file names to their contents.
+    Raises:
+        AssertionError, if the file is not within the current working directory.
+    """
+    for name, content in files.items():
+        assert Path(name).resolve().is_relative_to(Path.cwd())
+        Path(name).write_text(content)
+
+
 def compile_cuda_script(  # # noqa: C901
     files: list[str],
     arch: int = None,
@@ -207,11 +220,8 @@ def run_cuda_script(  # # noqa: C901
 
     try:
         # Write submission files to directory
-        for source, content in sources.items():
-            Path(source).write_text(content)
-
-        for header, content in headers.items():
-            Path(header).write_text(content)
+        _create_files(sources)
+        _create_files(headers)
 
         compile_result = compile_cuda_script(
             files=list(sources.keys()),
@@ -266,8 +276,7 @@ def run_pytorch_script(  # noqa: C901
         assert main in sources.keys()
 
         # Write submission files to directory
-        for source, content in sources.items():
-            Path(source).write_text(content)
+        _create_files(sources)
         return run_program(["python", main], seed=seed)
 
     finally:
