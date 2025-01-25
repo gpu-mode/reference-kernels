@@ -2,7 +2,7 @@ import asyncio
 
 import modal
 from cogs.submit_cog import ProgressReporter, SubmitCog
-from consts import GPU_TO_SM, GPUType, ModalGPU
+from consts import GPU_TO_SM, MODAL_CUDA_INCLUDE_DIRS, GPUType, ModalGPU
 from discord import app_commands
 from run_eval import FullResult
 from utils import setup_logging
@@ -21,6 +21,8 @@ class ModalCog(SubmitCog):
         self, config: dict, gpu_type: GPUType, status: ProgressReporter
     ) -> FullResult:
         loop = asyncio.get_event_loop()
+        if config["lang"] == "cu":
+            config["include_dirs"] = config.get("include_dirs", []) + MODAL_CUDA_INCLUDE_DIRS
         func_type = "pytorch" if config["lang"] == "py" else "cuda"
         func_name = f"run_{func_type}_script_{gpu_type.value.lower()}"
 

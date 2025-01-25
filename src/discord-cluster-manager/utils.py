@@ -5,7 +5,6 @@ import subprocess
 from typing import Any, List, NotRequired, TypedDict
 
 import discord
-from consts import MODAL_CUDA_INCLUDE_DIRS
 from leaderboard_eval import cu_eval, py_eval
 
 
@@ -198,8 +197,6 @@ def build_task_config(
 
     if lang == "py":
         config["main"] = "eval.py"
-    else:
-        config["include_dirs"] = MODAL_CUDA_INCLUDE_DIRS
 
     if reference_content is None:
         return {
