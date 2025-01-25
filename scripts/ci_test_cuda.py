@@ -1,6 +1,9 @@
 import os
 import sys
+import tempfile
 from pathlib import Path
+
+import pytest
 
 if Path().resolve().name == "scripts":
     os.chdir("..")
@@ -9,7 +12,7 @@ sys.path.append("src/discord-cluster-manager")
 
 from consts import ExitCode
 from leaderboard_eval import cu_eval
-from run_eval import run_cuda_script
+from run_eval import compile_cuda_script, run_cuda_script
 
 ref = Path("examples/identity_cuda/reference.cuh")
 
@@ -104,6 +107,122 @@ def test_cuda_correct():
     comp, run = run_cuda_script(
         {"eval.cu": cu_eval}, {"reference.cuh": ref.read_text(), "submission.cuh": sub}, arch=None
     )
+    assert comp.success is True
+    assert run.success is True
+    assert "warming up..." in run.stdout
+    assert run.exit_code == ExitCode.SUCCESS
+    assert run.result["check"] == "pass"
+
+
+def test_cuda_compile_validation():
+    # doesn't work because test.cpp is missing, but does not raise an exception either
+    assert compile_cuda_script(["test.cpp"]).success is False
+
+    with pytest.raises(ValueError):
+        compile_cuda_script(["test.cpp"], flags=["does_not_start_with_dash"])
+
+    with pytest.raises(ValueError):
+        compile_cuda_script(["test.cpp"], defines={"-not-an-identifier": "value"})
+
+    with pytest.raises(FileNotFoundError):
+        compile_cuda_script(["test.cpp"], include_dirs=["this_directory_does_not_exist"])
+
+    with tempfile.NamedTemporaryFile() as file:
+        with pytest.raises(NotADirectoryError):
+            compile_cuda_script(["test.cpp"], include_dirs=[file.name])
+
+
+def test_cuda_define():
+    sub = """
+#include "reference.cuh"
+#include <iostream>
+
+output_t custom_kernel(input_t data)
+{
+    TEST_FROM_DEFINE;
+    return data;
+}
+            """
+    # doesn't compile without define
+    comp, run = run_cuda_script(
+        {"eval.cu": cu_eval},
+        {"reference.cuh": ref.read_text(), "submission.cuh": sub},
+    )
+    assert comp.success is False
+
+    # compiles with define
+    comp, run = run_cuda_script(
+        {"eval.cu": cu_eval},
+        {"reference.cuh": ref.read_text(), "submission.cuh": sub},
+        defines={"TEST_FROM_DEFINE": 'std::cout << "TEST TEXT" << std::endl;'},
+    )
+    assert comp.success is True
+    assert run.success is True
+    assert run.passed is True
+    assert run.command == "./eval.out"
+    # check that we inserted the code
+    assert "TEST TEXT" in run.stdout
+
+
+def test_include_dirs(tmp_path: Path):
+    (tmp_path / "include_from_path.h").write_text(
+        Path("examples/identity_cuda/submission.cuh").read_text()
+    )
+    sub = """
+#include "include_from_path.h"
+"""
+
+    # verify that naive does not work:
+    comp, run = run_cuda_script(
+        {"eval.cu": cu_eval}, {"reference.cuh": ref.read_text(), "submission.cuh": sub}
+    )
+    assert comp.success is False
+
+    # but with include dirs, it works
+    comp, run = run_cuda_script(
+        {"eval.cu": cu_eval},
+        {"reference.cuh": ref.read_text(), "submission.cuh": sub},
+        include_dirs=[".", tmp_path],
+    )
+
+    assert comp.success is True
+    assert run.success is True
+    assert "warming up..." in run.stdout
+    assert run.exit_code == ExitCode.SUCCESS
+    assert run.result["check"] == "pass"
+
+    # can also use generic flags argument
+    comp, run = run_cuda_script(
+        {"eval.cu": cu_eval},
+        {"reference.cuh": ref.read_text(), "submission.cuh": sub},
+        flags=["-I.", f"-I{tmp_path}"],
+    )
+
+    assert comp.success is True
+
+
+def test_link_libs(tmp_path: Path):
+    sub = Path("examples/identity_cuda/submission.cuh").read_text()
+    sub += """
+#include <cuda.h>
+void function_that_uses_cuda_lib() {
+    int sms;
+    cuDeviceGetAttribute(&sms, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, 0);
+    std::cout << sms << "\\n";
+}
+"""
+    # without extra link libs, this doesn't compile
+    comp, run = run_cuda_script(
+        {"eval.cu": cu_eval}, {"reference.cuh": ref.read_text(), "submission.cuh": sub}
+    )
+    assert comp.success is False
+
+    comp, run = run_cuda_script(
+        {"eval.cu": cu_eval},
+        {"reference.cuh": ref.read_text(), "submission.cuh": sub},
+        libraries=["cuda"],
+    )
+
     assert comp.success is True
     assert run.success is True
     assert "warming up..." in run.stdout

@@ -39,7 +39,6 @@ def custom_kernel(input):
     run = run_pytorch_script(
         {"eval.py": py_eval, "reference.py": ref.read_text(), "submission.py": sub},
         "eval.py",
-        arch=None,
     )
     assert run.success is True
     assert run.passed is False
