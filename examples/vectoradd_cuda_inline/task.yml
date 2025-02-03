@@ -1,0 +1,17 @@
+# name: vectoradd-cuda-inline
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a vector addition kernel using CUDA inline function that matches the reference implementation.
+  The kernel should add pairs of tensors element-wise.
+
+config:
+  main: "eval.py" 

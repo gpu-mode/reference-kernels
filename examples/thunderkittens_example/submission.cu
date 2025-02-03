@@ -2,8 +2,10 @@
 // https://github.com/HazyResearch/ThunderKittens/blob/tk_gen/simple_kernels/micro_add/micro.cu
 // Test whether TK works on Modal runners.
 
+#include "task.h"
+#include "utils.h"
+
 #include "kittens.cuh"
-#include "reference.cuh"
 using namespace kittens;
 
 #define CudaCheckError() __cudaCheckError(__FILE__, __LINE__)
@@ -26,9 +28,6 @@ inline void __cudaCheckError(const char *file, const int line) {
 
 #define _row 16
 #define _col 32
-
-using input_t = std::array<std::vector<float>, N_SIZES>;
-using output_t = input_t;
 
 struct micro_globals {
   using _gl = gl<float, -1, -1, -1, -1, st_fl<_row, _col>>;

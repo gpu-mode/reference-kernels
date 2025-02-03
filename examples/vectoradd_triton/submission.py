@@ -1,8 +1,9 @@
 import torch
 import triton
 import triton.language as tl
+from typing import List
+from task import kernel_interface
 
-# Triton kernel
 @triton.jit
 def add_kernel(
     A_ptr, B_ptr, C_ptr, M, N,
@@ -20,7 +21,7 @@ def add_kernel(
     C = A + B
     tl.store(C_ptr + row_idx[:, None] * N + col_idx[None, :], C, mask=mask_row[:, None] & mask_col[None, :])
 
-def custom_kernel(inputs):
+def custom_kernel(inputs: List[torch.Tensor]) -> List[torch.Tensor]:
     outputs = []
     for input_tensor in inputs:
         A, B = input_tensor

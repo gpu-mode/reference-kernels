@@ -9,14 +9,9 @@
 #include <random>
 #include <iostream>
 
-#define N_SIZES 10
-const int Ns[N_SIZES] = {128,  256,  512,   1024,  2048,
-                         4096, 8192, 16384, 32768, 65536};
+#include "task.h"
 
-using input_t = std::array<std::vector<float>, N_SIZES>;
-using output_t = input_t;
-
-input_t generate_input(int seed) {
+static input_t generate_input(int seed) {
   std::mt19937 rng(seed);
   input_t data;
 
@@ -33,11 +28,11 @@ input_t generate_input(int seed) {
 }
 
 // The identity kernel
-output_t ref_kernel(input_t data) {
+static output_t ref_kernel(input_t data) {
   return (output_t) data;
 }
 
-bool check_implementation(output_t out, output_t ref, float epsilon = 1e-5) {
+static bool check_implementation(output_t out, output_t ref, float epsilon = 1e-5) {
   // input_t data = generate_input();
   // output_t reference_out = reference(data);
 

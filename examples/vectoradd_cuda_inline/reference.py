@@ -1,7 +1,22 @@
 import torch
-from typing import List, Tuple
+from typing import List
+
+def ref_kernel(inputs: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+    """
+    Reference implementation of vector addition using PyTorch.
+    Args:
+        inputs: List of pairs of tensors [A, B] to be added.
+    Returns:
+        List of tensors containing element-wise sums.
+    """
+    return [A + B for A, B in inputs]
 
 def generate_input() -> List[List[torch.Tensor]]:
+    """
+    Generates random input tensors of specified shapes.
+    Returns:
+        List of pairs of tensors [A, B] to be added.
+    """
     configs = [
         (1024, 1024),
         (1024, 2048),
@@ -13,9 +28,6 @@ def generate_input() -> List[List[torch.Tensor]]:
         torch.randn(M, N, device='cuda', dtype=torch.float16).contiguous(),
         torch.randn(M, N, device='cuda', dtype=torch.float16).contiguous()
     ] for M, N in configs]
-
-def ref_kernel(inputs: List[List[torch.Tensor]]) -> List[torch.Tensor]:
-    return [A + B for A, B in inputs]
 
 def check_implementation(
     custom_outputs: List[torch.Tensor],

@@ -1,6 +1,7 @@
 #include <array>
 #include <vector>
-#include "reference.cuh"
+#include "task.h"
+#include "utils.h"
 
 __global__ void copy_kernel(float *input, float *output, int N)
 {
@@ -22,11 +23,11 @@ output_t custom_kernel(input_t data)
 
         // Allocate device memory
         float *d_input, *d_output;
-        cudaMalloc(&d_input, N * sizeof(float));
-        cudaMalloc(&d_output, N * sizeof(float));
+        CUDA_CHECK(cudaMalloc(&d_input, N * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_output, N * sizeof(float)));
 
         // Copy input to device
-        cudaMemcpy(d_input, data[i].data(), N * sizeof(float), cudaMemcpyHostToDevice);
+        CUDA_CHECK(cudaMemcpy(d_input, data[i].data(), N * sizeof(float), cudaMemcpyHostToDevice));
 
         // Launch kernel
         int blockSize = 256;
@@ -34,11 +35,11 @@ output_t custom_kernel(input_t data)
         copy_kernel<<<numBlocks, blockSize>>>(d_input, d_output, N);
 
         // Copy result back to host
-        cudaMemcpy(result[i].data(), d_output, N * sizeof(float), cudaMemcpyDeviceToHost);
+        CUDA_CHECK(cudaMemcpy(result[i].data(), d_output, N * sizeof(float), cudaMemcpyDeviceToHost));
 
         // Free device memory
-        cudaFree(d_input);
-        cudaFree(d_output);
+        CUDA_CHECK(cudaFree(d_input));
+        CUDA_CHECK(cudaFree(d_output));
     }
 
     return result;

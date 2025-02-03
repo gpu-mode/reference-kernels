@@ -5,7 +5,8 @@ import subprocess
 from typing import Any, List, NotRequired, TypedDict
 
 import discord
-from leaderboard_eval import cu_eval, py_eval
+from consts import Language
+from task import LeaderboardTask
 
 
 def setup_logging():
@@ -168,7 +169,7 @@ class LeaderboardItem(TypedDict):
     name: str
     creator_id: int
     deadline: datetime.datetime
-    reference_code: str
+    task: LeaderboardTask
     gpu_types: List[str]
 
 
@@ -186,19 +187,22 @@ class SubmissionItem(TypedDict):
 
 
 def build_task_config(
-    lang: str, reference_content: str = None, submission_content: str = None, arch: str = None
+    task: LeaderboardTask = None, submission_content: str = None, arch: str = None
 ) -> dict:
-    eval_name = {"py": "eval.py", "cu": "eval.cu"}[lang]
+    if task is None:
+        # TODO detect language
+        lang = "py"
 
-    config = {
-        "lang": lang,
-        "arch": arch,
-    }
+        config = {
+            "lang": lang,
+            "arch": arch,
+        }
 
-    if lang == "py":
-        config["main"] = "eval.py"
+        eval_name = {"py": "eval.py", "cu": "eval.cu"}[lang]
 
-    if reference_content is None:
+        if lang == "py":
+            config["main"] = "eval.py"
+
         return {
             **config,
             "sources": {
@@ -206,23 +210,33 @@ def build_task_config(
             },
         }
     else:
-        if lang == "py":
+        all_files = {}
+        for n, c in task.files.items():
+            if c == "@SUBMISSION@":
+                all_files[n] = submission_content
+            else:
+                all_files[n] = c
+
+        if task.lang == Language.Python:
             return {
-                **config,
-                "sources": {
-                    "eval.py": py_eval,
-                    "reference.py": reference_content,
-                    "submission.py": submission_content,
-                },
+                "lang": task.lang.value,
+                "arch": arch,
+                "main": task.config.main,
+                "sources": all_files,
             }
         else:
+            sources = {}
+            headers = {}
+            for f in all_files:
+                if f in task.config.sources:
+                    sources[f] = all_files[f]
+                else:
+                    headers[f] = all_files[f]
+
             return {
-                **config,
-                "sources": {
-                    "eval.cu": cu_eval,
-                },
-                "headers": {
-                    "reference.cuh": reference_content,
-                    "submission.cuh": submission_content,
-                },
+                "lang": task.lang.value,
+                "arch": arch,
+                "sources": sources,
+                "headers": headers,
+                "include_dirs": task.config.include_dirs,
             }

@@ -1,7 +1,11 @@
 import asyncio
-from datetime import datetime
+import os
+import tempfile
+import zipfile
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from io import StringIO
+from pathlib import Path
 from typing import Callable, List, Optional, Type
 
 import discord
@@ -14,7 +18,7 @@ from consts import (
 from discord import app_commands
 from discord.ext import commands, tasks
 from leaderboard_db import leaderboard_name_autocomplete
-from leaderboard_eval import cu_eval, py_eval
+from task import LeaderboardTask, make_task
 from ui.misc import DeleteConfirmationModal, GPUSelectionView
 from ui.table import create_table
 from utils import (
@@ -24,6 +28,17 @@ from utils import (
 )
 
 logger = setup_logging()
+
+
+async def leaderboard_dir_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[discord.app_commands.Choice[str]]:
+    """Return leaderboard names that match the current typed name"""
+    root = Path("examples")
+    return [
+        discord.app_commands.Choice(name=x.name, value=x.name) for x in root.iterdir() if x.is_dir()
+    ]
 
 
 class LeaderboardSubmitCog(app_commands.Group):
@@ -37,7 +52,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         leaderboard_name: str,
         script: discord.Attachment,
         command: Callable,
-        reference_code,
+        task: LeaderboardTask,
         submission_content,
         gpu: AllGPU,
         runner_name: str = "GitHub",
@@ -49,7 +64,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 name=gpu.name,
                 value=gpu.value,
             ),
-            reference_code=reference_code,
+            task=task,
         )
 
         # no point going further if this already failed
@@ -125,7 +140,6 @@ class LeaderboardSubmitCog(app_commands.Group):
         sure reference code, deadlines, etc. are all correct.
         """
         # Read and convert reference code
-        reference_code = None
         with self.bot.leaderboard_db as db:
             leaderboard_item = db.get_leaderboard(leaderboard_name)
 
@@ -148,9 +162,8 @@ class LeaderboardSubmitCog(app_commands.Group):
                 )
                 return None
 
-            leaderboard_item = db.get_leaderboard(leaderboard_name)
             gpus = db.get_leaderboard_gpu_types(leaderboard_name)
-            reference_code = leaderboard_item["reference_code"]
+            task = leaderboard_item["task"]
 
         # Read the template file
         submission_content = await script.read()
@@ -163,7 +176,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             )
             return None
 
-        return (submission_content, reference_code, gpus)
+        return submission_content, task, gpus
 
     async def on_submit_hook(
         self,
@@ -177,7 +190,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         """
         Called as the main body of a submission to route to the correct runner.
         """
-        submission_content, reference_code, gpus = await self.before_submit_hook(
+        submission_content, task, gpus = await self.before_submit_hook(
             interaction,
             leaderboard_name,
             script,
@@ -216,7 +229,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 leaderboard_name,
                 script,
                 command,
-                reference_code,
+                task,
                 submission_content,
                 AllGPU[gpu],
                 runner_name,
@@ -315,6 +328,10 @@ class LeaderboardCog(commands.Cog):
             name="create", description="Create a new leaderboard"
         )(self.leaderboard_create)
 
+        self.leaderboard_create_local = bot.leaderboard_group.command(
+            name="create-local", description="Create or update a leaderboard from a local directory"
+        )(self.leaderboard_create_local)
+
         self.delete_leaderboard = bot.leaderboard_group.command(
             name="delete", description="Delete a leaderboard"
         )(self.delete_leaderboard)
@@ -327,13 +344,9 @@ class LeaderboardCog(commands.Cog):
             name="show-personal", description="Get all your submissions for a leaderboard"
         )(self.get_user_leaderboard_submissions)
 
-        self.get_leaderboard_references = bot.leaderboard_group.command(
-            name="reference-code", description="Get leaderboard reference codes"
-        )(self.get_leaderboard_references)
-
-        self.get_leaderboard_eval = bot.leaderboard_group.command(
-            name="eval-code", description="Get leaderboard evaluation codes"
-        )(self.get_leaderboard_eval)
+        self.get_leaderboard_task = bot.leaderboard_group.command(
+            name="task", description="Get leaderboard reference codes"
+        )(self.get_leaderboard_task)
 
         # Start updating leaderboard
         self.leaderboard_update.start()
@@ -575,68 +588,80 @@ class LeaderboardCog(commands.Cog):
 
     @app_commands.describe(leaderboard_name="Name of the leaderboard")
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
-    async def get_leaderboard_references(
-        self, interaction: discord.Interaction, leaderboard_name: str
-    ):
+    async def get_leaderboard_task(self, interaction: discord.Interaction, leaderboard_name: str):
         await interaction.response.defer(ephemeral=True)
 
         with self.bot.leaderboard_db as db:
-            leaderboard_item = db.get_leaderboard(leaderboard_name)
+            leaderboard_item = db.get_leaderboard(leaderboard_name)  # type: LeaderboardItem
             if not leaderboard_item:
                 await send_discord_message(interaction, "Leaderboard not found.", ephemeral=True)
                 return
 
-        code = leaderboard_item["reference_code"]
-        code_file = StringIO(code)
-        language = "cuda" if "#include" in code else "python"
-        suffix = "py" if language == "python" else "cuh"
+        code = leaderboard_item["task"].files
 
-        ref_code = discord.File(
-            fp=code_file, filename=f"{leaderboard_name}_reference_code.{suffix}"
-        )
+        files = []
+        for file_name, content in code.items():
+            files.append(discord.File(fp=StringIO(content), filename=file_name))
 
-        message = (
-            f"**Reference Code for {leaderboard_name} in {language}**\n"
-            f"*If you want to display the evaluation code, run `/leaderboard eval-code {language}`*"
-        )
+        message = f"**Reference Code for {leaderboard_name}**\n"
 
-        await send_discord_message(interaction, message, ephemeral=True, file=ref_code)
+        await send_discord_message(interaction, message, ephemeral=True, files=files)
 
-    @app_commands.describe(language="Language of the evaluation code [cpp, python]")
-    @app_commands.choices(
-        language=[app_commands.Choice(name=lang, value=lang) for lang in ["cuda", "python"]]
+    @discord.app_commands.describe(
+        leaderboard_name="Name of the leaderboard",
+        directory="Directory of the kernel definition",
     )
-    async def get_leaderboard_eval(self, interaction: discord.Interaction, language: str):
-        await interaction.response.defer(ephemeral=True)
+    @app_commands.autocomplete(directory=leaderboard_dir_autocomplete)
+    async def leaderboard_create_local(
+        self,
+        interaction: discord.Interaction,
+        leaderboard_name: str,
+        directory: str,
+    ):
+        is_admin = await self.admin_check(interaction)
+        if not is_admin:
+            await send_discord_message(
+                interaction,
+                "Debug command, only for admins.",
+                ephemeral=True,
+            )
+            return
 
-        if language == "cuda":
-            eval_code = cu_eval
-        else:
-            eval_code = py_eval
+        old_cwd = Path.cwd()
+        directory = Path("examples") / directory
+        try:
+            assert directory.resolve().is_relative_to(Path.cwd())
+            os.chdir(directory)
+            task = make_task("task.yml")
+        finally:
+            os.chdir(old_cwd)
 
-        suffix = "py" if language == "python" else "cu"
+        # create-local overwrites existing leaderboard
+        with self.bot.leaderboard_db as db:
+            db.delete_leaderboard(leaderboard_name)
 
-        code_file = StringIO(eval_code)
-        ref_code = discord.File(fp=code_file, filename=f"leaderboard_eval.{suffix}")
-
-        await send_discord_message(
+        if await self.create_leaderboard_in_db(
             interaction,
-            f"**Evaluation Code for language: {language}**\n",
-            file=ref_code,
-            ephemeral=True,
-        )
+            leaderboard_name,
+            datetime.now(timezone.utc) + timedelta(days=365),
+            task=task,
+        ):
+            await send_discord_message(
+                interaction,
+                f"Leaderboard '{leaderboard_name}' created.",
+            )
 
     @discord.app_commands.describe(
         leaderboard_name="Name of the leaderboard",
         deadline="Competition deadline in the form: 'Y-m-d'",
-        reference_code="Reference implementation of kernel. Also includes eval code.",
+        task_zip="Zipfile containing the task",
     )
     async def leaderboard_create(  # noqa: C901
         self,
         interaction: discord.Interaction,
         leaderboard_name: str,
         deadline: str,
-        reference_code: discord.Attachment,
+        task_zip: discord.Attachment,
     ):
         is_admin = await self.admin_check(interaction)
         is_creator = await self.creator_check(interaction)
@@ -680,50 +705,28 @@ class LeaderboardCog(commands.Cog):
             )
             return
 
-        # Ask the user to select GPUs
-        view = GPUSelectionView([gpu.name for gpu in GitHubGPU] + [gpu.name for gpu in ModalGPU])
-
-        await send_discord_message(
-            interaction,
-            "Please select GPUs for this leaderboard.",
-            view=view,
-            ephemeral=True,
-        )
-
-        await view.wait()
-
         try:
             # Read the template file
-            template_content = await reference_code.read()
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with tempfile.NamedTemporaryFile("w+b") as temp:
+                    temp.write(await task_zip.read())
+                    temp.flush()
+                    with zipfile.ZipFile(temp, "r") as zip_ref:
+                        zip_ref.extractall(tmpdir)
 
-            with self.bot.leaderboard_db as db:
-                err = db.create_leaderboard(
-                    {
-                        "name": leaderboard_name,
-                        "deadline": date_value,
-                        "reference_code": template_content.decode("utf-8"),
-                        "gpu_types": view.selected_gpus,
-                        "creator_id": interaction.user.id,
-                    }
-                )
+                contents = list(Path(tmpdir).iterdir())
+                # support both a zipped directory, and files
+                # directly in the zip
+                if len(contents) == 1:
+                    task = make_task(contents[0])
+                else:
+                    task = make_task(tmpdir)
 
-                if err:
-                    if "duplicate key" in err:
-                        await send_discord_message(
-                            interaction,
-                            "Error: Tried to create a leaderboard "
-                            f'"{leaderboard_name}" that already exists.',
-                            ephemeral=True,
-                        )
-                    else:
-                        # Handle any other errors
-                        logger.error(f"Error in leaderboard creation: {err}")
-                        await send_discord_message(
-                            interaction,
-                            "Error in leaderboard creation.",
-                            ephemeral=True,
-                        )
-                    return
+            success = await self.create_leaderboard_in_db(
+                interaction, leaderboard_name, date_value, task
+            )
+            if not success:
+                return
 
             forum_channel = self.bot.get_channel(self.bot.leaderboard_forum_id)
 
@@ -737,7 +740,6 @@ class LeaderboardCog(commands.Cog):
                     content=(
                         f"# New Leaderboard: {leaderboard_name}\n\n"
                         f"**Deadline**: {date_value.strftime('%Y-%m-%d %H:%M')}\n\n"
-                        f"**Reference Code**: {reference_code}\n\n"
                         "Submit your entries using `/submit github` or `/submit modal` in the submissions channel.\n\n"  # noqa: E501
                         f"Good luck to all participants! 🚀 <@&{self.bot.leaderboard_participant_role_id}>"  # noqa: E501
                     ),
@@ -747,7 +749,7 @@ class LeaderboardCog(commands.Cog):
                 await send_discord_message(
                     interaction,
                     f"Leaderboard '{leaderboard_name}'.\n"
-                    + f"Reference code: {reference_code}. Submission deadline: {date_value}"
+                    + f"Submission deadline: {date_value}"
                     + f"\nForum thread: {thread.thread.mention}",
                 )
                 return
@@ -764,6 +766,27 @@ class LeaderboardCog(commands.Cog):
                 "Error creating forum thread. Leaderboard was not created.",
                 ephemeral=True,
             )
+        except FileNotFoundError as e:
+            file = Path(e.filename).name
+            if file == "task.yml":
+                await send_discord_message(
+                    interaction,
+                    "Error in leaderboard creation. Missing `task.yml`.",
+                    ephemeral=True,
+                )
+            else:
+                await send_discord_message(
+                    interaction,
+                    f"Error in leaderboard creation. Could not find `{file}`.",
+                    ephemeral=True,
+                )
+        except zipfile.BadZipFile:
+            # Handle any other errors
+            await send_discord_message(
+                interaction,
+                "Error in leaderboard creation. Is the uploaded file a valid zip archive?",
+                ephemeral=True,
+            )
         except Exception as e:
             logger.error(f"Error in leaderboard creation: {e}", exc_info=e)
             # Handle any other errors
@@ -777,6 +800,56 @@ class LeaderboardCog(commands.Cog):
 
         with self.bot.leaderboard_db as db:  # Cleanup in case lb was created
             db.delete_leaderboard(leaderboard_name)
+
+    async def create_leaderboard_in_db(
+        self,
+        interaction: discord.Interaction,
+        leaderboard_name: str,
+        date_value: datetime,
+        task: LeaderboardTask,
+    ) -> bool:
+        # Ask the user to select GPUs
+        view = GPUSelectionView([gpu.name for gpu in GitHubGPU] + [gpu.name for gpu in ModalGPU])
+
+        await send_discord_message(
+            interaction,
+            "Please select GPUs for this leaderboard.",
+            view=view,
+            ephemeral=True,
+        )
+
+        await view.wait()
+
+        with self.bot.leaderboard_db as db:
+            err = db.create_leaderboard(
+                {
+                    "name": leaderboard_name,
+                    "deadline": date_value,
+                    "task": task,
+                    "gpu_types": view.selected_gpus,
+                    "creator_id": interaction.user.id,
+                }
+            )
+
+            if err:
+                if "duplicate key" in err:
+                    await send_discord_message(
+                        interaction,
+                        "Error: Tried to create a leaderboard "
+                        f'"{leaderboard_name}" that already exists.',
+                        ephemeral=True,
+                    )
+                else:
+                    # Handle any other errors
+                    logger.error(f"Error in leaderboard creation: {err}")
+                    await send_discord_message(
+                        interaction,
+                        "Error in leaderboard creation.",
+                        ephemeral=True,
+                    )
+                return False
+
+            return True
 
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)

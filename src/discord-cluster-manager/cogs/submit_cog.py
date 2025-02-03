@@ -6,6 +6,7 @@ from discord import app_commands
 from discord.ext import commands
 from report import generate_report
 from run_eval import FullResult
+from task import LeaderboardTask
 from utils import build_task_config, send_discord_message, setup_logging
 
 logger = setup_logging()
@@ -88,7 +89,7 @@ class SubmitCog(commands.Cog):
         interaction: discord.Interaction,
         script: discord.Attachment,
         gpu_type: app_commands.Choice[str],
-        reference_code: str,
+        task: LeaderboardTask,
     ) -> Tuple[Optional[discord.Thread], Optional[FullResult]]:
         """
         Function invoked by `leaderboard_cog` to handle a leaderboard run.
@@ -97,7 +98,7 @@ class SubmitCog(commands.Cog):
             interaction,
             gpu_type,
             script=script,
-            reference_content=reference_code,
+            task=task,
         )
 
         return thread, result
@@ -115,7 +116,7 @@ class SubmitCog(commands.Cog):
             interaction,
             gpu_type,
             script=script,
-            reference_content=None,
+            task=None,
         )
 
     async def _handle_submission(
@@ -123,7 +124,7 @@ class SubmitCog(commands.Cog):
         interaction: discord.Interaction,
         gpu_type: app_commands.Choice[str],
         script: discord.Attachment,
-        reference_content: Optional[str],
+        task: Optional[LeaderboardTask],
     ) -> Tuple[Optional[discord.Thread], Optional[FullResult]]:
         """
         Generic function to handle code submissions.
@@ -131,7 +132,7 @@ class SubmitCog(commands.Cog):
             interaction: Interaction that started this command.
             gpu_type: Which GPU to run on.
             script: File that contains the submitted script.
-            reference_content: String with the reference code, if provided.
+            task: Task specification, of provided
 
         Returns:
             if successful, returns the created discord thread, and the result of
@@ -151,15 +152,16 @@ class SubmitCog(commands.Cog):
         status = await ProgressReporter.make_reporter(thread, f"Running on {self.name}...")
 
         config = build_task_config(
-            lang="py" if script.filename.endswith(".py") else "cu",
-            reference_content=reference_content,
+            task=task,
             submission_content=script_content,
             arch=self._get_arch(gpu_type),
         )
 
+        logger.info("submitting task %s to runner %s", config, self.name)
+
         result = await self._run_submission(config, gpu_type, status)
         await status.update_header(f"Running on {self.name}... ✅ success")
-        await generate_report(thread, result, has_tests=reference_content is not None)
+        await generate_report(thread, result, has_tests=task is not None)
 
         return thread, result
 

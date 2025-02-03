@@ -1,0 +1,17 @@
+# name: softmax-py
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a custom softmax function that matches the reference implementation.
+  The function should handle a list of input tensors and apply softmax along the specified dimension.
+
+config:
+  main: "eval.py" 

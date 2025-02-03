@@ -8,10 +8,13 @@ if Path().resolve().name == "scripts":
 sys.path.append("src/discord-cluster-manager")
 
 from consts import ExitCode
-from leaderboard_eval import py_eval
 from run_eval import run_pytorch_script
 
-ref = Path("examples/identity_py/reference.py")
+ref = Path("examples/identity_py/reference.py").read_text()
+task = Path("examples/identity_py/task.py").read_text()
+py_eval = Path("examples/identity_py/eval.py").read_text()
+utils = Path("examples/identity_py/utils.py").read_text()
+files = {"eval.py": py_eval, "reference.py": ref, "utils.py": utils, "task.py": task}
 
 
 def test_does_not_import():
@@ -20,9 +23,7 @@ def test_does_not_import():
     this is a syntax error
     """
 
-    run = run_pytorch_script(
-        {"eval.py": py_eval, "reference.py": ref.read_text(), "submission.py": sub}, "eval.py"
-    )
+    run = run_pytorch_script({**files, "submission.py": sub}, "eval.py")
     assert run.success is False
     assert run.exit_code != ExitCode.SUCCESS
     assert "IndentationError: unexpected indent\n" in run.stderr
@@ -37,7 +38,7 @@ def custom_kernel(input):
         """
 
     run = run_pytorch_script(
-        {"eval.py": py_eval, "reference.py": ref.read_text(), "submission.py": sub},
+        {**files, "submission.py": sub},
         "eval.py",
     )
     assert run.success is True
@@ -45,7 +46,7 @@ def custom_kernel(input):
     assert run.command == "python eval.py"
     # we never reach the benchmark part, because the test fails
     assert "warming up..." not in run.stdout
-    assert "mismatch found! custom implementation doesnt match reference." in run.stdout
+    assert "mismatch found! custom implementation doesnt match reference." in run.stderr
     assert run.exit_code == ExitCode.VALIDATE_FAIL
     assert run.result["check"] == "fail"
 
@@ -53,9 +54,7 @@ def custom_kernel(input):
 def test_correct():
     sub = Path("examples/identity_py/submission.py").read_text()
 
-    run = run_pytorch_script(
-        {"eval.py": py_eval, "reference.py": ref.read_text(), "submission.py": sub}, "eval.py"
-    )
+    run = run_pytorch_script({**files, "submission.py": sub}, "eval.py")
     assert run.success is True
     assert "warming up..." in run.stdout
     assert run.exit_code == ExitCode.SUCCESS
@@ -70,7 +69,7 @@ def custom_kernel(input):
     return input
 """
     run = run_pytorch_script(
-        {"eval.py": py_eval, "reference.py": ref.read_text(), "submission.py": sub},
+        {**files, "submission.py": sub},
         "eval.py",
     )
     assert run.success
@@ -80,7 +79,7 @@ def custom_kernel(input):
     sub = sub.replace("sys.stdout", "sys.stderr")
 
     run = run_pytorch_script(
-        {"eval.py": py_eval, "reference.py": ref.read_text(), "submission.py": sub},
+        {**files, "submission.py": sub},
         "eval.py",
     )
     assert run.success

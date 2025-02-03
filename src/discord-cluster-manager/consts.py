@@ -44,6 +44,11 @@ class ExitCode(IntEnum):
     VALIDATE_FAIL = 112
 
 
+class Language(Enum):
+    Python = "py"
+    CUDA = "cu"
+
+
 def combine_enums(enums: list[Type[Enum]], combined_name: str) -> Enum:
     combined_members = {}
     for enum in enums:

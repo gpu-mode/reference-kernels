@@ -1,0 +1,24 @@
+# name of the task
+# name: tk-example
+
+# these files will be baked into the json object, so that they are available during testing
+files:
+  - {"name": "eval.cu", "source": "eval.cu"}
+  - {"name": "task.h", "source": "task.h"}
+  - {"name": "utils.h", "source": "utils.h"}
+  - {"name": "reference.cuh", "source": "reference.cuh"}
+  - {"name": "submission.cu", "source": "@SUBMISSION@"}
+
+# task language, depending on this we do get different keys in runner
+lang: "cu"
+
+description:
+  A simple ThunderKittens example
+
+# Config object
+config:
+  # task provided source files to compile
+  sources: ["eval.cu", "submission.cu"]
+
+  # additional include directories
+  include_dirs: []

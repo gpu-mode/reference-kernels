@@ -1,8 +1,4 @@
-from typing import List
+from task import input_t, output_t
 
-import torch
-
-
-# Here, InputType = OutputType = List[torch.Tensor]
-def custom_kernel(input: List[torch.Tensor]) -> List[torch.Tensor]:
-    return input
+def custom_kernel(data: input_t) -> output_t:
+    return data

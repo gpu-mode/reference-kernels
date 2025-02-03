@@ -1,48 +1,28 @@
-from typing import List
-
 import torch
+import sys
+from task import input_t, output_t, N_SIZES, Ns
+from utils import verbose_allclose
+
+def generate_input() -> input_t:
+    data = [torch.empty(N) for N in Ns]
+
+    for i in range(N_SIZES):
+        data[i].uniform_(0, 1)
+    return data
+
+def ref_kernel(data: input_t) -> output_t:
+    return data
 
 
-def check_implementation(custom_output: List[torch.Tensor], ref_output: List[torch.Tensor]) -> bool:
-    for c, r in zip(custom_output, ref_output, strict=False):
-        if not torch.allclose(c, r, atol=1e-5):
-            print("mismatch found! custom implementation doesnt match reference.")
+def check_implementation(submission_output, reference_output) -> bool:
+    for i in range(N_SIZES):
+        reasons = verbose_allclose(submission_output[i], reference_output[i])
+        if len(reasons) > 0:
+            print("mismatch found! custom implementation doesnt match reference.", file=sys.stderr)
+            for reason in reasons:
+                print(reason, file=sys.stderr)
             return False
-
+    
     return True
 
 
-def ref_kernel(xs: List[torch.Tensor]) -> List[torch.Tensor]:
-    return xs
-
-
-def generate_input(seed: int) -> List[torch.Tensor]:
-    """
-    Generates random input tensor of the specified shape.
-    Returns:
-        List[torch.Tensor]: List of randomly generated tensors.
-    """
-    shapes = [(128, 64), (256, 64), (512, 64)]
-
-    # Determine the device
-    if torch.cuda.is_available():  # Check for NVIDIA GPU
-        device = torch.device("cuda")
-    elif torch.backends.mps.is_available():  # Check for AMD GPU using MPS backend
-        device = torch.device("mps")
-    else:
-        print("No compatible GPU found. Falling back to CPU.")
-        device = torch.device("cpu")
-
-    tensors = []
-    rng = torch.Generator(device=device)
-    rng.manual_seed(seed)
-    for shape in shapes:
-        tensors.append(torch.randn(shape, device=device, generator=rng))
-
-    return tensors
-
-
-if __name__ == "__main__":
-    inputs = generate_input()
-    for idx, tensor in enumerate(inputs):
-        print(f"Input Tensor {idx + 1} (Shape: {tensor.shape}):\n{tensor}")
