@@ -1,5 +1,4 @@
 import asyncio
-import os
 import tempfile
 import zipfile
 from datetime import datetime, timedelta, timezone
@@ -608,15 +607,19 @@ class LeaderboardCog(commands.Cog):
         await send_discord_message(interaction, message, ephemeral=True, files=files)
 
     @discord.app_commands.describe(
-        leaderboard_name="Name of the leaderboard",
-        directory="Directory of the kernel definition",
+        directory="Directory of the kernel definition. Also used as the leaderboard's name",
+        gpu="The GPU to submit to. Leave empty for interactive selection/multiple GPUs",
     )
     @app_commands.autocomplete(directory=leaderboard_dir_autocomplete)
+    @app_commands.choices(
+        gpu=[app_commands.Choice(name=gpu.name, value=gpu.value) for gpu in GitHubGPU]
+        + [app_commands.Choice(name=gpu.name, value=gpu.value) for gpu in ModalGPU]
+    )
     async def leaderboard_create_local(
         self,
         interaction: discord.Interaction,
-        leaderboard_name: str,
         directory: str,
+        gpu: Optional[app_commands.Choice[str]],
     ):
         is_admin = await self.admin_check(interaction)
         if not is_admin:
@@ -627,14 +630,12 @@ class LeaderboardCog(commands.Cog):
             )
             return
 
-        old_cwd = Path.cwd()
         directory = Path("examples") / directory
-        try:
-            assert directory.resolve().is_relative_to(Path.cwd())
-            os.chdir(directory)
-            task = make_task("task.yml")
-        finally:
-            os.chdir(old_cwd)
+        assert directory.resolve().is_relative_to(Path.cwd())
+        task = make_task(directory)
+
+        # clearly mark this leaderboard as development-only
+        leaderboard_name = directory.name + "-dev"
 
         # create-local overwrites existing leaderboard
         with self.bot.leaderboard_db as db:
@@ -645,6 +646,7 @@ class LeaderboardCog(commands.Cog):
             leaderboard_name,
             datetime.now(timezone.utc) + timedelta(days=365),
             task=task,
+            gpu=gpu,
         ):
             await send_discord_message(
                 interaction,
@@ -807,18 +809,25 @@ class LeaderboardCog(commands.Cog):
         leaderboard_name: str,
         date_value: datetime,
         task: LeaderboardTask,
+        gpu: Optional[str] = None,
     ) -> bool:
-        # Ask the user to select GPUs
-        view = GPUSelectionView([gpu.name for gpu in GitHubGPU] + [gpu.name for gpu in ModalGPU])
+        if gpu is None:
+            # Ask the user to select GPUs
+            view = GPUSelectionView(
+                [gpu.name for gpu in GitHubGPU] + [gpu.name for gpu in ModalGPU]
+            )
 
-        await send_discord_message(
-            interaction,
-            "Please select GPUs for this leaderboard.",
-            view=view,
-            ephemeral=True,
-        )
+            await send_discord_message(
+                interaction,
+                "Please select GPUs for this leaderboard.",
+                view=view,
+                ephemeral=True,
+            )
 
-        await view.wait()
+            await view.wait()
+            selected_gpus = view.selected_gpus
+        else:
+            selected_gpus = [gpu]
 
         with self.bot.leaderboard_db as db:
             err = db.create_leaderboard(
@@ -826,7 +835,7 @@ class LeaderboardCog(commands.Cog):
                     "name": leaderboard_name,
                     "deadline": date_value,
                     "task": task,
-                    "gpu_types": view.selected_gpus,
+                    "gpu_types": selected_gpus,
                     "creator_id": interaction.user.id,
                 }
             )
