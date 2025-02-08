@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Optional, Tuple, Type
 
 import discord
+from consts import SubmissionMode
 from discord import app_commands
 from discord.ext import commands
 from report import generate_report
@@ -90,6 +91,7 @@ class SubmitCog(commands.Cog):
         script: discord.Attachment,
         gpu_type: app_commands.Choice[str],
         task: LeaderboardTask,
+        mode: SubmissionMode,
     ) -> Tuple[Optional[discord.Thread], Optional[FullResult]]:
         """
         Function invoked by `leaderboard_cog` to handle a leaderboard run.
@@ -99,6 +101,7 @@ class SubmitCog(commands.Cog):
             gpu_type,
             script=script,
             task=task,
+            mode=mode,
         )
 
         return thread, result
@@ -113,10 +116,7 @@ class SubmitCog(commands.Cog):
         Function invoked by the `run` command to run a single script.
         """
         await self._handle_submission(
-            interaction,
-            gpu_type,
-            script=script,
-            task=None,
+            interaction, gpu_type, script=script, task=None, mode=SubmissionMode.SCRIPT
         )
 
     async def _handle_submission(
@@ -125,6 +125,7 @@ class SubmitCog(commands.Cog):
         gpu_type: app_commands.Choice[str],
         script: discord.Attachment,
         task: Optional[LeaderboardTask],
+        mode: SubmissionMode,
     ) -> Tuple[Optional[discord.Thread], Optional[FullResult]]:
         """
         Generic function to handle code submissions.
@@ -138,30 +139,30 @@ class SubmitCog(commands.Cog):
             if successful, returns the created discord thread, and the result of
             the run.
         """
+        thread_name = f"{self.name} - {mode.value.capitalize()} Job"
 
         script_content = await self._validate_input_file(interaction, script)
         if script_content is None:
             return None, None
 
         # TODO figure out the correct way to handle messaging here
-        thread = await self.bot.create_thread(interaction, gpu_type.name, f"{self.name} Job")
+        thread = await self.bot.create_thread(interaction, gpu_type.name, f"{thread_name}")
         await thread.send(
-            f"Starting {self.name} job for " f"`{script.filename}` with {gpu_type.name}..."
+            f"Starting {mode.value.capitalize()} job on {self.name} for "
+            f"`{script.filename}` with {gpu_type.name}..."
         )
 
         status = await ProgressReporter.make_reporter(thread, f"Running on {self.name}...")
 
         config = build_task_config(
-            task=task,
-            submission_content=script_content,
-            arch=self._get_arch(gpu_type),
+            task=task, submission_content=script_content, arch=self._get_arch(gpu_type), mode=mode
         )
 
         logger.info("submitting task %s to runner %s", config, self.name)
 
         result = await self._run_submission(config, gpu_type, status)
         await status.update_header(f"Running on {self.name}... ✅ success")
-        await generate_report(thread, result, has_tests=task is not None)
+        await generate_report(thread, result, mode=mode)
 
         return thread, result
 
@@ -185,7 +186,7 @@ class SubmitCog(commands.Cog):
         except UnicodeError:
             await send_discord_message(
                 interaction,
-                f"Could not decode your file `{script.filename}`.\n" f"Is it UTF-8?",
+                f"Could not decode your file `{script.filename}`.\nIs it UTF-8?",
                 ephemeral=True,
             )
             return None

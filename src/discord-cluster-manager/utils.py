@@ -5,7 +5,7 @@ import subprocess
 from typing import Any, List, NotRequired, TypedDict
 
 import discord
-from consts import Language
+from consts import Language, SubmissionMode
 from task import LeaderboardTask
 
 
@@ -187,9 +187,13 @@ class SubmissionItem(TypedDict):
 
 
 def build_task_config(
-    task: LeaderboardTask = None, submission_content: str = None, arch: str = None
+    task: LeaderboardTask = None,
+    submission_content: str = None,
+    arch: str = None,
+    mode: SubmissionMode = None,
 ) -> dict:
     if task is None:
+        assert mode == SubmissionMode.SCRIPT
         # TODO detect language
         lang = "py"
 
@@ -223,6 +227,9 @@ def build_task_config(
                 "arch": arch,
                 "main": task.config.main,
                 "sources": all_files,
+                "benchmarks": task.benchmarks,
+                "tests": task.tests,
+                "mode": mode.value,
             }
         else:
             sources = {}
@@ -238,5 +245,8 @@ def build_task_config(
                 "arch": arch,
                 "sources": sources,
                 "headers": headers,
+                "tests": task.tests,
+                "benchmarks": task.benchmarks,
                 "include_dirs": task.config.include_dirs,
+                "mode": mode.value,
             }

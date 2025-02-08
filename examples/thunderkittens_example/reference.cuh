@@ -1,27 +1,25 @@
 #ifndef __REFERENCE_CUH__
 #define __REFERENCE_CUH__
 
+#include <array>
+#include <cmath>
+#include <cstdlib>
+#include <iostream>
+#include <random>
 #include <tuple>
 #include <vector>
-#include <cstdlib>
-#include <cmath>
-#include <array>
-#include <random>
-#include <iostream>
 
 #include "task.h"
 
-static input_t generate_input(int seed) {
+static input_t generate_input(int seed, int size) {
   std::mt19937 rng(seed);
   input_t data;
 
   std::uniform_real_distribution<float> dist(0, 1);
 
-  for (int i = 0; i < N_SIZES; ++i) {
-    data[i].resize(Ns[i]);
-    for (int j = 0; j < Ns[i]; ++j) {
-      data[i][j] = dist(rng);
-    }
+  data.resize(size);
+  for (int j = 0; j < size; ++j) {
+    data[j] = dist(rng);
   }
 
   return data;
@@ -29,36 +27,33 @@ static input_t generate_input(int seed) {
 
 static output_t ref_kernel(input_t data) {
   output_t out;
+  int N = data.size();
 
-  for (int i = 0; i < N_SIZES; ++i) {
-    out[i].resize(Ns[i]);
-    for (int j = 0; j < Ns[i]; ++j) {
-      out[i][j] = data[i][j] + data[i][j];
-    }
+  out.resize(N);
+  for (int j = 0; j < N; ++j) {
+    out[j] = data[j] + data[j];
   }
 
   return out;
 }
 
-static bool check_implementation(output_t out, output_t ref, float epsilon = 1e-5) {
-  for (int i = 0; i < N_SIZES; ++i) {
-    auto ref_ptr = ref[i];
-    auto out_ptr = out[i];
+static void check_implementation(TestReporter& reporter, input_t data, output_t out, float epsilon = 1e-5) {
+  // input_t data = generate_input();
+  output_t ref = ref_kernel(data);
 
-    if(out[i].size() != Ns[i]) {
-        std::cerr <<  "SIZE MISMATCH at " << i << ": " << Ns[i] << " " << out[i].size() << std::endl;
-        return false;
-    }
+  if(out.size() != ref.size()) {
+      if(!reporter.check_equal("size mismatch", out.size(), ref.size())) return;
+  }
 
-    for (int j = 0; j < Ns[i]; ++j) {
-      if (std::fabs(ref_ptr[j] - out_ptr[j]) > epsilon) {
-        std::cerr <<  "ERROR AT " << i << ", "<< j << ": " << ref_ptr[j] << " " << out_ptr[j] << std::endl;
-        return false;
-      }
+  for (int j = 0; j < ref.size(); ++j) {
+    if (std::fabs(ref[j] - out[j]) > epsilon) {
+        reporter.fail() << "error at " << j << ": " << ref[j] << " "  << std::to_string(out[j]);
+        return;
     }
   }
 
-  return true;
+  reporter.pass();
 }
+
 
 #endif

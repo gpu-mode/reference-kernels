@@ -2,9 +2,11 @@ import dataclasses
 import os
 import shlex
 import subprocess
+import tempfile
 import time
 from pathlib import Path
-from typing import Optional
+from types import NoneType
+from typing import Optional, Union
 
 from consts import CUDA_FLAGS, ExitCode
 
@@ -42,7 +44,9 @@ class FullResult:
     success: bool                  # did the runner (github/modal) execute successfully
     error: str                     # if not success, an error message
     compile: CompileResult | None  # results of compilation
-    run: RunResult | None          # results of running
+    # results of running. There can be multiple runs in one submission, using separate
+    # 'test' and 'benchmark' keys, for example
+    runs: dict[str, RunResult] = dataclasses.field(default_factory=dict)
     # fmt: on
 
 
@@ -50,7 +54,11 @@ def _make_cmd(args: list[str]):
     return " ".join(map(shlex.quote, args))
 
 
-def _limit_length(text: str, max_len: int = 16384):
+def _limit_length(text: Union[NoneType, str, bytes], max_len: int = 16384):
+    if text is None:
+        return ""
+    if isinstance(text, bytes):
+        text = text.decode("utf-8")
     lines = text.split("\n")
     size = 0
     for i, line in enumerate(lines):
@@ -185,7 +193,8 @@ def compile_cuda_script(  # # noqa: C901
     )
 
 
-def run_program(args: list[str], seed: int) -> RunResult:
+def run_program(args: list[str], seed: int, timeout: int = 60) -> RunResult:
+    print("[Running]")
     # set up a pipe so the tester can communicate its verdict with us
     env = os.environ.copy()
     pipe_read, pipe_write = os.pipe()
@@ -193,14 +202,27 @@ def run_program(args: list[str], seed: int) -> RunResult:
     env["POPCORN_SEED"] = str(seed)
 
     execution_start_time = time.perf_counter()
-    run_process = subprocess.run(
-        args,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-        pass_fds=[pipe_write],
-    )
+    try:
+        run_process = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+            pass_fds=[pipe_write],
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as e:
+        return RunResult(
+            success=False,
+            passed=False,
+            command=_make_cmd(e.cmd),
+            stdout=_limit_length(e.stdout),
+            stderr=_limit_length(e.stderr),
+            exit_code=ExitCode.TIMEOUT_EXPIRED,
+            duration=timeout,
+            result={},
+        )
     execution_end_time = time.perf_counter()
 
     # terminate output writing
@@ -229,6 +251,56 @@ def run_program(args: list[str], seed: int) -> RunResult:
     )
 
 
+def run_evaluation(
+    call: list[str],
+    mode: str,
+    tests: Optional[str] = None,
+    benchmarks: Optional[str] = None,
+    seed: Optional[int] = None,
+) -> dict[str, RunResult]:
+    results = {}
+    if mode == "test":
+        with tempfile.NamedTemporaryFile("w") as tests_file:
+            tests_file.write(tests)
+            tests_file.flush()
+            results["test"] = run_program(call + [mode, tests_file.name], seed=seed)
+    elif mode in ["benchmark", "profile"]:
+        with tempfile.NamedTemporaryFile("w") as bench_file:
+            bench_file.write(benchmarks)
+            bench_file.flush()
+            results[mode] = run_program(call + [mode, bench_file.name], seed=seed)
+    elif mode in ["private", "leaderboard"]:
+        # first, run the tests
+        with tempfile.NamedTemporaryFile("w") as tests_file:
+            tests_file.write(tests)
+            tests_file.flush()
+            results["test"] = run_program(call + ["test", tests_file.name], seed=seed)
+
+        if not results["test"].passed:
+            return results
+
+        # TODO Merge results of these runs in a nice way
+        with tempfile.NamedTemporaryFile("w") as bench_file:
+            bench_file.write(benchmarks)
+            bench_file.flush()
+            results["benchmark"] = run_program(call + ["benchmark", bench_file.name], seed=seed)
+
+        # if they pass, run the leaderboard validation
+        if results["benchmark"].passed:
+            with tempfile.NamedTemporaryFile("w") as bench_file:
+                bench_file.write(benchmarks)
+                bench_file.flush()
+                results["leaderboard"] = run_program(
+                    call + ["leaderboard", bench_file.name], seed=seed
+                )
+
+    else:
+        assert mode == "script"
+        results["script"] = run_program(call, seed=seed)
+
+    return results
+
+
 def run_cuda_script(  # # noqa: C901
     sources: dict[str, str],
     headers: Optional[dict[str, str]] = None,
@@ -237,8 +309,11 @@ def run_cuda_script(  # # noqa: C901
     include_dirs: Optional[list[str]] = None,
     libraries: Optional[list[str]] = None,
     flags: Optional[list[str]] = None,
+    mode: str = "script",
+    tests: str = None,
+    benchmarks: str = None,
     seed: int = 42,
-) -> tuple[CompileResult, RunResult]:
+) -> tuple[CompileResult, dict[str, RunResult]]:
     """
     Executes the provided CUDA kernel in an isolated environment
 
@@ -273,16 +348,7 @@ def run_cuda_script(  # # noqa: C901
         )
 
         if not compile_result.success:
-            return compile_result, RunResult(
-                success=False,
-                passed=False,
-                command="",
-                stdout="",
-                stderr="",
-                exit_code=-1,
-                duration=0.0,
-                result={},
-            )
+            return compile_result, {}
 
     # cleaning up all source files _before_ we let the user code run, just in
     # case there's something in there that the user isn't supposed to snoop
@@ -292,15 +358,18 @@ def run_cuda_script(  # # noqa: C901
             if os.path.exists(f):
                 os.remove(f)
 
-    run_result = run_program(["./eval.out"], seed=seed)
+    run_result = run_evaluation(["./eval.out"], mode, tests, benchmarks, seed)
     return compile_result, run_result
 
 
 def run_pytorch_script(  # noqa: C901
     sources: dict[str, str],
     main: str,
+    mode: str = None,
+    tests: str = None,
+    benchmarks: str = None,
     seed: int = 42,
-) -> RunResult:
+) -> dict[str, RunResult]:
     """
     Executes the provided PyTorch GPU kernel in an isolated environment
 
@@ -317,7 +386,8 @@ def run_pytorch_script(  # noqa: C901
 
         # Write submission files to directory
         _create_files(sources)
-        return run_program(["python", main], seed=seed)
+
+        return run_evaluation(["python", main], mode, tests, benchmarks, seed)
 
     finally:
         for f in sources.keys():
@@ -325,10 +395,26 @@ def run_pytorch_script(  # noqa: C901
                 os.remove(f)
 
 
+def build_test_string(tests: list[dict]):
+    as_str = ""
+    for test in tests:
+        kvs = []
+        for k, v in test.items():
+            kvs.append(f"{k}: {v}")
+        as_str += "; ".join(kvs) + "\n"
+    return as_str
+
+
 def run_config(config: dict):
     if config["lang"] == "py":
-        run_result = run_pytorch_script(sources=config["sources"], main=config["main"])
-        return FullResult(success=True, error="", compile=None, run=run_result)
+        run_result = run_pytorch_script(
+            sources=config["sources"],
+            main=config["main"],
+            tests=build_test_string(config.get("tests", [])),
+            benchmarks=build_test_string(config.get("benchmarks", [])),
+            mode=config.get("mode", "test"),
+        )
+        return FullResult(success=True, error="", compile=None, runs=run_result)
     elif config["lang"] == "cu":
         comp, run = run_cuda_script(
             sources=config["sources"],
@@ -338,7 +424,10 @@ def run_config(config: dict):
             include_dirs=config.get("include_dirs", []),
             libraries=config.get("libraries", []),
             flags=CUDA_FLAGS,
+            tests=build_test_string(config.get("tests", [])),
+            benchmarks=build_test_string(config.get("benchmarks", [])),
+            mode=config.get("mode", "test"),
         )
-        return FullResult(success=True, error="", compile=comp, run=run)
+        return FullResult(success=True, error="", compile=comp, runs=run)
     else:
         raise ValueError(f"Invalid language {config['lang']}")

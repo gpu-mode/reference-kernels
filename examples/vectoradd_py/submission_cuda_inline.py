@@ -1,7 +1,7 @@
 import torch
 from torch.utils.cpp_extension import load_inline
 from typing import List
-from task import kernel_interface
+from task import input_t, output_t
 
 add_cuda_source = """
 template <typename scalar_t>
@@ -66,7 +66,7 @@ def add(A, B):
         raise RuntimeError("Both tensors must be on GPU")
     return add_module.add_cuda(A, B)
 
-def custom_kernel(inputs: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+def custom_kernel(data: input_t) -> output_t:
     """
     Custom implementation of vector addition using CUDA inline function.
     Args:
@@ -74,51 +74,49 @@ def custom_kernel(inputs: List[List[torch.Tensor]]) -> List[torch.Tensor]:
     Returns:
         List of tensors containing element-wise sums.
     """
-    results = []
-    for A, B in inputs:
-        assert A.is_cuda and B.is_cuda, "Input tensors must be on GPU"
-        assert A.shape == B.shape, "Input tensors must have the same shape"
-        assert A.dtype == torch.float16 and B.dtype == torch.float16, "Input tensors must be float16"
-        
-        M, N = A.shape
-        C = torch.empty_like(A)
-        
-        n_threads = 256
-        n_blocks = (M * N + n_threads - 1) // n_threads
-        
-        cuda_source = """
-        extern "C" __global__ void add_kernel(
-            const half* __restrict__ A,
-            const half* __restrict__ B,
-            half* __restrict__ C,
-            const int n_elements
-        ) {
-            const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-            if (idx < n_elements) {
-                C[idx] = __hadd(A[idx], B[idx]);
-            }
-        }
-        """
-        
-        module = torch.utils.cpp_extension.load_inline(
-            name=f"add_kernel_{M}_{N}",
-            cpp_sources="",
-            cuda_sources=cuda_source,
-            functions=["add_kernel"],
-            with_cuda=True,
-            extra_cuda_cflags=["-arch=sm_70"],  # Adjust based on your GPU architecture
-        )
-        
-        module.add_kernel(
-            cuda_stream=torch.cuda.current_stream(),
-            args=[
-                A.reshape(-1), B.reshape(-1), C.reshape(-1),
-                M * N,
-            ],
-            blocks=n_blocks,
-            threads=n_threads,
-        )
-        
-        results.append(C)
+    A, B = data
+
+    assert A.is_cuda and B.is_cuda, "Input tensors must be on GPU"
+    assert A.shape == B.shape, "Input tensors must have the same shape"
+    assert A.dtype == torch.float16 and B.dtype == torch.float16, "Input tensors must be float16"
     
-    return results
+    M, N = A.shape
+    C = torch.empty_like(A)
+    
+    n_threads = 256
+    n_blocks = (M * N + n_threads - 1) // n_threads
+    
+    cuda_source = """
+    extern "C" __global__ void add_kernel(
+        const half* __restrict__ A,
+        const half* __restrict__ B,
+        half* __restrict__ C,
+        const int n_elements
+    ) {
+        const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+        if (idx < n_elements) {
+            C[idx] = __hadd(A[idx], B[idx]);
+        }
+    }
+    """
+    
+    module = torch.utils.cpp_extension.load_inline(
+        name=f"add_kernel_{M}_{N}",
+        cpp_sources="",
+        cuda_sources=cuda_source,
+        functions=["add_kernel"],
+        with_cuda=True,
+        extra_cuda_cflags=["-arch=sm_70"],  # Adjust based on your GPU architecture
+    )
+    
+    module.add_kernel(
+        cuda_stream=torch.cuda.current_stream(),
+        args=[
+            A.reshape(-1), B.reshape(-1), C.reshape(-1),
+            M * N,
+        ],
+        blocks=n_blocks,
+        threads=n_threads,
+    )
+    
+    return C

@@ -1,48 +1,24 @@
-from typing import List
 import torch
-from utils import get_device
+from utils import verbose_allclose, get_device
+from task import input_t, output_t
 
 
-def ref_kernel(xs: List[torch.Tensor], dim: int = -1) -> List[torch.Tensor]:
-    """
-    Reference implementation of the Softmax function using PyTorch's predefined functions.
-    Args:
-        xs (List[torch.Tensor]): List of input tensors.
-        dim (int): Dimension along which to apply softmax.
-    Returns:
-        List[torch.Tensor]: List of tensors after applying Softmax.
-    """
-    return [torch.nn.functional.softmax(x, dim=dim) for x in xs]
+def generate_input(size: int, seed: int) -> input_t:
+    gen = torch.Generator(device='cuda')
+    gen.manual_seed(seed)
+    data = torch.empty(size, device='cuda', dtype=torch.float16)
+    data.uniform_(0, 1, generator=gen)
+    return data
 
+def ref_kernel(data: input_t) -> output_t:
+    return torch.nn.functional.softmax(data, dim=-1)
 
-def check_implementation(custom_output, ref_output) -> bool:
-    """Check if custom implementation matches reference implementation."""
-    for c, r in zip(custom_output, ref_output, strict=False):
-        if not torch.allclose(c, r, atol=1e-5):
-            print("Mismatch found! Custom implementation doesn't match reference.")
-            return False
-    return True
+def check_implementation(data: input_t, output: output_t) -> str:
 
+    expected = ref_kernel(data)
+    reasons = verbose_allclose(output, expected)
 
-def generate_input(seed: int = None, to_cuda: bool = True) -> List[torch.Tensor]:
-    """
-    Generates random input tensors of specified shapes.
-    Args:
-        seed (int): Random seed for reproducibility.
-        to_cuda (bool): Whether to use GPU or CPU.
-    Returns:
-        List[torch.Tensor]: List of randomly generated tensors.
-    """
-    shapes = [(128, 64), (256, 64), (512, 64)]
-    device = get_device(to_cuda)
+    if len(reasons) > 0:
+        return "mismatch found! custom implementation doesn't match reference: " + reasons[0]
 
-    if seed is not None:
-        torch.manual_seed(seed)
-
-    return [torch.randn(shape, device=device) for shape in shapes]
-
-
-if __name__ == "__main__":
-    inputs = generate_input(seed=42)
-    for idx, tensor in enumerate(inputs):
-        print(f"Input Tensor {idx + 1} (Shape: {tensor.shape}):\n{tensor}")
+    return ''

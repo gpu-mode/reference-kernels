@@ -2,6 +2,7 @@ import copy
 import dataclasses
 import json
 from pathlib import Path
+from typing import Dict, Union
 
 import leaderboard_eval
 from consts import Language
@@ -18,6 +19,9 @@ class CudaTaskData:
 @dataclasses.dataclass
 class PythonTaskData:
     main: str
+
+
+TestCaseType = Dict[str, Union[int, str]]
 
 
 @dataclasses.dataclass
@@ -37,6 +41,9 @@ class LeaderboardTask:
             (and potentially required) for this task. How these strings
             are interpreted is up to the individual runner.
         config: Language-specific task definition.
+        tests: List of test case specifications. Each test case is specified
+            as a dict mapping function argument names to their values.
+        benchmarks: List of benchmark specifications (same format as tests)
 
     """
 
@@ -45,6 +52,8 @@ class LeaderboardTask:
     config: CudaTaskData | PythonTaskData
     description: str = ""
     libraries: list[str] = dataclasses.field(default_factory=list)
+    tests: list[TestCaseType] = dataclasses.field(default_factory=list)
+    benchmarks: list[TestCaseType] = dataclasses.field(default_factory=list)
 
     @staticmethod
     def from_dict(data: dict):

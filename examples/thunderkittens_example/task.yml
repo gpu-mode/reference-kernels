@@ -22,3 +22,20 @@ config:
 
   # additional include directories
   include_dirs: []
+
+# small test cases. should be cheap to run.
+tests:
+  - {"size": 32, "seed": 4242}
+  - {"size": 32, "seed": 5236}
+  - {"size": 32, "seed": 1001}
+  - {"size": 32, "seed": 5531}
+  - {"size": 32, "seed": 9173}
+
+benchmarks:
+  - {"size": 32, "seed": 54352}
+  - {"size": 32, "seed": 93246}
+  - {"size": 32, "seed": 6256}
+  - {"size": 32, "seed": 8841}
+  - {"size": 32, "seed": 6252}
+  - {"size": 32, "seed": 52624}
+  - {"size": 32, "seed": 125432}

@@ -4,6 +4,8 @@
 
 #include "task.h"
 #include "utils.h"
+#include <array>
+#include <vector>
 
 #include "kittens.cuh"
 using namespace kittens;
@@ -88,58 +90,58 @@ void dispatch_micro(float *d_x, float *d_o, int N) {
   cudaDeviceSynchronize();
 }
 
+// input_t is std::vector<float>
 output_t custom_kernel(input_t data) {
   output_t result;
   cudaError_t err;
 
-  for (int i = 0; i < N_SIZES; ++i) {
-    int N = Ns[i];
-    result[i].resize(N);
+  int N = data.size();
+  result.resize(N);
 
-    // Allocate device memory
-    float *d_input, *d_output;
-    err = cudaMalloc(&d_input, N * sizeof(float));
-    if (err != cudaSuccess) {
-      printf("CUDA malloc failed for d_input: %s\n", cudaGetErrorString(err));
-      return result;
-    }
-    err = cudaMalloc(&d_output, N * sizeof(float));
-    if (err != cudaSuccess) {
-      printf("CUDA malloc failed for d_output: %s\n", cudaGetErrorString(err));
-      return result;
-    }
-
-    // Copy input to device
-    err = cudaMemcpy(d_input, data[i].data(), N * sizeof(float),
-                     cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) {
-      printf("CUDA memcpy HostToDevice failed: %s\n", cudaGetErrorString(err));
-      return result;
-    }
-
-    // for (int j = 0; j < N; j++) {
-    //   std::cout << data[i][j] << std::endl;
-    // }
-    // Copy input to device
-
-    cudaDeviceSynchronize();
-    CudaCheckError();
-    dispatch_micro(d_input, d_output, N);
-    cudaDeviceSynchronize();
-    CudaCheckError();
-
-    // Copy result back to host
-    err = cudaMemcpy(result[i].data(), d_output, N * sizeof(float),
-                     cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-      printf("CUDA memcpy DeviceToHost failed: %s\n", cudaGetErrorString(err));
-      return result;
-    }
-
-    // Free device memory
-    cudaFree(d_input);
-    cudaFree(d_output);
+  if (N == 0) {
+    std::cout << "SIZE: " << data.size() << std::endl;
+    return result;
   }
+
+  // Allocate device memory
+  float *d_input, *d_output;
+  err = cudaMalloc(&d_input, N * sizeof(float));
+  if (err != cudaSuccess) {
+    printf("CUDA malloc failed for d_input: %s\n", cudaGetErrorString(err));
+    return result;
+  }
+  err = cudaMalloc(&d_output, N * sizeof(float));
+  if (err != cudaSuccess) {
+    printf("CUDA malloc failed for d_output: %s\n", cudaGetErrorString(err));
+    return result;
+  }
+
+  // Copy input to device
+  err = cudaMemcpy(d_input, data.data(), N * sizeof(float),
+                   cudaMemcpyHostToDevice);
+  if (err != cudaSuccess) {
+    printf("CUDA memcpy HostToDevice failed: %s\n", cudaGetErrorString(err));
+    return result;
+  }
+
+  cudaDeviceSynchronize();
+  CudaCheckError();
+  dispatch_micro(d_input, d_output, N);
+  cudaDeviceSynchronize();
+  CudaCheckError();
+
+  // Copy result back to host
+  err = cudaMemcpy(result.data(), d_output, N * sizeof(float),
+                   cudaMemcpyDeviceToHost);
+
+  if (err != cudaSuccess) {
+    printf("CUDA memcpy DeviceToHost failed: %s\n", cudaGetErrorString(err));
+    return result;
+  }
+
+  // Free device memory
+  cudaFree(d_input);
+  cudaFree(d_output);
 
   return result;
 }

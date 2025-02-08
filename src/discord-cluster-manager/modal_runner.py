@@ -19,6 +19,7 @@ operating_sys = "ubuntu22.04"
 tag = f"{cuda_version}-{flavor}-{operating_sys}"
 
 # Move this to another file later:
+# TODO: only cuda image is used, we can remove this one
 python_image = Image.debian_slim(python_version="3.10").pip_install(
     [
         "torch",
@@ -83,9 +84,9 @@ def modal_run_config(  # noqa: C901
         with timeout(timeout_seconds):
             return run_config(config)
     except TimeoutException as e:
-        return FullResult(success=False, error=f"Timeout Error: {str(e)}", compile=None, run=None)
+        return FullResult(success=False, error=f"Timeout Error: {str(e)}", compile=None, runs={})
     except Exception as e:
         exception = "".join(traceback.format_exception(e))
         return FullResult(
-            success=False, error=f"Error executing script:\n{exception}", compile=None, run=None
+            success=False, error=f"Error executing script:\n{exception}", compile=None, runs={}
         )

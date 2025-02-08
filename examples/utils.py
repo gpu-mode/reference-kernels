@@ -23,7 +23,6 @@ def get_device(use_cuda: bool = True) -> torch.device:
             print("No compatible GPU found. Falling back to CPU.")
     return torch.device("cpu")
 
-
 # Adapted from https://github.com/linkedin/Liger-Kernel/blob/main/test/utils.py
 def verbose_allclose(
         tensor1: torch.Tensor,

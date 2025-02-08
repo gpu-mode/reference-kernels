@@ -1,8 +1,8 @@
 import torch
 import triton
 import triton.language as tl
-from typing import List
-from task import kernel_interface
+from task import input_t, output_t
+
 
 @triton.jit
 def add_kernel(
@@ -21,21 +21,18 @@ def add_kernel(
     C = A + B
     tl.store(C_ptr + row_idx[:, None] * N + col_idx[None, :], C, mask=mask_row[:, None] & mask_col[None, :])
 
-def custom_kernel(inputs: List[torch.Tensor]) -> List[torch.Tensor]:
-    outputs = []
-    for input_tensor in inputs:
-        A, B = input_tensor
-        M, N = A.shape
+def custom_kernel(data: input_t) -> output_t:
+    A, B = data
+    M, N = A.shape
 
-        C = torch.empty_like(A)
+    C = torch.empty_like(A)
 
-        BLOCK_SIZE = 32
-        grid = (triton.cdiv(M, BLOCK_SIZE), triton.cdiv(N, BLOCK_SIZE))
+    BLOCK_SIZE = 32
+    grid = (triton.cdiv(M, BLOCK_SIZE), triton.cdiv(N, BLOCK_SIZE))
 
-        add_kernel[grid](
-            A, B, C, M, N,
-            BLOCK_SIZE=BLOCK_SIZE,
-        )
+    add_kernel[grid](
+        A, B, C, M, N,
+        BLOCK_SIZE=BLOCK_SIZE,
+    )
 
-        outputs.append(C)
-    return outputs
+    return C

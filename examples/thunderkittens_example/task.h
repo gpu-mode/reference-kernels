@@ -4,10 +4,9 @@
 #include <array>
 #include <vector>
 
-#define N_SIZES 5
-const int Ns[N_SIZES] = {32, 32, 32, 32, 32};
-
-using input_t = std::array<std::vector<float>, N_SIZES>;
+using input_t = std::vector<float>;
 using output_t = input_t;
+
+constexpr std::array<const char *, 2> ArgumentNames = {"seed", "size"};
 
 #endif
