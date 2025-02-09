@@ -68,7 +68,7 @@ class GitHubCog(SubmitCog):
             comp = CompileResult(**data["compile"])
         else:
             comp = None
-        run = {k: RunResult(**v) for k, v in data["runs"]}
+        run = {k: RunResult(**v) for k, v in data["runs"].items()}
         return FullResult(success=True, error="", compile=comp, runs=run)
 
     async def wait_callback(self, run: GitHubRun, status: ProgressReporter):
