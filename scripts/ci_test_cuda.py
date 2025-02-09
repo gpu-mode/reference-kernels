@@ -76,7 +76,7 @@ output_t custom_kernel(input_t data)
     assert run.success is False
     assert run.command.startswith("./eval.out test")
     assert run.stdout == ""
-    assert "cudaDeviceSynchronize() at eval.cu(316) in `run_testing`" in run.stderr
+    assert "cudaDeviceSynchronize() at eval.cu(342) in `run_testing`" in run.stderr
     assert "an illegal memory access was encountered" in run.stderr
     assert run.exit_code == ExitCode.CUDA_FAIL
     # we get test-count and test.0.spec, but no other test data
@@ -110,7 +110,7 @@ def test_cuda_validation_fail():
     assert run.result["test.0.spec"] == "size: 256; seed: 42"
     assert run.result["test.0.spec"] == "size: 256; seed: 42"
     assert run.result["test.0.status"] == "fail"
-    assert run.result["test.0.error"] == "error at 0: 0 0.374540"
+    assert run.result["test.0.error"] == "error at 0: 0.37454 0.000000"
     assert run.result["check"] == "fail"
 
 
