@@ -120,3 +120,17 @@ CUDA_FLAGS = [
     "-Xptxas=--warn-on-spills",
 ]
 MODAL_CUDA_INCLUDE_DIRS = ["/ThunderKittens/include"]
+
+NVIDIA_REQUIREMENTS = """
+numpy
+torch
+setuptools
+ninja
+triton
+"""
+
+AMD_REQUIREMENTS = """
+--index-url https://download.pytorch.org/whl/nightly/rocm6.2
+pytorch-triton-rocm==3.1.0+cf34004b8a
+torch==2.6.0.dev20241023+rocm6.2
+"""

@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 from typing import Dict, Union
 
-import leaderboard_eval
 from consts import Language
 
 
@@ -107,28 +106,6 @@ def make_task(yaml_file: str | Path) -> LeaderboardTask:
 
     raw["files"] = file_dict
     return LeaderboardTask.from_dict(raw)
-
-
-# TODO remove this as soon as possible
-def build_from_legacy_reference(ref: str):
-    if "#include " in ref:
-        lang = Language.CUDA
-        config = CudaTaskData(sources=["eval.cu"])
-        files = {
-            "eval.cu": leaderboard_eval.cu_eval,
-            "reference.cuh": ref,
-            "submission.cuh": "@SUBMISSION@",
-        }
-    elif "import " in ref:
-        lang = Language.Python
-        config = PythonTaskData(main="eval.py")
-        files = {
-            "eval.py": leaderboard_eval.py_eval,
-            "reference.py": ref,
-            "submission.py": "@SUBMISSION@",
-        }
-
-    return LeaderboardTask(lang=lang, files=files, config=config, libraries=[])
 
 
 if __name__ == "__main__":

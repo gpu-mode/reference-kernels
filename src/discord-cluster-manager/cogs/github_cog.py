@@ -1,10 +1,9 @@
 import json
 
 from cogs.submit_cog import ProgressReporter, SubmitCog
-from consts import GitHubGPU, GPUType
+from consts import AMD_REQUIREMENTS, NVIDIA_REQUIREMENTS, GitHubGPU, GPUType
 from discord import app_commands
 from github_runner import GitHubRun
-from leaderboard_eval import amd_requirements, nvidia_requirements
 from run_eval import CompileResult, FullResult, RunResult
 from utils import setup_logging
 
@@ -40,9 +39,9 @@ class GitHubCog(SubmitCog):
         inputs = {"payload": payload}
         if lang == "py":
             if selected_gpu == GPUType.NVIDIA:
-                inputs["requirements"] = nvidia_requirements
+                inputs["requirements"] = NVIDIA_REQUIREMENTS
             else:
-                inputs["requirements"] = amd_requirements
+                inputs["requirements"] = AMD_REQUIREMENTS
 
         if not await run.trigger(inputs):
             raise RuntimeError("Failed to trigger GitHub Action. Please check the configuration.")
@@ -69,7 +68,7 @@ class GitHubCog(SubmitCog):
             comp = CompileResult(**data["compile"])
         else:
             comp = None
-        run = {k: RunResult(**v) for k, v in data['runs']}
+        run = {k: RunResult(**v) for k, v in data["runs"]}
         return FullResult(success=True, error="", compile=comp, runs=run)
 
     async def wait_callback(self, run: GitHubRun, status: ProgressReporter):
