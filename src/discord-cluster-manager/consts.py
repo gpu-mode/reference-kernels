@@ -1,5 +1,5 @@
-from enum import Enum, IntEnum
-from typing import Type
+import dataclasses
+from enum import Enum, EnumType, IntEnum
 
 
 class GPUType(Enum):
@@ -25,7 +25,29 @@ class ModalGPU(Enum):
     H100 = "H100"
 
 
-GPU_SELECTION = {"Modal": ModalGPU, "GitHub": GitHubGPU}
+@dataclasses.dataclass
+class GPU:
+    name: str
+    value: str
+    runner: str
+
+
+def _make_gpu_lookup(runner_map: dict[str, EnumType]):
+    lookup = {}
+    for runner, gpus in runner_map.items():
+        for name, member in gpus.__members__.items():
+            if name.lower() in lookup:
+                raise ValueError(f"Duplicate gpu name '{name}' found across Enums.")
+            lookup[name.lower()] = GPU(name=name, value=member.value, runner=runner)
+    return lookup
+
+
+_GPU_LOOKUP = _make_gpu_lookup({"Modal": ModalGPU, "GitHub": GitHubGPU})
+
+
+def get_gpu_by_name(name: str):
+    name = name.lower()
+    return _GPU_LOOKUP.get(name, None)
 
 
 class ExitCode(IntEnum):
@@ -74,20 +96,6 @@ class SubmissionMode(Enum):
 class Language(Enum):
     Python = "py"
     CUDA = "cu"
-
-
-def combine_enums(enums: list[Type[Enum]], combined_name: str) -> Enum:
-    combined_members = {}
-    for enum in enums:
-        for name, member in enum.__members__.items():
-            if name in combined_members:
-                raise ValueError(f"Duplicate member name '{name}' found across Enums.")
-            combined_members[name] = member.value
-
-    return Enum(combined_name, combined_members)
-
-
-AllGPU = combine_enums([ModalGPU, GitHubGPU], "AllGPU")
 
 
 GPU_TO_SM = {
