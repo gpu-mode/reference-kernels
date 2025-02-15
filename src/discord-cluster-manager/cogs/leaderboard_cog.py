@@ -214,18 +214,19 @@ class LeaderboardSubmitCog(app_commands.Group):
         leaderboard_name: str,
         script: discord.Attachment,
         mode: SubmissionMode,
+        cmd_gpus: Optional[List[str]],
     ) -> int:
         """
         Called as the main body of a submission to route to the correct runner.
         """
-        submission_content, task, gpus = await self.before_submit_hook(
+        submission_content, task, task_gpus = await self.before_submit_hook(
             interaction,
             leaderboard_name,
             script,
         )
 
         # GPU selection View
-        if len(gpus) == 0:
+        if len(task_gpus) == 0:
             await send_discord_message(
                 interaction,
                 "❌ No available GPUs for Leaderboard " + f"`{leaderboard_name}`.",
@@ -236,15 +237,28 @@ class LeaderboardSubmitCog(app_commands.Group):
         # otherwise just run on that GPU
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True)
-        if len(gpus) == 1:
+
+        if cmd_gpus is not None:
+            selected_gpus = []
+            for g in cmd_gpus:
+                if g in task_gpus:
+                    selected_gpus.append(g)
+                else:
+                    await send_discord_message(
+                        interaction,
+                        f"GPU {g} not available for `{leaderboard_name}`",
+                        ephemeral=True,
+                    )
+                    return -1
+        elif len(task_gpus) == 1:
             await send_discord_message(
                 interaction,
-                f"Running for `{leaderboard_name}` on GPU: **{gpus[0]}**",
+                f"Running for `{leaderboard_name}` on GPU: **{task_gpus[0]}**",
                 ephemeral=True,
             )
-            selected_gpus = gpus
+            selected_gpus = task_gpus
         else:
-            view = await self.select_gpu_view(interaction, leaderboard_name, gpus)
+            view = await self.select_gpu_view(interaction, leaderboard_name, task_gpus)
             selected_gpus = view.selected_gpus
 
         selected_gpus = [get_gpu_by_name(gpu) for gpu in selected_gpus]
@@ -303,13 +317,17 @@ class LeaderboardSubmitCog(app_commands.Group):
         leaderboard_name: str,
         script: discord.Attachment,
         mode: SubmissionMode,
+        gpu: Optional[str],
     ):
+        if gpu is not None:
+            gpu = [gpu.strip() for gpu in gpu.split(",")]
         try:
             return await self.on_submit_hook(
                 interaction,
                 leaderboard_name,
                 script,
                 mode,
+                gpu
             )
         except Exception as e:
             logger.error("Error handling leaderboard submission", exc_info=e)
@@ -325,6 +343,7 @@ class LeaderboardSubmitCog(app_commands.Group):
     @app_commands.describe(
         leaderboard_name="Name of the competition / kernel to optimize",
         script="The Python / CUDA script file to run",
+        gpu="Select GPU. Leave empty for interactive or automatic selection."
     )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def submit_test(
@@ -332,13 +351,15 @@ class LeaderboardSubmitCog(app_commands.Group):
         interaction: discord.Interaction,
         leaderboard_name: str,
         script: discord.Attachment,
+        gpu: Optional[str],
     ):
-        return await self.submit(interaction, leaderboard_name, script, mode=SubmissionMode.TEST)
+        return await self.submit(interaction, leaderboard_name, script, mode=SubmissionMode.TEST, gpu=gpu)
 
     @app_commands.command(name="benchmark", description="Start a benchmarking run")
     @app_commands.describe(
         leaderboard_name="Name of the competition / kernel to optimize",
         script="The Python / CUDA script file to run",
+        gpu="Select GPU. Leave empty for interactive or automatic selection."
     )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def submit_bench(
@@ -346,9 +367,10 @@ class LeaderboardSubmitCog(app_commands.Group):
         interaction: discord.Interaction,
         leaderboard_name: str,
         script: discord.Attachment,
+        gpu: Optional[str],
     ):
         return await self.submit(
-            interaction, leaderboard_name, script, mode=SubmissionMode.BENCHMARK
+            interaction, leaderboard_name, script, mode=SubmissionMode.BENCHMARK, gpu=gpu
         )
 
     @app_commands.command(
@@ -357,6 +379,7 @@ class LeaderboardSubmitCog(app_commands.Group):
     @app_commands.describe(
         leaderboard_name="Name of the competition / kernel to optimize",
         script="The Python / CUDA script file to run",
+        gpu="Select GPU. Leave empty for interactive or automatic selection."
     )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def submit_ranked(
@@ -364,9 +387,10 @@ class LeaderboardSubmitCog(app_commands.Group):
         interaction: discord.Interaction,
         leaderboard_name: str,
         script: discord.Attachment,
+        gpu: Optional[str],
     ):
         return await self.submit(
-            interaction, leaderboard_name, script, mode=SubmissionMode.LEADERBOARD
+            interaction, leaderboard_name, script, mode=SubmissionMode.LEADERBOARD, gpu=gpu
         )
 
 
