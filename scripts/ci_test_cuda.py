@@ -25,9 +25,14 @@ def run_cuda_helper(sources: dict, headers: dict = None, arch=None, **kwargs):
     if headers is None:
         headers = header_files
 
-    comp, runs = run_cuda_script(sources, headers, arch=arch, mode=SubmissionMode.TEST.value,
-                                 tests="size: 256; seed: 42\n",
-                                 **kwargs)
+    comp, runs = run_cuda_script(
+        sources,
+        headers,
+        arch=arch,
+        mode=SubmissionMode.TEST.value,
+        tests="size: 256; seed: 42\n",
+        **kwargs,
+    )
     run = runs.get("test", None)
     return comp, run
 
@@ -48,7 +53,7 @@ def test_does_not_compile():
     assert 'submission.cu(3): error: identifier "input_tt" is undefined' in comp.stderr
     assert '1 error detected in the compilation of "submission.cu".' in comp.stderr
     # "/usr/local/cuda/bin/nvcc"
-    #assert comp.command.startswith("/usr/local/cuda/bin/nvcc")
+    # assert comp.command.startswith("/usr/local/cuda/bin/nvcc")
     assert "nvcc: NVIDIA (R) Cuda compiler driver" in comp.nvcc_version
 
 
@@ -155,9 +160,7 @@ output_t custom_kernel(input_t data)
 }
             """
     # doesn't compile without define
-    comp, run = run_cuda_helper(
-        {"eval.cu": eval_cu, "submission.cu": sub}
-    )
+    comp, run = run_cuda_helper({"eval.cu": eval_cu, "submission.cu": sub})
     assert comp.success is False
 
     # compiles with define
