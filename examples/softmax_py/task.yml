@@ -14,7 +14,10 @@ description: |
   The function should handle a list of input tensors and apply softmax along the specified dimension.
 
 config:
-  main: "eval.py" 
+  main: "eval.py"
+
+templates:
+  Python: "submission.py"
 
 tests:
   - {"size": 127, "seed": 4242}

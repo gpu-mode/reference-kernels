@@ -11,10 +11,15 @@ lang: "py"
 
 description: |
   Implement a custom matmul function that matches the reference implementation.
-  The function should handle a tuple of input tensors and apply matmul
+  The function should handle a tuple of input tensors and apply matmul.
+  You may assume that all matrix dimensions are multiples of 16.
 
 config:
   main: "eval.py"
+
+templates:
+  # doesn't need to be an "empty" template file, we can also use a reference implementation here
+  Python: "submission.py"
 
 tests:
   - {"m": 64, "n": 64, "k": 64, "seed": 53124}

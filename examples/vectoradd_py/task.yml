@@ -14,7 +14,11 @@ description: |
   The kernel should add pairs of tensors element-wise.
 
 config:
-  main: "eval.py" 
+  main: "eval.py"
+
+templates:
+  Python: "template.py"
+  Triton: "template-triton.py"
 
 tests:
   - {"size": 127, "seed": 4242}

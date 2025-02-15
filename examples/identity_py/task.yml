@@ -15,6 +15,9 @@ description:
 config:
   main: "eval.py"
 
+templates:
+  Python: "template.py"
+
 # small test cases. should be cheap to run.
 tests:
   - {"size": 127, "seed": 4242}

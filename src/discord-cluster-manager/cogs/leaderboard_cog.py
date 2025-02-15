@@ -20,6 +20,7 @@ from task import LeaderboardTask, make_task
 from ui.misc import DeleteConfirmationModal, GPUSelectionView
 from ui.table import create_table
 from utils import (
+    LeaderboardItem,
     get_user_from_id,
     send_discord_message,
     setup_logging,
@@ -236,24 +237,26 @@ class LeaderboardSubmitCog(app_commands.Group):
 
         info = self._get_popcorn_directives(submission_content)
         # command argument GPUs overwrites popcorn directive
-        if info['gpus'] is not None and cmd_gpus is None:
-            cmd_gpus = info['gpus']
+        if info["gpus"] is not None and cmd_gpus is None:
+            cmd_gpus = info["gpus"]
 
-        if info['leaderboard'] is not None:
+        if info["leaderboard"] is not None:
             if leaderboard_name is not None:
                 await send_discord_message(
                     interaction,
-                    f"Contradicting leaderboard name specification. Submitting to {leaderboard_name}",
+                    "Contradicting leaderboard name specification. "
+                    "Submitting to {leaderboard_name}",
                 )
             else:
-                leaderboard_name = info['leaderboard']
+                leaderboard_name = info["leaderboard"]
 
         if leaderboard_name is None:
             await send_discord_message(
                 interaction,
                 "Missing leaderboard name. "
                 "Either supply as argument in the submit command, or "
-                "specify in your submission script using the `{#,//}!POPCORN leaderboard` directive.",
+                "specify in your submission script using the "
+                "`{#,//}!POPCORN leaderboard` directive.",
             )
             return -1
 
@@ -359,13 +362,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         if gpu is not None:
             gpu = [gpu.strip() for gpu in gpu.split(",")]
         try:
-            return await self.on_submit_hook(
-                interaction,
-                leaderboard_name,
-                script,
-                mode,
-                gpu
-            )
+            return await self.on_submit_hook(interaction, leaderboard_name, script, mode, gpu)
         except Exception as e:
             logger.error("Error handling leaderboard submission", exc_info=e)
             # don't leak any information, but at least acknowledge that the command failed.
@@ -380,7 +377,7 @@ class LeaderboardSubmitCog(app_commands.Group):
     @app_commands.describe(
         leaderboard_name="Name of the competition / kernel to optimize",
         script="The Python / CUDA script file to run",
-        gpu="Select GPU. Leave empty for interactive or automatic selection."
+        gpu="Select GPU. Leave empty for interactive or automatic selection.",
     )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def submit_test(
@@ -390,13 +387,15 @@ class LeaderboardSubmitCog(app_commands.Group):
         leaderboard_name: Optional[str] = None,
         gpu: Optional[str] = None,
     ):
-        return await self.submit(interaction, leaderboard_name, script, mode=SubmissionMode.TEST, gpu=gpu)
+        return await self.submit(
+            interaction, leaderboard_name, script, mode=SubmissionMode.TEST, gpu=gpu
+        )
 
     @app_commands.command(name="benchmark", description="Start a benchmarking run")
     @app_commands.describe(
         leaderboard_name="Name of the competition / kernel to optimize",
         script="The Python / CUDA script file to run",
-        gpu="Select GPU. Leave empty for interactive or automatic selection."
+        gpu="Select GPU. Leave empty for interactive or automatic selection.",
     )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def submit_bench(
@@ -416,7 +415,7 @@ class LeaderboardSubmitCog(app_commands.Group):
     @app_commands.describe(
         leaderboard_name="Name of the competition / kernel to optimize",
         script="The Python / CUDA script file to run",
-        gpu="Select GPU. Leave empty for interactive or automatic selection."
+        gpu="Select GPU. Leave empty for interactive or automatic selection.",
     )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     async def submit_ranked(
@@ -429,6 +428,52 @@ class LeaderboardSubmitCog(app_commands.Group):
         return await self.submit(
             interaction, leaderboard_name, script, mode=SubmissionMode.LEADERBOARD, gpu=gpu
         )
+
+
+async def lang_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[discord.app_commands.Choice[str]]:
+    """
+    "Autocompletion" for language selection in template command.
+    This does not really autocomplete; I just provides a drop-down
+    with all _available_ languages for the chosen leaderboard
+    (opposed to a Choice argument, which cannot adapt).
+    """
+    lb = interaction.namespace["leaderboard_name"]
+    bot = interaction.client
+
+    with bot.leaderboard_db as db:
+        leaderboard_item = db.get_leaderboard(lb)  # type: LeaderboardItem
+        if not leaderboard_item:
+            raise ValueError("Invalid leaderboard")
+
+    candidates = leaderboard_item["task"].templates
+    return [discord.app_commands.Choice(name=c, value=c) for c in candidates]
+
+
+def add_header_to_template(lang: str, lb: LeaderboardItem):
+    template_file = lb["task"].templates[lang]
+
+    comment_char = {"CUDA": "//", "Python": "#", "Triton": "#"}[lang]
+
+    description_comment = [
+        f"{comment_char} > {line}\n" for line in lb["task"].description.splitlines()
+    ]
+    header = f"""
+{comment_char}!POPCORN leaderboard {lb['name']}
+
+{comment_char} This is a submission template for popcorn leaderboard '{lb['name']}'.
+{comment_char} Your task is as follows:
+{str.join('\n', description_comment)}
+{comment_char} The deadline for this leaderboard is {lb["deadline"]}
+
+{comment_char} You can automatically route this file to specific GPUs by adding a line
+{comment_char} `{comment_char}!POPCORN gpus <GPUs>` to the header of this file.
+{comment_char} Happy hacking!
+
+"""[1:]
+    return header + template_file + "\n"
 
 
 class LeaderboardCog(commands.Cog):
@@ -464,6 +509,10 @@ class LeaderboardCog(commands.Cog):
         self.get_leaderboard_task = bot.leaderboard_group.command(
             name="task", description="Get leaderboard reference codes"
         )(self.get_leaderboard_task)
+
+        self.get_task_template = bot.leaderboard_group.command(
+            name="template", description="Get a starter template file for a task"
+        )(self.get_task_template)
 
         # Start updating leaderboard
         self.leaderboard_update.start()
@@ -723,6 +772,56 @@ class LeaderboardCog(commands.Cog):
         message = f"**Reference Code for {leaderboard_name}**\n"
 
         await send_discord_message(interaction, message, ephemeral=True, files=files)
+
+    @app_commands.describe(
+        leaderboard_name="Name of the leaderboard",
+        lang="The programming language for which to download a template file.",
+    )
+    @app_commands.autocomplete(
+        leaderboard_name=leaderboard_name_autocomplete, lang=lang_autocomplete
+    )
+    async def get_task_template(
+        self, interaction: discord.Interaction, leaderboard_name: str, lang: str
+    ):
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            with self.bot.leaderboard_db as db:
+                leaderboard_item = db.get_leaderboard(leaderboard_name)  # type: LeaderboardItem
+                if not leaderboard_item:
+                    await send_discord_message(
+                        interaction, "Leaderboard not found.", ephemeral=True
+                    )
+                    return
+
+            if lang not in leaderboard_item["task"].templates:
+                langs = "\n".join(
+                    (f"* {lang} " for lang in leaderboard_item["task"].templates.keys())
+                )
+                await send_discord_message(
+                    interaction,
+                    f"Task `{leaderboard_name}` does not have a template for `{lang}`.\n"
+                    f"Choose from:\n{langs}",
+                    ephemeral=True,
+                )
+                return
+
+            template = add_header_to_template(lang, leaderboard_item)
+            ext = {"CUDA": "cu", "Python": "py", "Triton": "py"}
+            file_name = f"{leaderboard_name}.{ext[lang]}"
+            file = discord.File(fp=StringIO(template), filename=file_name)
+            message = f"**Starter code for {leaderboard_name}**\n"
+            await send_discord_message(interaction, message, ephemeral=True, file=file)
+        except Exception as E:
+            logger.exception(
+                "Error fetching template %s for %s", lang, leaderboard_name, exc_info=E
+            )
+            await send_discord_message(
+                interaction,
+                f"Could not fetch template {lang} for {leaderboard_name}",
+                ephemeral=True,
+            )
+            return
 
     @discord.app_commands.describe(
         directory="Directory of the kernel definition. Also used as the leaderboard's name",

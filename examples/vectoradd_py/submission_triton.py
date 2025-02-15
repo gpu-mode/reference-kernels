@@ -21,6 +21,7 @@ def add_kernel(
     C = A + B
     tl.store(C_ptr + row_idx[:, None] * N + col_idx[None, :], C, mask=mask_row[:, None] & mask_col[None, :])
 
+
 def custom_kernel(data: input_t) -> output_t:
     A, B = data
     M, N = A.shape
