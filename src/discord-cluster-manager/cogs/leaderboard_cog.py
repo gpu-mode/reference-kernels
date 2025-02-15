@@ -155,7 +155,6 @@ class LeaderboardSubmitCog(app_commands.Group):
         self,
         interaction: discord.Interaction,
         leaderboard_name: str,
-        script: discord.Attachment,
     ):
         """
         Main logic to handle at the beginning of a user submission to a runner, to make
@@ -164,6 +163,13 @@ class LeaderboardSubmitCog(app_commands.Group):
         # Read and convert reference code
         with self.bot.leaderboard_db as db:
             leaderboard_item = db.get_leaderboard(leaderboard_name)
+            if not leaderboard_item:
+                await send_discord_message(
+                    interaction,
+                    f"Leaderboard {leaderboard_name} not found.",
+                    ephemeral=True,
+                )
+                return None, None
 
             now = datetime.now()
             deadline = leaderboard_item["deadline"]
@@ -174,31 +180,11 @@ class LeaderboardSubmitCog(app_commands.Group):
                     f"The deadline to submit to {leaderboard_name} has passed.\n"
                     + f"It was {deadline.date()} and today is {now.date()}.",
                 )
-                return None
-
-            if not leaderboard_item:
-                await send_discord_message(
-                    interaction,
-                    f"Leaderboard {leaderboard_name} not found.",
-                    ephemeral=True,
-                )
-                return None
+                return None, None
 
             gpus = db.get_leaderboard_gpu_types(leaderboard_name)
             task = leaderboard_item["task"]
-
-        # Read the template file
-        submission_content = await script.read()
-
-        try:
-            submission_content = submission_content.decode()
-        except UnicodeError:
-            await send_discord_message(
-                interaction, "Could not decode your file. Is it UTF-8?", ephemeral=True
-            )
-            return None
-
-        return submission_content, task, gpus
+        return task, gpus
 
     def _get_run_command(self, gpu) -> Optional[Callable]:
         runner_cog = self.bot.get_cog(f"{gpu.runner}Cog")
@@ -208,10 +194,28 @@ class LeaderboardSubmitCog(app_commands.Group):
             return None
         return runner_cog.submit_leaderboard
 
+    @staticmethod
+    def _get_popcorn_directives(submission: str) -> dict:
+        popcorn_info = {"gpus": None, "leaderboard": None}
+        for line in submission.splitlines():
+            # only process the first comment block of the file.
+            # for simplicity, don't care whether these are python or C++ comments here
+            if not (line.startswith("//") or line.startswith("#")):
+                break
+
+            args = line.split()
+            if args[0] in ["//!POPCORN", "#!POPCORN"]:
+                arg = args[1].strip().lower()
+                if arg in ["gpu", "gpus"]:
+                    popcorn_info["gpus"] = args[2:]
+                elif arg == "leaderboard":
+                    popcorn_info["leaderboard"] = args[2]
+        return popcorn_info
+
     async def on_submit_hook(
         self,
         interaction: discord.Interaction,
-        leaderboard_name: str,
+        leaderboard_name: Optional[str],
         script: discord.Attachment,
         mode: SubmissionMode,
         cmd_gpus: Optional[List[str]],
@@ -219,10 +223,43 @@ class LeaderboardSubmitCog(app_commands.Group):
         """
         Called as the main body of a submission to route to the correct runner.
         """
-        submission_content, task, task_gpus = await self.before_submit_hook(
+        # Read the template file
+        submission_content = await script.read()
+
+        try:
+            submission_content = submission_content.decode()
+        except UnicodeError:
+            await send_discord_message(
+                interaction, "Could not decode your file. Is it UTF-8?", ephemeral=True
+            )
+            return -1
+
+        info = self._get_popcorn_directives(submission_content)
+        # command argument GPUs overwrites popcorn directive
+        if info['gpus'] is not None and cmd_gpus is None:
+            cmd_gpus = info['gpus']
+
+        if info['leaderboard'] is not None:
+            if leaderboard_name is not None:
+                await send_discord_message(
+                    interaction,
+                    f"Contradicting leaderboard name specification. Submitting to {leaderboard_name}",
+                )
+            else:
+                leaderboard_name = info['leaderboard']
+
+        if leaderboard_name is None:
+            await send_discord_message(
+                interaction,
+                "Missing leaderboard name. "
+                "Either supply as argument in the submit command, or "
+                "specify in your submission script using the `{#,//}!POPCORN leaderboard` directive.",
+            )
+            return -1
+
+        task, task_gpus = await self.before_submit_hook(
             interaction,
             leaderboard_name,
-            script,
         )
 
         # GPU selection View
@@ -314,7 +351,7 @@ class LeaderboardSubmitCog(app_commands.Group):
     async def submit(
         self,
         interaction: discord.Interaction,
-        leaderboard_name: str,
+        leaderboard_name: Optional[str],
         script: discord.Attachment,
         mode: SubmissionMode,
         gpu: Optional[str],
@@ -349,9 +386,9 @@ class LeaderboardSubmitCog(app_commands.Group):
     async def submit_test(
         self,
         interaction: discord.Interaction,
-        leaderboard_name: str,
         script: discord.Attachment,
-        gpu: Optional[str],
+        leaderboard_name: Optional[str] = None,
+        gpu: Optional[str] = None,
     ):
         return await self.submit(interaction, leaderboard_name, script, mode=SubmissionMode.TEST, gpu=gpu)
 
@@ -365,8 +402,8 @@ class LeaderboardSubmitCog(app_commands.Group):
     async def submit_bench(
         self,
         interaction: discord.Interaction,
-        leaderboard_name: str,
         script: discord.Attachment,
+        leaderboard_name: Optional[str],
         gpu: Optional[str],
     ):
         return await self.submit(
@@ -385,9 +422,9 @@ class LeaderboardSubmitCog(app_commands.Group):
     async def submit_ranked(
         self,
         interaction: discord.Interaction,
-        leaderboard_name: str,
         script: discord.Attachment,
-        gpu: Optional[str],
+        leaderboard_name: Optional[str] = None,
+        gpu: Optional[str] = None,
     ):
         return await self.submit(
             interaction, leaderboard_name, script, mode=SubmissionMode.LEADERBOARD, gpu=gpu
