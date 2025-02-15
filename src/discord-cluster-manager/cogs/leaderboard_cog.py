@@ -833,6 +833,7 @@ class LeaderboardCog(commands.Cog):
                     content=(
                         f"# New Leaderboard: {leaderboard_name}\n\n"
                         f"**Deadline**: {date_value.strftime('%Y-%m-%d %H:%M')}\n\n"
+                        f"{task.description}\n\n"
                         "Submit your entries using `/submit github` or `/submit modal` in the submissions channel.\n\n"  # noqa: E501
                         f"Good luck to all participants! 🚀 <@&{self.bot.leaderboard_participant_role_id}>"  # noqa: E501
                     ),
