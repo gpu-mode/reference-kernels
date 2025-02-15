@@ -1,5 +1,6 @@
 import dataclasses
-from enum import Enum, EnumType, IntEnum
+from enum import Enum, IntEnum
+from typing import Type
 
 
 class GPUType(Enum):
@@ -32,7 +33,7 @@ class GPU:
     runner: str
 
 
-def _make_gpu_lookup(runner_map: dict[str, EnumType]):
+def _make_gpu_lookup(runner_map: dict[str, Type[Enum]]):
     lookup = {}
     for runner, gpus in runner_map.items():
         for name, member in gpus.__members__.items():
