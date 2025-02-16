@@ -6,6 +6,11 @@ on:
         description: 'Content of the user submission, as json string'
         required: true
         type: string
+      runner:
+        description: 'AMD runner to run workflow on'
+        required: true
+        default: "amdgpu-mi300-x86-64"
+        type: string
       requirements:
         description: 'Contents for a requirements.txt file'
         required: false
@@ -13,10 +18,10 @@ on:
 
 jobs:
   run:
-    runs-on: [amdgpu-mi250-x86-64]
+    runs-on: ${{ github.event.inputs.runner }}
+    strategy:
+      fail-fast: false
     timeout-minutes: 10
-    env:
-      VENV_DIR: /groups/aig_sharks/pytorch_venv
     steps:
     - uses: actions/checkout@v3
     - name: Setup Python
@@ -24,13 +29,20 @@ jobs:
       with:
         python-version: '3.10'
 
-
     - name: Create input files
       shell: bash
       run: |
         cat > "payload.json" <<'EOL'
         ${{ github.event.inputs.payload }}
         EOL
+    
+    - name: Set venv directory based on runner
+      run: |
+        if [[ "${{ github.event.inputs.runner }}" == "amdgpu-mi250-x86-64" ]]; then
+          echo "VENV_DIR=/groups/aig_sharks/pytorch_venv" >> $GITHUB_ENV
+        else
+          echo "VENV_DIR==$GITHUB_WORKSPACE" >> $GITHUB_ENV
+        fi
 
     - name: Setup Virtual Environment and Install Dependencies
       shell: bash
@@ -38,16 +50,17 @@ jobs:
         python -m venv ${VENV_DIR}
         source ${VENV_DIR}/bin/activate
         pip install --upgrade pip
-
         if [[ -n "${{ github.event.inputs.requirements }}" ]]; then
           cat > "requirements.txt" <<'EOL'
           ${{ github.event.inputs.requirements }}
         EOL
         pip install -r "requirements.txt"
         fi
+
     - name: Run script
       shell: bash
       run: |
+        source ${VENV_DIR}/bin/activate
         python3 .github/workflows/runner.py
         cat result.json  # Debug: show output
 
