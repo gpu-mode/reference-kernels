@@ -213,7 +213,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     popcorn_info["leaderboard"] = args[2]
         return popcorn_info
 
-    async def on_submit_hook(
+    async def on_submit_hook(  # noqa: C901
         self,
         interaction: discord.Interaction,
         leaderboard_name: Optional[str],
@@ -340,6 +340,13 @@ class LeaderboardSubmitCog(app_commands.Group):
             ]
 
         await asyncio.gather(*tasks)
+
+        await send_discord_message(
+            interaction,
+            f"{mode.value.capitalize()} submission to '{leaderboard_name}' "
+            f"on GPUS: {', '.join([gpu.name for gpu in selected_gpus])} "
+            f"using {', '.join({gpu.runner for gpu in selected_gpus})} runners succeeded!",
+        )
         return 0
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
