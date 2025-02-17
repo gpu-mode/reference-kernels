@@ -1,3 +1,5 @@
+//!POPCORN leaderboard thunderkittens_example
+
 // Adapted from
 // https://github.com/HazyResearch/ThunderKittens/blob/tk_gen/simple_kernels/micro_add/micro.cu
 // Test whether TK works on Modal runners.

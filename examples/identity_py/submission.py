@@ -1,3 +1,5 @@
+#!POPCORN leaderboard identity_py
+
 from task import input_t, output_t
 
 

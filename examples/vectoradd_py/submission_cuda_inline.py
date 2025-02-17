@@ -1,3 +1,5 @@
+#!POPCORN leaderboard vectoradd_py
+
 import torch
 from torch.utils.cpp_extension import load_inline
 from typing import List

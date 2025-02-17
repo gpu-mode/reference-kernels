@@ -1,3 +1,5 @@
+//!POPCORN leaderboard identity_cuda
+
 #include <array>
 #include <vector>
 #include "task.h"

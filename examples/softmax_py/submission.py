@@ -1,3 +1,5 @@
+#!POPCORN leaderboard softmax_py
+
 import torch
 from task import input_t, output_t
 
