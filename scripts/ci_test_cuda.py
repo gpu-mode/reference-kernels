@@ -15,8 +15,8 @@ from run_eval import compile_cuda_script, run_cuda_script
 
 ref = Path("examples/identity_cuda/reference.cuh").read_text()
 task_h = Path("examples/identity_cuda/task.h").read_text()
-utils_h = Path("examples/identity_cuda/utils.h").read_text()
-eval_cu = Path("examples/identity_cuda/eval.cu").read_text()
+utils_h = Path("examples/utils.h").read_text()
+eval_cu = Path("examples/eval.cu").read_text()
 
 header_files = {"reference.cuh": ref, "task.h": task_h, "utils.h": utils_h}
 

@@ -12,8 +12,8 @@ from run_eval import run_pytorch_script
 
 ref = Path("examples/identity_py/reference.py").read_text()
 task = Path("examples/identity_py/task.py").read_text()
-py_eval = Path("examples/identity_py/eval.py").read_text()
-utils = Path("examples/identity_py/utils.py").read_text()
+py_eval = Path("examples/eval.py").read_text()
+utils = Path("examples/utils.py").read_text()
 files = {"eval.py": py_eval, "reference.py": ref, "utils.py": utils, "task.py": task}
 
 

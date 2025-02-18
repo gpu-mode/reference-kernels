@@ -3,9 +3,9 @@
 
 # these files will be baked into the json object, so that they are available during testing
 files:
-  - {"name": "eval.cu", "source": "eval.cu"}
+  - {"name": "eval.cu", "source": "../eval.cu"}
   - {"name": "task.h", "source": "task.h"}
-  - {"name": "utils.h", "source": "utils.h"}
+  - {"name": "utils.h", "source": "../utils.h"}
   - {"name": "reference.cuh", "source": "reference.cuh"}
   - {"name": "submission.cu", "source": "@SUBMISSION@"}
 
@@ -24,7 +24,7 @@ config:
   include_dirs: []
 
 templates:
-  CUDA: "template.cu"
+  CUDA: "../template.cu"
 
 # small test cases. should be cheap to run.
 tests:
