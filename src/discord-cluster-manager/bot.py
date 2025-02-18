@@ -61,6 +61,13 @@ class ClusterBot(commands.Bot):
             POSTGRES_PORT,
         )
 
+        try:
+            if not self.leaderboard_db.connect():
+                logger.error("Could not connect to database, shutting down")
+                exit(1)
+        finally:
+            self.leaderboard_db.disconnect()
+
         self.accepts_jobs = True
 
     async def setup_hook(self):
