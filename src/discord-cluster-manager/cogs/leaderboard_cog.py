@@ -21,11 +21,14 @@ from utils import (
     setup_logging,
 )
 
+if TYPE_CHECKING:
+    from ..bot import ClusterBot
+
 logger = setup_logging()
 
 
 class LeaderboardSubmitCog(app_commands.Group):
-    def __init__(self, bot):
+    def __init__(self, bot: "ClusterBot"):
         super().__init__(name="submit", description="Submit to leaderboard")
         self.bot = bot
 
@@ -350,6 +353,14 @@ class LeaderboardSubmitCog(app_commands.Group):
         mode: SubmissionMode,
         gpu: Optional[str],
     ):
+        if not self.bot.accepts_jobs:
+            await send_discord_message(
+                interaction,
+                "The bot is currently not accepting any new submissions, please try again later.",
+                ephemeral=True,
+            )
+            return
+
         if gpu is not None:
             gpu = [gpu.strip() for gpu in gpu.split(",")]
         try:

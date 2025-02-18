@@ -52,6 +52,14 @@ class AdminCog(commands.Cog):
             name="delete", description="Delete a leaderboard"
         )(self.delete_leaderboard)
 
+        self.accept_jobs = bot.admin_group.command(
+            name="start", description="Make the bot accept new submissions"
+        )(self.start)
+
+        self.reject_jobs = bot.admin_group.command(
+            name="stop", description="Make the bot stop accepting new submissions"
+        )(self.stop)
+
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
     # --------------------------------------------------------------------------
@@ -366,3 +374,33 @@ class AdminCog(commands.Cog):
             await thread.edit(name=new_name, archived=True)
 
         await interaction.response.send_modal(modal)
+
+    async def stop(self, interaction: discord.Interaction):
+        is_admin = await self.admin_check(interaction)
+        if not is_admin:
+            await send_discord_message(
+                interaction,
+                "You need to have Admin permissions to run this command",
+                ephemeral=True,
+            )
+            return
+
+        self.bot.accepts_jobs = False
+        await send_discord_message(
+            interaction, "Bot will refuse all future submissions!", ephemeral=True
+        )
+
+    async def start(self, interaction: discord.Interaction):
+        is_admin = await self.admin_check(interaction)
+        if not is_admin:
+            await send_discord_message(
+                interaction,
+                "You need to have Admin permissions to run this command",
+                ephemeral=True,
+            )
+            return
+
+        self.bot.accepts_jobs = True
+        await send_discord_message(
+            interaction, "Bot will accept submissions again!", ephemeral=True
+        )

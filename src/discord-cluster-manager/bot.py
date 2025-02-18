@@ -61,6 +61,8 @@ class ClusterBot(commands.Bot):
             POSTGRES_PORT,
         )
 
+        self.accepts_jobs = True
+
     async def setup_hook(self):
         logger.info(f"Syncing commands for staging guild {DISCORD_CLUSTER_STAGING_ID}")
         try:
