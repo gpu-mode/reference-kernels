@@ -5,6 +5,7 @@ from datetime import datetime
 import discord
 import uvicorn
 from api.main import app, init_api
+from cogs.admin_cog import AdminCog
 from cogs.github_cog import GitHubCog
 from cogs.leaderboard_cog import LeaderboardCog
 from cogs.misc_cog import BotManagerCog
@@ -42,11 +43,14 @@ class ClusterBot(commands.Bot):
         self.run_group = app_commands.Group(
             name="run", description="Run jobs on different platforms"
         )
-        self.tree.add_command(self.run_group)
 
         self.leaderboard_group = app_commands.Group(
             name="leaderboard", description="Leaderboard commands"
         )
+        self.admin_group = app_commands.Group(name="admin", description="Admin commands")
+
+        self.tree.add_command(self.run_group)
+        self.tree.add_command(self.admin_group)
         self.tree.add_command(self.leaderboard_group)
 
         self.leaderboard_db = LeaderboardDB(
@@ -66,6 +70,7 @@ class ClusterBot(commands.Bot):
             await self.add_cog(BotManagerCog(self))
             await self.add_cog(LeaderboardCog(self))
             await self.add_cog(VerifyRunCog(self))
+            await self.add_cog(AdminCog(self))
 
             guild_id = (
                 DISCORD_CLUSTER_STAGING_ID
