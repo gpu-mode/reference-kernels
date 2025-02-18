@@ -24,6 +24,7 @@ DISCORD_DEBUG_CLUSTER_STAGING_ID = os.getenv("DISCORD_DEBUG_CLUSTER_STAGING_ID")
 # GitHub-specific constants
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPO")
+PROBLEMS_REPO = os.getenv("PROBLEMS_REPO")
 
 # PostgreSQL-specific constants
 POSTGRES_HOST = os.getenv("POSTGRES_HOST")

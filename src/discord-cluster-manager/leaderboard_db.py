@@ -118,6 +118,20 @@ class LeaderboardDB:
             return f"Error during leaderboard creation: {e}"
         return None
 
+    def update_leaderboard(self, name, deadline, task):
+        try:
+            self.cursor.execute(
+                """
+                UPDATE leaderboard.leaderboard
+                SET deadline = %s, task = %s
+                WHERE name = %s;
+                """,
+                (deadline, task.to_str(), name),
+            )
+        except psycopg2.Error as e:
+            self.connection.rollback()
+            return f"Error during leaderboard update: {e}"
+
     def delete_leaderboard(self, leaderboard_name: str) -> Optional[str]:
         try:
             # TODO: wait for cascade to be implemented

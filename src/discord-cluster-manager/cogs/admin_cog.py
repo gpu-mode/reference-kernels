@@ -1,10 +1,14 @@
+import subprocess
 import tempfile
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, TypedDict
 
 import discord
+import yaml
+
+import env
 from consts import GitHubGPU, ModalGPU
 from discord import app_commands
 from discord.ext import commands
@@ -20,6 +24,20 @@ if TYPE_CHECKING:
     from ..bot import ClusterBot
 
 logger = setup_logging()
+
+
+class ProblemData(TypedDict):
+    name: str
+    directory: str
+    deadline: str
+    gpus: list[str]
+
+
+class CompetitionData(TypedDict):
+    name: str
+    description: str
+    deadline: str
+    problems: list[ProblemData]
 
 
 async def leaderboard_dir_autocomplete(
@@ -59,6 +77,10 @@ class AdminCog(commands.Cog):
         self.reject_jobs = bot.admin_group.command(
             name="stop", description="Make the bot stop accepting new submissions"
         )(self.stop)
+
+        self.update_problems = bot.admin_group.command(
+            name="update-problems", description="Reload all problem definitions"
+        )(self.update_problems)
 
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
@@ -161,6 +183,71 @@ class AdminCog(commands.Cog):
             )
             return
 
+        # Read the template file
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with tempfile.NamedTemporaryFile("w+b") as temp:
+                    temp.write(await task_zip.read())
+                    temp.flush()
+                    with zipfile.ZipFile(temp, "r") as zip_ref:
+                        zip_ref.extractall(tmpdir)
+
+                contents = list(Path(tmpdir).iterdir())
+                # support both a zipped directory, and files
+                # directly in the zip
+                if len(contents) == 1:
+                    task = make_task(contents[0])
+                else:
+                    task = make_task(tmpdir)
+        except FileNotFoundError as e:
+            file = Path(e.filename).name
+            if file == "task.yml":
+                await send_discord_message(
+                    interaction,
+                    "Error in leaderboard creation. Missing `task.yml`.",
+                    ephemeral=True,
+                )
+            else:
+                await send_discord_message(
+                    interaction,
+                    f"Error in leaderboard creation. Could not find `{file}`.",
+                    ephemeral=True,
+                )
+        except zipfile.BadZipFile:
+            # Handle any other errors
+            await send_discord_message(
+                interaction,
+                "Error in leaderboard creation. Is the uploaded file a valid zip archive?",
+                ephemeral=True,
+            )
+        except Exception as e:
+            logger.error(f"Error in leaderboard creation: {e}", exc_info=e)
+            # Handle any other errors
+            await send_discord_message(
+                interaction,
+                "Error in leaderboard creation.",
+                ephemeral=True,
+            )
+
+        await self.leaderboard_create_impl(interaction, leaderboard_name, deadline, task)
+
+    async def leaderboard_create_impl(  # noqa: C901
+        self,
+        interaction: discord.Interaction,
+        leaderboard_name: str,
+        deadline: str,
+        task: LeaderboardTask,
+        gpus: Optional[str | list[str]],
+    ):
+        thread = None
+        if len(leaderboard_name) > 95:
+            await send_discord_message(
+                interaction,
+                "Leaderboard name is too long. Please keep it under 95 characters.",
+                ephemeral=True,
+            )
+            return
+
         # Try parsing with time first
         try:
             date_value = datetime.strptime(deadline, "%Y-%m-%d %H:%M")
@@ -185,24 +272,8 @@ class AdminCog(commands.Cog):
             return
 
         try:
-            # Read the template file
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with tempfile.NamedTemporaryFile("w+b") as temp:
-                    temp.write(await task_zip.read())
-                    temp.flush()
-                    with zipfile.ZipFile(temp, "r") as zip_ref:
-                        zip_ref.extractall(tmpdir)
-
-                contents = list(Path(tmpdir).iterdir())
-                # support both a zipped directory, and files
-                # directly in the zip
-                if len(contents) == 1:
-                    task = make_task(contents[0])
-                else:
-                    task = make_task(tmpdir)
-
             success = await self.create_leaderboard_in_db(
-                interaction, leaderboard_name, date_value, task
+                interaction, leaderboard_name, date_value, task, gpus
             )
             if not success:
                 return
@@ -237,34 +308,14 @@ class AdminCog(commands.Cog):
         except discord.Forbidden:
             await send_discord_message(
                 interaction,
-                "Error: Bot doesn't have permission to create forum threads. Leaderboard was not created.",  # noqa: E501
+                "Error: Bot doesn't have permission to create forum threads. Leaderboard was not created.",
+                # noqa: E501
                 ephemeral=True,
             )
         except discord.HTTPException:
             await send_discord_message(
                 interaction,
                 "Error creating forum thread. Leaderboard was not created.",
-                ephemeral=True,
-            )
-        except FileNotFoundError as e:
-            file = Path(e.filename).name
-            if file == "task.yml":
-                await send_discord_message(
-                    interaction,
-                    "Error in leaderboard creation. Missing `task.yml`.",
-                    ephemeral=True,
-                )
-            else:
-                await send_discord_message(
-                    interaction,
-                    f"Error in leaderboard creation. Could not find `{file}`.",
-                    ephemeral=True,
-                )
-        except zipfile.BadZipFile:
-            # Handle any other errors
-            await send_discord_message(
-                interaction,
-                "Error in leaderboard creation. Is the uploaded file a valid zip archive?",
                 ephemeral=True,
             )
         except Exception as e:
@@ -287,7 +338,7 @@ class AdminCog(commands.Cog):
         leaderboard_name: str,
         date_value: datetime,
         task: LeaderboardTask,
-        gpu: Optional[str] = None,
+        gpu: Optional[str | list[str]] = None,
     ) -> bool:
         if gpu is None:
             # Ask the user to select GPUs
@@ -304,8 +355,10 @@ class AdminCog(commands.Cog):
 
             await view.wait()
             selected_gpus = view.selected_gpus
-        else:
+        elif isinstance(gpu, str):
             selected_gpus = [gpu]
+        else:
+            selected_gpus = gpu
 
         with self.bot.leaderboard_db as db:
             err = db.create_leaderboard(
@@ -404,3 +457,143 @@ class AdminCog(commands.Cog):
         await send_discord_message(
             interaction, "Bot will accept submissions again!", ephemeral=True
         )
+
+    async def update_problems(self, interaction: discord.Interaction):
+        is_admin = await self.admin_check(interaction)
+        if not is_admin:
+            await send_discord_message(
+                interaction,
+                "You need to have Admin permissions to run this command",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            try:
+                subprocess.check_call(["git", "clone", "--depth", "1", f"https://github.com/{env.PROBLEMS_REPO}.git", temp_dir],
+                                      encoding="utf-8")
+            except subprocess.CalledProcessError as E:
+                logger.exception("could not git clone problems repo: %s", E.stderr, exc_info=E)
+                # admin-only command, we can send error messages as ephemeral
+                msg = f"could not git clone problems repo:\nstdout: {E.stdout}\nstderr: {E.stderr}"
+                await send_discord_message(
+                    interaction,
+                    msg,
+                    ephemeral=True,
+                )
+                return
+
+            # OK, we have the problems. Go over them one-by-one
+            problem_dir = Path(temp_dir) / "problems"
+            for competition in problem_dir.glob("*.yaml"):
+                await self.update_competition(interaction, competition)
+
+    async def update_competition(self, interaction: discord.Interaction, spec_file: Path):
+        root = spec_file.parent
+        with open(spec_file) as f:
+            competition: CompetitionData = yaml.safe_load(f)
+
+        await send_discord_message(interaction, f"Handling `{competition['name']}`...")
+
+        update_list = []
+        create_list = []
+
+        with self.bot.leaderboard_db as db:
+            leaderboards = db.get_leaderboards()
+        leaderboards = {lb["name"]: lb for lb in leaderboards}
+
+        # TODO lots of QoL improvements here: scope problem names, problem versioning
+        for problem in competition["problems"]:
+            source = root / problem["directory"]
+            name = problem["name"]
+            if not source.exists():
+                await send_discord_message(
+                    interaction,
+                    f"Directory `{source}` for problem `{name}` does not exist, skipping.",
+                )
+                continue
+
+            # check if that leaderboard already exists
+            if name in leaderboards:
+                # check for differences
+                old = leaderboards[name]  # type: LeaderboardItem
+                new_task = make_task(source)
+                if old["deadline"] != problem["deadline"]:
+                    pass
+                elif old["gpu_types"] != problem["gpus"]:
+                    await send_discord_message(
+                        interaction,
+                        "Changing GPU types of an existing problem is currently not possible",
+                    )
+                    continue
+                elif old["task"] != new_task:
+                    ot = old["task"]
+                    # now look what precisely has changed. For the moment, disallow anything
+                    # that would require us to do more careful task versioning; we can only change things
+                    # that have no bearing on existing runs (like description and templates)
+                    if ot.files != new_task.files:
+                        await send_discord_message(
+                            interaction,
+                            "Changing task files an existing problem is currently not possible",
+                        )
+                        continue
+                    if ot.config != new_task.config:
+                        await send_discord_message(
+                            interaction,
+                            "Changing task config of an existing problem is currently not possible",
+                        )
+                        continue
+
+                    if ot.lang != new_task.lang:
+                        await send_discord_message(
+                            interaction,
+                            "Changing language of an existing problem is currently not possible",
+                        )
+                        continue
+
+                    if ot.benchmarks != new_task.benchmarks:
+                        await send_discord_message(
+                            interaction,
+                            "Changing benchmarks of an existing problem is currently not possible",
+                        )
+                        continue
+
+                else:
+                    # no changes
+                    continue
+                update_list.append(problem)
+            else:
+                create_list.append(problem)
+
+        # OK, now we know what we want to do
+        if len(update_list) > 0:
+            lst = "\n * ".join(x["name"] for x in update_list)
+            await send_discord_message(
+                interaction, f"The following leaderboards will be updated:\n {lst}", ephemeral=True
+            )
+        if len(create_list):
+            lst = "\n * ".join(x["name"] for x in create_list)
+            await send_discord_message(
+                interaction,
+                f"The following new leaderboards will be created:\n {lst}",
+                ephemeral=True,
+            )
+
+        # TODO require confirmation here!
+        for entry in create_list:
+            await self.leaderboard_create_impl(
+                interaction,
+                entry["name"],
+                entry["deadline"],
+                make_task(root / entry["directory"]),
+                entry["gpus"],
+            )
+
+        for entry in update_list:
+            with self.bot.leaderboard_db as db:
+                db.update_leaderboard(
+                    entry["name"], entry["deadline"], make_task(Path(entry["directory"]))
+                )
+
+        await send_discord_message(interaction, "... DONE")
