@@ -167,40 +167,39 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
         await thread.send(message)
         return
 
-    comp = result.compile
     runs = result.runs
 
     print(runs)
 
     # minimal error messages for private run
     if mode == SubmissionMode.PRIVATE:
-        if comp is not None and not comp.success:
-            await thread.send("❌ Compilation failed")
-            return
-        elif comp is not None:
-            await thread.send("✅ Compilation successful")
+        for r in runs.values():
+            if r.compilation is not None and not r.compilation.success:
+                await thread.send("❌ Compilation failed")
+                return
+        await thread.send("✅ Compilation successful")
 
-        if "test" not in runs or not runs["test"].success:
+        if "test" not in runs or not runs["test"].run.success:
             await thread.send("❌ Running tests failed")
             return
-        elif not runs["test"].passed:
+        elif not runs["test"].run.passed:
             await thread.send("❌ Testing failed")
             return
         else:
             await thread.send("✅ Testing successful")
 
-        if "benchmark" not in runs or not runs["benchmark"].success:
+        if "benchmark" not in runs or not runs["benchmark"].run.success:
             await thread.send("❌ Running benchmarks failed")
             return
-        elif not runs["benchmark"].passed:
+        elif not runs["benchmark"].run.passed:
             await thread.send("❌ Benchmarking failed")
             return
         else:
             await thread.send("✅ Benchmarking successful")
 
-        if "leaderboard" not in runs or not runs["leaderboard"].success:
+        if "leaderboard" not in runs or not runs["leaderboard"].run.success:
             await thread.send("❌ Running leaderboard failed")
-        elif not runs["leaderboard"].passed:
+        elif not runs["leaderboard"].run.passed:
             await thread.send("❌ Leaderboard run failed")
             return
         else:
@@ -209,15 +208,17 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
 
     message = ""
 
-    if comp is not None and not comp.success:
-        await _generate_compile_report(thread, comp)
-        return
-
     if "test" in runs:
         test_run = runs["test"]
 
+        if test_run.compilation is not None and not test_run.compilation.success:
+            await _generate_compile_report(thread, test_run.compilation)
+            return
+
+        test_run = test_run.run
+
         if not test_run.success:
-            await _generate_crash_report(thread, runs["test"])
+            await _generate_crash_report(thread, test_run)
             return
 
         if not test_run.passed:
@@ -234,8 +235,13 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
 
     if "benchmark" in runs:
         bench_run = runs["benchmark"]
+        if bench_run.compilation is not None and not bench_run.compilation.success:
+            await _generate_compile_report(thread, bench_run.compilation)
+            return
+
+        bench_run = bench_run.run
         if not bench_run.success:
-            await _generate_crash_report(thread, runs["benchmark"])
+            await _generate_crash_report(thread, bench_run)
             return
 
         num_bench = int(bench_run.result["benchmark-count"])
@@ -274,6 +280,11 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
 
     if mode == SubmissionMode.SCRIPT:
         run = runs["script"]
+        if run.compilation is not None and not run.compilation.success:
+            await _generate_compile_report(thread, run.compilation)
+            return
+
+        run = run.run
         # OK, we were successful
         message += "# Success!\n"
         message += "Command "
@@ -282,11 +293,11 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
 
     if len(runs) == 1:
         run = next(iter(runs.values()))
-        if len(run.stderr.strip()) > 0:
-            message = await _send_split_log(thread, message, "Program stderr", run.stderr.strip())
+        if len(run.run.stderr.strip()) > 0:
+            message = await _send_split_log(thread, message, "Program stderr", run.run.stderr.strip())
 
-        if len(run.stdout.strip()) > 0:
-            message = await _send_split_log(thread, message, "Program stdout", run.stdout.strip())
+        if len(run.run.stdout.strip()) > 0:
+            message = await _send_split_log(thread, message, "Program stdout", run.run.stdout.strip())
 
     if len(message) != 0:
         await thread.send(message)

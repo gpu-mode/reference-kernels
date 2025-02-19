@@ -25,7 +25,7 @@ def run_cuda_helper(sources: dict, headers: dict = None, arch=None, **kwargs):
     if headers is None:
         headers = header_files
 
-    comp, runs = run_cuda_script(
+    eval_result = run_cuda_script(
         sources,
         headers,
         arch=arch,
@@ -33,8 +33,7 @@ def run_cuda_helper(sources: dict, headers: dict = None, arch=None, **kwargs):
         tests="size: 256; seed: 42\n",
         **kwargs,
     )
-    run = runs.get("test", None)
-    return comp, run
+    return eval_result.compilation, eval_result.run
 
 
 def test_does_not_compile():
@@ -201,13 +200,14 @@ def test_include_dirs(tmp_path: Path):
     assert run.result["check"] == "pass"
 
     # can also use generic flags argument
-    comp, run = run_cuda_script(
+    result = run_cuda_script(
         {"eval.cu": eval_cu, "submission.cu": sub},
         header_files,
         flags=["-I.", f"-I{tmp_path}"],
+        mode="script",
     )
 
-    assert comp.success is True
+    assert result.compilation.success is True
 
 
 def test_link_libs(tmp_path: Path):

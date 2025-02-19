@@ -18,11 +18,10 @@ files = {"eval.py": py_eval, "reference.py": ref, "utils.py": utils, "task.py": 
 
 
 def run_pytorch_helper(sources: dict, **kwargs):
-    runs = run_pytorch_script(
+    result = run_pytorch_script(
         sources, "eval.py", mode=SubmissionMode.TEST.value, tests="size: 256; seed: 42\n", **kwargs
     )
-    run = runs.get("test", None)
-    return run
+    return result.run
 
 
 def test_does_not_import():

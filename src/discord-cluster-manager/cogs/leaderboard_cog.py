@@ -73,7 +73,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     else interaction.user.nick
                 )
 
-                if result.runs["test"].result["check"] != "pass":
+                if result.runs["test"].run.result["check"] != "pass":
                     await discord_thread.send(
                         f"Ran on {gpu.name} using {runner_name} runners!\n"
                         + f"Leaderboard '{leaderboard_name}'.\n"
@@ -84,9 +84,9 @@ class LeaderboardSubmitCog(app_commands.Group):
 
                 # TODO: Make this more flexible, not just functional
                 score = 0.0
-                num_benchmarks = int(result.runs["benchmark"].result["benchmark-count"])
+                num_benchmarks = int(result.runs["benchmark"].run.result["benchmark-count"])
                 for i in range(num_benchmarks):
-                    score += float(result.runs["benchmark"].result[f"benchmark.{i}.mean"]) / 1e9
+                    score += float(result.runs["benchmark"].run.result[f"benchmark.{i}.mean"]) / 1e9
                 score /= num_benchmarks
 
                 # TODO: specify what LB it saves to

@@ -1,10 +1,11 @@
+import datetime
 import json
 
 from cogs.submit_cog import ProgressReporter, SubmitCog
 from consts import AMD_REQUIREMENTS, NVIDIA_REQUIREMENTS, GitHubGPU, GPUType
 from discord import app_commands
 from github_runner import GitHubRun
-from run_eval import CompileResult, FullResult, RunResult
+from run_eval import CompileResult, FullResult, RunResult, EvalResult
 from utils import setup_logging
 
 logger = setup_logging()
@@ -62,7 +63,7 @@ class GitHubCog(SubmitCog):
             logger.error("Could not find `run-result` among artifacts: %s", artifacts.keys())
             await status.push("Downloading artifacts...  failed")
             return FullResult(
-                success=False, error="Could not download artifacts", compile=None, runs={}
+                success=False, error="Could not download artifacts", runs={}
             )
 
         logs = artifacts["run-result"]["result.json"].decode("utf-8")
@@ -70,12 +71,22 @@ class GitHubCog(SubmitCog):
         await status.update("Downloading artifacts... done")
 
         data = json.loads(logs)
-        if "compile" in data and data["compile"] is not None:
-            comp = CompileResult(**data["compile"])
-        else:
-            comp = None
-        run = {k: RunResult(**v) for k, v in data["runs"].items()}
-        return FullResult(success=True, error="", compile=comp, runs=run)
+        runs = {}
+        # convert json back to EvalResult structures, which requires
+        # special handling for datetime and our dataclasses.
+        for k, v in data["runs"].items():
+            if "compilation" in v and v["compilation"] is not None:
+                comp = CompileResult(**v["compilation"])
+            else:
+                comp = None
+            run = RunResult(**v["run"])
+            res = EvalResult(start=datetime.datetime.fromisoformat(v['start']),
+                             end=datetime.datetime.fromisoformat(v['end']),
+                             compilation=comp,
+                             run=run)
+            runs[k] = res
+
+        return FullResult(success=True, error="", runs=runs)
 
     async def wait_callback(self, run: GitHubRun, status: ProgressReporter):
         await status.update(

@@ -1,4 +1,6 @@
 import dataclasses
+import datetime
+import functools
 import os
 import shlex
 import subprocess
@@ -6,7 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 from types import NoneType
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 from consts import CUDA_FLAGS, ExitCode
 
@@ -39,14 +41,23 @@ class RunResult:
 
 
 @dataclasses.dataclass
+class EvalResult:
+    # fmt: off
+    start: datetime.datetime            # when did this run start (excluding any container setup time)
+    end: datetime.datetime              # and when did it finish
+    compilation: CompileResult | None   # results of compilation
+    run: RunResult | None               # result of actually running the executable/script
+    # fmt: on
+
+
+@dataclasses.dataclass
 class FullResult:
     # fmt: off
     success: bool                  # did the runner (github/modal) execute successfully
     error: str                     # if not success, an error message
-    compile: CompileResult | None  # results of compilation
     # results of running. There can be multiple runs in one submission, using separate
     # 'test' and 'benchmark' keys, for example
-    runs: dict[str, RunResult] = dataclasses.field(default_factory=dict)
+    runs: dict[str, EvalResult] = dataclasses.field(default_factory=dict)
     # fmt: on
 
 
@@ -251,54 +262,30 @@ def run_program(args: list[str], seed: int, timeout: int = 60) -> RunResult:
     )
 
 
-def run_evaluation(
+def run_single_evaluation(
     call: list[str],
     mode: str,
     tests: Optional[str] = None,
     benchmarks: Optional[str] = None,
     seed: Optional[int] = None,
-) -> dict[str, RunResult]:
-    results = {}
+) -> RunResult:
+    """
+    A single runner run, either in the context of test files, or in the
+    context of benchmark files.
+    """
     if mode == "test":
         with tempfile.NamedTemporaryFile("w") as tests_file:
             tests_file.write(tests)
             tests_file.flush()
-            results["test"] = run_program(call + [mode, tests_file.name], seed=seed)
-    elif mode in ["benchmark", "profile"]:
+            return run_program(call + [mode, tests_file.name], seed=seed)
+    elif mode in ["benchmark", "profile", "leaderboard"]:
         with tempfile.NamedTemporaryFile("w") as bench_file:
             bench_file.write(benchmarks)
             bench_file.flush()
-            results[mode] = run_program(call + [mode, bench_file.name], seed=seed)
-    elif mode in ["private", "leaderboard"]:
-        # first, run the tests
-        with tempfile.NamedTemporaryFile("w") as tests_file:
-            tests_file.write(tests)
-            tests_file.flush()
-            results["test"] = run_program(call + ["test", tests_file.name], seed=seed)
-
-        if not results["test"].passed:
-            return results
-
-        # TODO Merge results of these runs in a nice way
-        with tempfile.NamedTemporaryFile("w") as bench_file:
-            bench_file.write(benchmarks)
-            bench_file.flush()
-            results["benchmark"] = run_program(call + ["benchmark", bench_file.name], seed=seed)
-
-        # if they pass, run the leaderboard validation
-        if results["benchmark"].passed:
-            with tempfile.NamedTemporaryFile("w") as bench_file:
-                bench_file.write(benchmarks)
-                bench_file.flush()
-                results["leaderboard"] = run_program(
-                    call + ["leaderboard", bench_file.name], seed=seed
-                )
-
+            return run_program(call + [mode, bench_file.name], seed=seed)
     else:
         assert mode == "script"
-        results["script"] = run_program(call, seed=seed)
-
-    return results
+        return run_program(call, seed=seed)
 
 
 def run_cuda_script(  # # noqa: C901
@@ -313,7 +300,7 @@ def run_cuda_script(  # # noqa: C901
     tests: str = None,
     benchmarks: str = None,
     seed: int = 42,
-) -> tuple[CompileResult, dict[str, RunResult]]:
+) -> EvalResult:
     """
     Executes the provided CUDA kernel in an isolated environment
 
@@ -332,6 +319,7 @@ def run_cuda_script(  # # noqa: C901
     Returns:
         tuple[CompileResult, RunResult]: CUDA compile/eval result information
     """
+    start = datetime.datetime.now()
     try:
         # Write submission files to directory
         _create_files(sources)
@@ -348,7 +336,9 @@ def run_cuda_script(  # # noqa: C901
         )
 
         if not compile_result.success:
-            return compile_result, {}
+            return EvalResult(
+                start=start, end=datetime.datetime.now(), compilation=compile_result, run=None
+            )
 
     # cleaning up all source files _before_ we let the user code run, just in
     # case there's something in there that the user isn't supposed to snoop
@@ -358,8 +348,10 @@ def run_cuda_script(  # # noqa: C901
             if os.path.exists(f):
                 os.remove(f)
 
-    run_result = run_evaluation(["./eval.out"], mode, tests, benchmarks, seed)
-    return compile_result, run_result
+    run_result = run_single_evaluation(["./eval.out"], mode, tests, benchmarks, seed)
+    return EvalResult(
+        start=start, end=datetime.datetime.now(), compilation=compile_result, run=run_result
+    )
 
 
 def run_pytorch_script(  # noqa: C901
@@ -369,7 +361,7 @@ def run_pytorch_script(  # noqa: C901
     tests: str = None,
     benchmarks: str = None,
     seed: int = 42,
-) -> dict[str, RunResult]:
+) -> EvalResult:
     """
     Executes the provided PyTorch GPU kernel in an isolated environment
 
@@ -381,18 +373,57 @@ def run_pytorch_script(  # noqa: C901
     Returns:
         RunResult
     """
+    start = datetime.datetime.now()
     try:
         assert main in sources.keys()
 
         # Write submission files to directory
         _create_files(sources)
 
-        return run_evaluation(["python", main], mode, tests, benchmarks, seed)
-
+        return EvalResult(
+            start=start,
+            end=datetime.datetime.now(),
+            compilation=None,
+            run=run_single_evaluation(["python", main], mode, tests, benchmarks, seed),
+        )
     finally:
         for f in sources.keys():
             if os.path.exists(f):
                 os.remove(f)
+
+
+def run_evaluation(
+    call: Callable[[str], EvalResult],
+    mode: str,
+) -> dict[str, EvalResult]:
+    """
+    Given a "runner" function `call`, interprets the mode
+    and calls the runner with the right arguments.
+    Simple modes (test, benchmark, profile, script) just
+    invoke the runner once, but private/leaderboard
+    require multiple runner calls.
+    """
+    results: dict[str, EvalResult] = {}
+    if mode in ["test", "benchmark", "profile", "script"]:
+        results[mode] = call(mode=mode)
+    elif mode in ["private", "leaderboard"]:
+        # first, run the tests
+        results["test"] = call(mode="test")
+
+        if not results["test"].run or not results["test"].run.passed:
+            return results
+
+        results["benchmark"] = call(mode="benchmark")
+
+        if not results["benchmark"].run or not results["benchmark"].run.passed:
+            return results
+
+        # if they pass, run the leaderboard validation
+        results["leaderboard"] = call(mode="leaderboard")
+    else:
+        assert False
+
+    return results
 
 
 def build_test_string(tests: list[dict]):
@@ -407,16 +438,16 @@ def build_test_string(tests: list[dict]):
 
 def run_config(config: dict):
     if config["lang"] == "py":
-        run_result = run_pytorch_script(
+        runner = functools.partial(
+            run_pytorch_script,
             sources=config["sources"],
             main=config["main"],
             tests=build_test_string(config.get("tests", [])),
             benchmarks=build_test_string(config.get("benchmarks", [])),
-            mode=config.get("mode", "test"),
         )
-        return FullResult(success=True, error="", compile=None, runs=run_result)
     elif config["lang"] == "cu":
-        comp, run = run_cuda_script(
+        runner = functools.partial(
+            run_cuda_script,
             sources=config["sources"],
             headers=config.get("headers", {}),
             arch=config.get("arch", None),
@@ -426,8 +457,9 @@ def run_config(config: dict):
             flags=CUDA_FLAGS,
             tests=build_test_string(config.get("tests", [])),
             benchmarks=build_test_string(config.get("benchmarks", [])),
-            mode=config.get("mode", "test"),
         )
-        return FullResult(success=True, error="", compile=comp, runs=run)
     else:
         raise ValueError(f"Invalid language {config['lang']}")
+
+    results = run_evaluation(runner, config["mode"])
+    return FullResult(success=True, error="", runs=results)

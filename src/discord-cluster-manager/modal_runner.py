@@ -84,9 +84,15 @@ def modal_run_config(  # noqa: C901
         with timeout(timeout_seconds):
             return run_config(config)
     except TimeoutException as e:
-        return FullResult(success=False, error=f"Timeout Error: {str(e)}", compile=None, runs={})
+        return FullResult(
+            success=False,
+            error=f"Timeout Error: {str(e)}",
+            runs={},
+        )
     except Exception as e:
         exception = "".join(traceback.format_exception(e))
         return FullResult(
-            success=False, error=f"Error executing script:\n{exception}", compile=None, runs={}
+            success=False,
+            error=f"Error executing script:\n{exception}",
+            runs={},
         )
