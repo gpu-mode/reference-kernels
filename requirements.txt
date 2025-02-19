@@ -11,5 +11,5 @@ ruff
 pre-commit
 
 # api
-fastapi
+fastapi[all] # install all to avoid random bugs
 uvicorn
