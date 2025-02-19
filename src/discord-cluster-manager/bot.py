@@ -1,7 +1,10 @@
 import argparse
+import asyncio
 from datetime import datetime
 
 import discord
+import uvicorn
+from api.main import app, init_api
 from cogs.github_cog import GitHubCog
 from cogs.leaderboard_cog import LeaderboardCog
 from cogs.misc_cog import BotManagerCog
@@ -233,6 +236,30 @@ class ClusterBot(commands.Bot):
             else:
                 await channel.send(chunk)
 
+    async def start_bot(self, token: str):
+        try:
+            await self.start(token)
+        except Exception as e:
+            logger.error(f"Failed to start bot: {e}", exc_info=e)
+            raise e
+
+
+async def start_bot_and_api(debug_mode: bool):
+    token = DISCORD_DEBUG_TOKEN if debug_mode else DISCORD_TOKEN
+
+    if debug_mode and not token:
+        raise ValueError("DISCORD_DEBUG_TOKEN not found")
+
+    bot_instance = ClusterBot(debug_mode=debug_mode)
+
+    init_api(bot_instance)
+
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info", limit_concurrency=10)
+    server = uvicorn.Server(config)
+
+    # we need this as discord and fastapi both run on the same event loop
+    await asyncio.gather(bot_instance.start_bot(token), server.serve())
+
 
 def main():
     init_environment()
@@ -241,14 +268,9 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Run in debug/staging mode")
     args = parser.parse_args()
 
-    logger.info("Starting bot...")
-    token = DISCORD_DEBUG_TOKEN if args.debug else DISCORD_TOKEN
+    logger.info("Starting bot and API server...")
 
-    if args.debug and not token:
-        raise ValueError("DISCORD_DEBUG_TOKEN not found")
-
-    client = ClusterBot(debug_mode=args.debug)
-    client.run(token)
+    asyncio.run(start_bot_and_api(args.debug))
 
 
 if __name__ == "__main__":
