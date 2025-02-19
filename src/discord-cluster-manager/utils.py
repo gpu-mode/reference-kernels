@@ -2,7 +2,7 @@ import datetime
 import logging
 import re
 import subprocess
-from typing import Any, List, NotRequired, TypedDict
+from typing import Any, List, TypedDict
 
 import discord
 from consts import Language, SubmissionMode
@@ -173,17 +173,14 @@ class LeaderboardItem(TypedDict):
     gpu_types: List[str]
 
 
-class SubmissionItem(TypedDict):
+class LeaderboardRankedEntry(TypedDict):
     rank: int
     submission_name: str
     submission_time: datetime.datetime
     submission_score: float
     leaderboard_name: str
-    code: str
     user_id: int
     gpu_type: str
-    stdout: NotRequired[str]
-    profiler_output: NotRequired[str]
 
 
 def build_task_config(

@@ -76,6 +76,10 @@ class AdminCog(commands.Cog):
             name="update-problems", description="Reload all problem definitions"
         )(self.update_problems)
 
+        self.show_bot_stats = bot.admin_group.command(
+            name="show-stats", description="Show stats for the bot"
+        )(self.show_bot_stats)
+
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
     # --------------------------------------------------------------------------
@@ -585,3 +589,12 @@ class AdminCog(commands.Cog):
             await interaction.edit_original_response(content=f"{header}\n\n{plan}\n\n{steps}")
         except Exception as e:
             logger.exception("Error updating problem set", exc_info=e)
+
+    async def show_bot_stats(self, interaction: discord.Interaction):
+        with self.bot.leaderboard_db as db:
+            stats = db.generate_stats()
+            msg = """```"""
+            for k, v in stats.items():
+                msg += f"\n{k} = {v}"
+            msg += "\n```"
+            await send_discord_message(interaction, msg, ephemeral=True)

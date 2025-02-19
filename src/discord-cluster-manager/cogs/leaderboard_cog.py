@@ -10,7 +10,8 @@ from consts import (
 )
 from discord import app_commands
 from discord.ext import commands, tasks
-from leaderboard_db import leaderboard_name_autocomplete
+from leaderboard_db import LeaderboardDB, leaderboard_name_autocomplete
+from run_eval import FullResult
 from task import LeaderboardTask
 from ui.misc import GPUSelectionView
 from ui.table import create_table
@@ -43,6 +44,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         gpu: app_commands.Choice[str],
         runner_name: str,
         mode: SubmissionMode,
+        submission_id: int,
     ):
         discord_thread, result = await command(
             interaction,
@@ -51,19 +53,11 @@ class LeaderboardSubmitCog(app_commands.Group):
             task=task,
             mode=mode,
         )
+        result: FullResult
 
         # no point going further if this already failed
         if discord_thread is None:
             return -1
-
-        if mode == SubmissionMode.LEADERBOARD:
-            pass
-            # public leaderboard run
-        elif mode == SubmissionMode.PRIVATE:
-            pass
-            # private leaderboard run
-        else:
-            return 0
 
         try:
             if result.success:
@@ -80,36 +74,40 @@ class LeaderboardSubmitCog(app_commands.Group):
                         + f"Submission title: {script.filename}.\n"
                         + f"Submission user: {user_id}.\n"
                     )
-                    return
 
-                # TODO: Make this more flexible, not just functional
-                score = 0.0
-                num_benchmarks = int(result.runs["benchmark"].run.result["benchmark-count"])
-                for i in range(num_benchmarks):
-                    score += float(result.runs["benchmark"].run.result[f"benchmark.{i}.mean"]) / 1e9
-                score /= num_benchmarks
+                score = None
+                if "leaderboard" in result.runs:
+                    score = 0.0
+                    num_benchmarks = int(result.runs["leaderboard"].run.result["benchmark-count"])
+                    for i in range(num_benchmarks):
+                        score += (
+                            float(result.runs["leaderboard"].run.result[f"benchmark.{i}.mean"])
+                            / 1e9
+                        )
+                    score /= num_benchmarks
 
-                # TODO: specify what LB it saves to
-                if mode == SubmissionMode.LEADERBOARD:
-                    with self.bot.leaderboard_db as db:
-                        db.create_submission(
-                            {
-                                "submission_name": script.filename,
-                                "submission_time": datetime.now(),
-                                "leaderboard_name": leaderboard_name,
-                                "code": submission_content,
-                                "user_id": interaction.user.id,
-                                "submission_score": score,
-                                "gpu_type": gpu.name,
-                            }
+                with self.bot.leaderboard_db as db:
+                    db: LeaderboardDB
+                    for key, value in result.runs.items():
+                        db.create_submission_run(
+                            submission_id,
+                            value.start,
+                            value.end,
+                            mode=key,
+                            runner=gpu.name,
+                            score=None if key != "leaderboard" else score,
+                            secret=mode == SubmissionMode.PRIVATE,
+                            compilation=value.compilation,
+                            result=value.run,
                         )
 
-                await discord_thread.send(
-                    "## Result:\n"
-                    + f"Leaderboard `{leaderboard_name}`:\n"
-                    + f"> **{user_id}**'s `{script.filename}` on `{gpu.name}` ran "
-                    + f"for `{score:.9f}` seconds!",
-                )
+                if score is not None:
+                    await discord_thread.send(
+                        "## Result:\n"
+                        + f"Leaderboard `{leaderboard_name}`:\n"
+                        + f"> **{user_id}**'s `{script.filename}` on `{gpu.name}` ran "
+                        + f"for `{score:.9f}` seconds!",
+                    )
         except Exception as e:
             logger.error("Error in leaderboard submission", exc_info=e)
             await discord_thread.send(
@@ -294,24 +292,18 @@ class LeaderboardSubmitCog(app_commands.Group):
             await send_discord_message(interaction, "❌ Required runner not found!")
             return -1
 
-        tasks = [
-            self.async_submit_cog_job(
-                interaction,
-                leaderboard_name,
-                script,
-                command,
-                task,
-                submission_content,
-                app_commands.Choice(name=gpu.name, value=gpu.value),
-                gpu.runner,
-                mode,
+        # Create a submission entry in the database
+        with self.bot.leaderboard_db as db:
+            sub_id = db.create_submission(
+                leaderboard=leaderboard_name,
+                file_name=script.filename,
+                code=submission_content,
+                user_id=interaction.user.id,
+                time=datetime.now(),
             )
-            for gpu, command in zip(selected_gpus, commands, strict=False)
-        ]
 
-        # also schedule secret run
-        if mode == SubmissionMode.LEADERBOARD:
-            tasks += [
+        try:
+            tasks = [
                 self.async_submit_cog_job(
                     interaction,
                     leaderboard_name,
@@ -321,12 +313,34 @@ class LeaderboardSubmitCog(app_commands.Group):
                     submission_content,
                     app_commands.Choice(name=gpu.name, value=gpu.value),
                     gpu.runner,
-                    SubmissionMode.PRIVATE,
+                    mode,
+                    sub_id,
                 )
                 for gpu, command in zip(selected_gpus, commands, strict=False)
             ]
 
-        await asyncio.gather(*tasks)
+            # also schedule secret run
+            if mode == SubmissionMode.LEADERBOARD:
+                tasks += [
+                    self.async_submit_cog_job(
+                        interaction,
+                        leaderboard_name,
+                        script,
+                        command,
+                        task,
+                        submission_content,
+                        app_commands.Choice(name=gpu.name, value=gpu.value),
+                        gpu.runner,
+                        SubmissionMode.PRIVATE,
+                        sub_id,
+                    )
+                    for gpu, command in zip(selected_gpus, commands, strict=False)
+                ]
+
+            await asyncio.gather(*tasks)
+        finally:
+            with self.bot.leaderboard_db as db:
+                db.mark_submission_done(sub_id)
 
         await send_discord_message(
             interaction,
