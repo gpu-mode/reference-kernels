@@ -3,7 +3,7 @@ import time
 from dataclasses import asdict
 
 from cogs.submit_cog import SubmitCog
-from consts import GPU_SELECTION, SubmissionMode
+from consts import _GPU_LOOKUP, SubmissionMode
 from discord import app_commands
 from fastapi import FastAPI, HTTPException, UploadFile
 from utils import LeaderboardItem, build_task_config
@@ -74,14 +74,14 @@ async def run_submission(
     """
     await simple_rate_limit()
 
-    submission_mode = SubmissionMode(submission_mode.lower())
-    if submission_mode in [SubmissionMode.PROFILE.value]:
+    submission_mode: SubmissionMode = SubmissionMode(submission_mode.lower())
+    if submission_mode in [SubmissionMode.PROFILE]:
         raise HTTPException(status_code=400, detail="Profile submissions are not supported yet")
 
     if submission_mode not in [
-        SubmissionMode.TEST.value,
-        SubmissionMode.BENCHMARK.value,
-        SubmissionMode.SCRIPT.value,
+        SubmissionMode.TEST,
+        SubmissionMode.BENCHMARK,
+        SubmissionMode.SCRIPT,
     ]:
         raise HTTPException(status_code=400, detail="Invalid submission mode")
 
@@ -91,7 +91,7 @@ async def run_submission(
     runner_name = runner_name.lower()
     cog_name = {"github": "GitHubCog", "modal": "ModalCog"}[runner_name]
 
-    gpu_name = gpu_type.upper()
+    gpu_name = gpu_type.lower()
 
     with bot_instance.leaderboard_db as db:
         leaderboard_item: LeaderboardItem = db.get_leaderboard(leaderboard_name)
@@ -105,7 +105,7 @@ async def run_submission(
         mode=submission_mode,
     )
 
-    gpu = GPU_SELECTION[runner_name.capitalize()][gpu_name]
+    gpu = _GPU_LOOKUP[gpu_name]
 
     # limit the amount of concurrent submission by the API
     async with _submit_limiter:
@@ -144,8 +144,6 @@ async def get_gpus(leaderboard_name: str, runner_name: str) -> list[str]:
     with bot_instance.leaderboard_db as db:
         gpu_types = db.get_leaderboard_gpu_types(leaderboard_name)
 
-    runner_name = {"github": "GitHub", "modal": "Modal"}[runner_name]
-    runner_gpu_types = GPU_SELECTION[runner_name]
-    runner_gpu_names = [gpu.name for gpu in runner_gpu_types]
+    runner_gpu_names = [gpu.name.lower() for gpu in _GPU_LOOKUP.values()]
 
-    return [x for x in gpu_types if x in runner_gpu_names]
+    return [x for x in gpu_types if x.lower() in runner_gpu_names]
