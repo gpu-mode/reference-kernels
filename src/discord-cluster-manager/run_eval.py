@@ -8,7 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 from types import NoneType
-from typing import Optional, Union, Protocol
+from typing import Optional, Protocol, Union
 
 from consts import CUDA_FLAGS, ExitCode
 
@@ -43,7 +43,7 @@ class RunResult:
 @dataclasses.dataclass
 class EvalResult:
     # fmt: off
-    start: datetime.datetime            # when did this run start (excluding any container setup time)
+    start: datetime.datetime            # when did this run start (excluding container setup time)
     end: datetime.datetime              # and when did it finish
     compilation: CompileResult | None   # results of compilation
     run: RunResult | None               # result of actually running the executable/script
@@ -304,7 +304,7 @@ def run_cuda_script(  # # noqa: C901
     include_dirs: Optional[list[str]] = None,
     libraries: Optional[list[str]] = None,
     flags: Optional[list[str]] = None,
-    **kwargs
+    **kwargs,
 ) -> EvalResult:
     """
     Executes the provided CUDA kernel in an isolated environment
@@ -444,12 +444,12 @@ def build_test_string(tests: list[dict]):
 
 def run_config(config: dict):
     common_args = {
-        "tests":  build_test_string(config.get("tests", [])),
+        "tests": build_test_string(config.get("tests", [])),
         "benchmarks": build_test_string(config.get("benchmarks", [])),
         "test_timeout": config.get("test_timeout", 30),
         "benchmark_timeout": config.get("benchmark_timeout", 60),
         "ranked_timeout": config.get("ranked_timeout", 30),
-        "seed": 42
+        "seed": 42,
     }
     if config["lang"] == "py":
         runner = functools.partial(

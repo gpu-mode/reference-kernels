@@ -294,10 +294,14 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
     if len(runs) == 1:
         run = next(iter(runs.values()))
         if len(run.run.stderr.strip()) > 0:
-            message = await _send_split_log(thread, message, "Program stderr", run.run.stderr.strip())
+            message = await _send_split_log(
+                thread, message, "Program stderr", run.run.stderr.strip()
+            )
 
         if len(run.run.stdout.strip()) > 0:
-            message = await _send_split_log(thread, message, "Program stdout", run.run.stdout.strip())
+            message = await _send_split_log(
+                thread, message, "Program stdout", run.run.stdout.strip()
+            )
 
     if len(message) != 0:
         await thread.send(message)

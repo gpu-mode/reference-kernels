@@ -5,7 +5,7 @@ from cogs.submit_cog import ProgressReporter, SubmitCog
 from consts import AMD_REQUIREMENTS, NVIDIA_REQUIREMENTS, GitHubGPU, GPUType
 from discord import app_commands
 from github_runner import GitHubRun
-from run_eval import CompileResult, FullResult, RunResult, EvalResult
+from run_eval import CompileResult, EvalResult, FullResult, RunResult
 from utils import setup_logging
 
 logger = setup_logging()
@@ -62,9 +62,7 @@ class GitHubCog(SubmitCog):
         if "run-result" not in artifacts:
             logger.error("Could not find `run-result` among artifacts: %s", artifacts.keys())
             await status.push("Downloading artifacts...  failed")
-            return FullResult(
-                success=False, error="Could not download artifacts", runs={}
-            )
+            return FullResult(success=False, error="Could not download artifacts", runs={})
 
         logs = artifacts["run-result"]["result.json"].decode("utf-8")
 
@@ -80,10 +78,12 @@ class GitHubCog(SubmitCog):
             else:
                 comp = None
             run = RunResult(**v["run"])
-            res = EvalResult(start=datetime.datetime.fromisoformat(v['start']),
-                             end=datetime.datetime.fromisoformat(v['end']),
-                             compilation=comp,
-                             run=run)
+            res = EvalResult(
+                start=datetime.datetime.fromisoformat(v["start"]),
+                end=datetime.datetime.fromisoformat(v["end"]),
+                compilation=comp,
+                run=run,
+            )
             runs[k] = res
 
         return FullResult(success=True, error="", runs=runs)
