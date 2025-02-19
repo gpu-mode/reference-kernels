@@ -44,6 +44,8 @@ class LeaderboardTask:
             as a dict mapping function argument names to their values.
         benchmarks: List of benchmark specifications (same format as tests)
         templates: Template files for participants to download
+        test_timeout, benchmark_timeout, ranked_timeout: Timeouts for running
+            tests, benchmarks, and ranked submissions.
 
     """
 
@@ -53,7 +55,10 @@ class LeaderboardTask:
     description: str = ""
     libraries: list[str] = dataclasses.field(default_factory=list)
     tests: list[TestCaseType] = dataclasses.field(default_factory=list)
+    test_timeout: int = 30
     benchmarks: list[TestCaseType] = dataclasses.field(default_factory=list)
+    benchmark_timeout: int = 60
+    ranked_timeout: int = 90
     templates: dict[str, str] = dataclasses.field(default_factory=dict)
 
     @staticmethod

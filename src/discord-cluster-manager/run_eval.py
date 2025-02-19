@@ -8,7 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 from types import NoneType
-from typing import Callable, Optional, Union
+from typing import Optional, Union, Protocol
 
 from consts import CUDA_FLAGS, ExitCode
 
@@ -267,7 +267,10 @@ def run_single_evaluation(
     mode: str,
     tests: Optional[str] = None,
     benchmarks: Optional[str] = None,
-    seed: Optional[int] = None,
+    test_timeout: int = 30,
+    benchmark_timeout: int = 60,
+    ranked_timeout: int = 90,
+    seed: Optional[int] = 42,
 ) -> RunResult:
     """
     A single runner run, either in the context of test files, or in the
@@ -277,12 +280,17 @@ def run_single_evaluation(
         with tempfile.NamedTemporaryFile("w") as tests_file:
             tests_file.write(tests)
             tests_file.flush()
-            return run_program(call + [mode, tests_file.name], seed=seed)
+            return run_program(call + [mode, tests_file.name], seed=seed, timeout=test_timeout)
     elif mode in ["benchmark", "profile", "leaderboard"]:
+        timeout = {
+            "benchmark": benchmark_timeout,
+            "profile": benchmark_timeout,
+            "leaderboard": ranked_timeout,
+        }[mode]
         with tempfile.NamedTemporaryFile("w") as bench_file:
             bench_file.write(benchmarks)
             bench_file.flush()
-            return run_program(call + [mode, bench_file.name], seed=seed)
+            return run_program(call + [mode, bench_file.name], seed=seed, timeout=timeout)
     else:
         assert mode == "script"
         return run_program(call, seed=seed)
@@ -296,10 +304,7 @@ def run_cuda_script(  # # noqa: C901
     include_dirs: Optional[list[str]] = None,
     libraries: Optional[list[str]] = None,
     flags: Optional[list[str]] = None,
-    mode: str = "script",
-    tests: str = None,
-    benchmarks: str = None,
-    seed: int = 42,
+    **kwargs
 ) -> EvalResult:
     """
     Executes the provided CUDA kernel in an isolated environment
@@ -348,7 +353,7 @@ def run_cuda_script(  # # noqa: C901
             if os.path.exists(f):
                 os.remove(f)
 
-    run_result = run_single_evaluation(["./eval.out"], mode, tests, benchmarks, seed)
+    run_result = run_single_evaluation(["./eval.out"], **kwargs)
     return EvalResult(
         start=start, end=datetime.datetime.now(), compilation=compile_result, run=run_result
     )
@@ -357,10 +362,7 @@ def run_cuda_script(  # # noqa: C901
 def run_pytorch_script(  # noqa: C901
     sources: dict[str, str],
     main: str,
-    mode: str = None,
-    tests: str = None,
-    benchmarks: str = None,
-    seed: int = 42,
+    **kwargs,
 ) -> EvalResult:
     """
     Executes the provided PyTorch GPU kernel in an isolated environment
@@ -384,7 +386,7 @@ def run_pytorch_script(  # noqa: C901
             start=start,
             end=datetime.datetime.now(),
             compilation=None,
-            run=run_single_evaluation(["python", main], mode, tests, benchmarks, seed),
+            run=run_single_evaluation(["python", main], **kwargs),
         )
     finally:
         for f in sources.keys():
@@ -392,8 +394,12 @@ def run_pytorch_script(  # noqa: C901
                 os.remove(f)
 
 
+class _EvalRunner(Protocol):
+    def __call__(self, mode: str) -> EvalResult: ...
+
+
 def run_evaluation(
-    call: Callable[[str], EvalResult],
+    call: _EvalRunner,
     mode: str,
 ) -> dict[str, EvalResult]:
     """
@@ -421,7 +427,7 @@ def run_evaluation(
         # if they pass, run the leaderboard validation
         results["leaderboard"] = call(mode="leaderboard")
     else:
-        assert False
+        raise AssertionError("Invalid mode")
 
     return results
 
@@ -437,13 +443,20 @@ def build_test_string(tests: list[dict]):
 
 
 def run_config(config: dict):
+    common_args = {
+        "tests":  build_test_string(config.get("tests", [])),
+        "benchmarks": build_test_string(config.get("benchmarks", [])),
+        "test_timeout": config.get("test_timeout", 30),
+        "benchmark_timeout": config.get("benchmark_timeout", 60),
+        "ranked_timeout": config.get("ranked_timeout", 30),
+        "seed": 42
+    }
     if config["lang"] == "py":
         runner = functools.partial(
             run_pytorch_script,
             sources=config["sources"],
             main=config["main"],
-            tests=build_test_string(config.get("tests", [])),
-            benchmarks=build_test_string(config.get("benchmarks", [])),
+            **common_args,
         )
     elif config["lang"] == "cu":
         runner = functools.partial(
@@ -455,8 +468,7 @@ def run_config(config: dict):
             include_dirs=config.get("include_dirs", []),
             libraries=config.get("libraries", []),
             flags=CUDA_FLAGS,
-            tests=build_test_string(config.get("tests", [])),
-            benchmarks=build_test_string(config.get("benchmarks", [])),
+            **common_args,
         )
     else:
         raise ValueError(f"Invalid language {config['lang']}")

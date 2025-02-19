@@ -90,3 +90,20 @@ def custom_kernel(input):
     assert run.success
     assert len(run.stderr) < 16384
     assert "[...]" in run.stderr
+
+
+def test_timeout():
+    sub = """
+from task import input_t, output_t
+import time
+
+def custom_kernel(data: input_t) -> output_t:
+    time.sleep(5)
+    return data
+"""
+
+    run = run_pytorch_helper({**files, "submission.py": sub}, test_timeout=2)
+    assert run.success is False
+    assert run.stdout == ""
+    assert run.exit_code == ExitCode.TIMEOUT_EXPIRED
+    assert len(run.result) == 0
