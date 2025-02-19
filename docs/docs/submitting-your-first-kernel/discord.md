@@ -37,7 +37,7 @@ see these commands*. You should see a list like so:
 <br></br>
 
 Stay on the the `#submissions` channel on Discord -- while we allow other commands on any channel, we only
-allow submission slash commands (e.g. `/leaderboard submit modal`) in this channel specifically. The
+allow submission slash commands (e.g. `/leaderboard submit ranked`) in this channel specifically. The
 following two examples will be for the `identity_py` and `identity_cuda` leaderboards, which expect
 the participant to submit a Python and CUDA kernel respectively that returns simply returns the
 input. We will show you how to read the reference code to format your submission.
