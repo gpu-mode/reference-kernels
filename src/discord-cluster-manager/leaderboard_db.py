@@ -16,7 +16,7 @@ from env import (
 )
 from run_eval import CompileResult, RunResult
 from task import LeaderboardTask
-from utils import LeaderboardItem, LeaderboardRankedEntry, LRUCache, setup_logging
+from utils import KernelBotError, LeaderboardItem, LeaderboardRankedEntry, LRUCache, setup_logging
 
 leaderboard_name_cache = LRUCache(max_size=512)
 
@@ -93,7 +93,7 @@ class LeaderboardDB:
         """Context manager exit"""
         self.disconnect()
 
-    def create_leaderboard(self, leaderboard: LeaderboardItem) -> Optional[None]:
+    def create_leaderboard(self, leaderboard: LeaderboardItem) -> int:
         try:
             self.cursor.execute(
                 """
@@ -122,10 +122,16 @@ class LeaderboardDB:
 
             self.connection.commit()
             leaderboard_name_cache.invalidate()  # Invalidate autocomplete cache
+            return leaderboard_id
         except psycopg2.Error as e:
+            logger.exception("Error in leaderboard creation.", e)
+            if isinstance(e, psycopg2.errors.UniqueViolation):
+                raise KernelBotError(
+                    "Error: Tried to create a leaderboard "
+                    f'"{leaderboard["name"]}" that already exists.'
+                )
             self.connection.rollback()  # Ensure rollback if error occurs
-            return f"Error during leaderboard creation: {e}"
-        return None
+            raise KernelBotError("Error in leaderboard creation.")
 
     def update_leaderboard(self, name, deadline, task):
         try:
@@ -141,7 +147,7 @@ class LeaderboardDB:
             self.connection.rollback()
             return f"Error during leaderboard update: {e}"
 
-    def delete_leaderboard(self, leaderboard_name: str) -> Optional[str]:
+    def delete_leaderboard(self, leaderboard_name: str):
         try:
             # TODO: wait for cascade to be implemented
             self.cursor.execute(
@@ -153,10 +159,9 @@ class LeaderboardDB:
             self.connection.commit()
             leaderboard_name_cache.invalidate()  # Invalidate autocomplete cache
         except psycopg2.Error as e:
-            logging.exception("error in delete_leaderboard", exc_info=e)
+            logger.exception("Could not delete leaderboard %s.", leaderboard_name, exc_info=e)
             self.connection.rollback()
-            return f"Error during leaderboard deletion: {e}"
-        return None
+            raise KernelBotError(f"Could not delete leaderboard {leaderboard_name}.")
 
     def create_submission(
         self, leaderboard: str, file_name: str, user_id: int, code: str, time: datetime.datetime
@@ -276,8 +281,14 @@ class LeaderboardDB:
             )
             self.connection.commit()
         except psycopg2.Error as e:
-            print(f"Error during leaderboard submission: {e}")
+            logger.exception(
+                "Error during submission for leaderboard '%s' by user '%s'",
+                submission["leaderboard_name"],
+                submission["user_id"],
+                exc_info=e,
+            )
             self.connection.rollback()  # Ensure rollback if error occurs
+            raise KernelBotError("Could not create leaderboard submission entry in database")
 
     def get_leaderboard_names(self) -> list[str]:
         self.cursor.execute("SELECT name FROM leaderboard.leaderboard")

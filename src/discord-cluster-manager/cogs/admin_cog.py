@@ -14,6 +14,7 @@ from leaderboard_db import leaderboard_name_autocomplete
 from task import LeaderboardTask, make_task
 from ui.misc import DeleteConfirmationModal, GPUSelectionView
 from utils import (
+    KernelBotError,
     send_discord_message,
     setup_logging,
 )
@@ -284,34 +285,23 @@ class AdminCog(commands.Cog):
             selected_gpus = gpu
 
         with self.bot.leaderboard_db as db:
-            err = db.create_leaderboard(
-                {
-                    "name": leaderboard_name,
-                    "deadline": date_value,
-                    "task": task,
-                    "gpu_types": selected_gpus,
-                    "creator_id": interaction.user.id,
-                }
-            )
-
-            if err:
-                if "duplicate key" in err:
-                    await send_discord_message(
-                        interaction,
-                        "Error: Tried to create a leaderboard "
-                        f'"{leaderboard_name}" that already exists.',
-                        ephemeral=True,
-                    )
-                else:
-                    # Handle any other errors
-                    logger.error(f"Error in leaderboard creation: {err}")
-                    await send_discord_message(
-                        interaction,
-                        "Error in leaderboard creation.",
-                        ephemeral=True,
-                    )
+            try:
+                db.create_leaderboard(
+                    {
+                        "name": leaderboard_name,
+                        "deadline": date_value,
+                        "task": task,
+                        "gpu_types": selected_gpus,
+                        "creator_id": interaction.user.id,
+                    }
+                )
+            except KernelBotError as e:
+                await send_discord_message(
+                    interaction,
+                    str(e),
+                    ephemeral=True,
+                )
                 return False
-
             return True
 
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")

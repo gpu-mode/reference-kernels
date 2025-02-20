@@ -1,6 +1,5 @@
 import datetime
 import logging
-import re
 import subprocess
 from typing import Any, List, TypedDict, Optional
 
@@ -35,6 +34,7 @@ class KernelBotError(Exception):
     i.e., whose message can be safely displayed to the user without
     risk of leaking internal bot details.
     """
+
     def __init__(self, message):
         super().__init__(message)
 
@@ -115,7 +115,6 @@ async def send_logs(thread: discord.Thread, logs: str) -> None:
     if current_chunk:
         chunk_text = "\n".join(current_chunk)
         await thread.send(f"```\n{chunk_text}\n```")
-
 
 
 class LRUCache:

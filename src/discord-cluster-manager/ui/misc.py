@@ -1,6 +1,6 @@
 import discord
 from discord import Interaction, SelectOption, ui
-from utils import send_discord_message
+from utils import KernelBotError, send_discord_message
 
 
 class GPUSelectionView(ui.View):
@@ -46,11 +46,12 @@ class DeleteConfirmationModal(ui.Modal, title="Confirm Deletion"):
             with self.db as db:
                 method = getattr(db, f"delete_{self.field_name}", None)
                 assert method is not None, f"Delete method for {self.field_name} not found in db"
-                err = method(self.field_value)
-                if err:
+                try:
+                    method(self.field_value)
+                except KernelBotError as e:
                     await send_discord_message(
                         interaction,
-                        "An error occurred while deleting the leaderboard.",
+                        str(e),
                         ephemeral=True,
                     )
                 else:
