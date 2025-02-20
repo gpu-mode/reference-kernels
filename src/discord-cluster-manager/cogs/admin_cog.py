@@ -519,7 +519,8 @@ class AdminCog(commands.Cog):
         with open(spec_file) as f:
             competition: CompetitionData = yaml.safe_load(f)
 
-        await send_discord_message(interaction, f"Handling `{competition['name']}`...")
+        header = f"Handling `{competition['name']}`..."
+        await send_discord_message(interaction, header)
 
         update_list = []
         create_list = []
@@ -600,19 +601,21 @@ class AdminCog(commands.Cog):
         plan = ""
         if len(update_list) > 0:
             lst = "\n * ".join(x["name"] for x in update_list)
-            await send_discord_message(
-                interaction, f"The following leaderboards will be updated:\n {lst}", ephemeral=True
-            )
+            plan += f"The following leaderboards will be updated:\n {lst}"
         if len(create_list):
             lst = "\n * ".join(x["name"] for x in create_list)
-            await send_discord_message(
-                interaction,
-                f"The following new leaderboards will be created:\n {lst}",
-                ephemeral=True,
-            )
+            plan += f"The following new leaderboards will be created:\n {lst}"
 
+        if plan == "":
+            plan = "Everything is up-to-date\n"
+
+        await interaction.edit_original_response(content=f"{header}\n\n{plan}")
+
+        steps = ""
         # TODO require confirmation here!
         for entry in create_list:
+            steps += f"Creating {entry['name']}... "
+            await interaction.edit_original_response(content=f"{header}\n\n{plan}\n\n{steps}")
             await self.leaderboard_create_impl(
                 interaction,
                 entry["name"],
@@ -620,6 +623,7 @@ class AdminCog(commands.Cog):
                 make_task(root / entry["directory"]),
                 entry["gpus"],
             )
+            steps += f"done\n"
 
         for entry in update_list:
             with self.bot.leaderboard_db as db:
@@ -627,4 +631,5 @@ class AdminCog(commands.Cog):
                     entry["name"], entry["deadline"], make_task(Path(entry["directory"]))
                 )
 
-        await send_discord_message(interaction, "... DONE")
+        header += " DONE"
+        await interaction.edit_original_response(content=f"{header}\n\n{plan}\n\n{steps}")
