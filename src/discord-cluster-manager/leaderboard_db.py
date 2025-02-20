@@ -79,11 +79,15 @@ class LeaderboardDB:
             self.cursor.close()
         if self.connection:
             self.connection.close()
+        self.cursor = None
+        self.connection = None
 
     def __enter__(self):
         """Context manager entry"""
-        self.connect()
-        return self
+        assert self.connection is None, "Nested db __enter__"
+        if self.connect():
+            return self
+        return None
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit"""
