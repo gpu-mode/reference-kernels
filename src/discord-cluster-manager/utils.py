@@ -184,11 +184,13 @@ class LRUCache:
 
 
 class LeaderboardItem(TypedDict):
+    id: int
     name: str
     creator_id: int
     deadline: datetime.datetime
     task: LeaderboardTask
     gpu_types: List[str]
+    forum_id: int
 
 
 class LeaderboardRankedEntry(TypedDict):

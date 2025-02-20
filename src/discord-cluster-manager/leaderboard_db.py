@@ -106,8 +106,8 @@ class LeaderboardDB:
         try:
             self.cursor.execute(
                 """
-                INSERT INTO leaderboard.leaderboard (name, deadline, task, creator_id)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO leaderboard.leaderboard (name, deadline, task, creator_id, forum_id)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
@@ -115,6 +115,7 @@ class LeaderboardDB:
                     leaderboard["deadline"],
                     leaderboard["task"].to_str(),
                     leaderboard["creator_id"],
+                    leaderboard["forum_id"],
                 ),
             )
 
@@ -417,7 +418,7 @@ class LeaderboardDB:
     def get_leaderboard(self, leaderboard_name: str) -> LeaderboardItem | None:
         self.cursor.execute(
             """
-            SELECT id, name, deadline, task, creator_id
+            SELECT id, name, deadline, task, creator_id, forum_id
             FROM leaderboard.leaderboard
             WHERE name = %s
             """,
@@ -434,6 +435,7 @@ class LeaderboardDB:
                 deadline=res[2],
                 task=task,
                 creator_id=res[4],
+                forum_id=res[5],
             )
         else:
             return None
