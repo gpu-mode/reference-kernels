@@ -17,30 +17,6 @@ class BotManagerCog(commands.Cog):
         """Simple ping command to check if the bot is responsive"""
         await send_discord_message(interaction, "pong")
 
-    @app_commands.command(name="resync")
-    async def resync(self, interaction: discord.Interaction):
-        logger.info("Resyncing commands")
-
-        """Admin command to resync slash commands"""
-        if interaction.user.guild_permissions.administrator:
-            try:
-                await interaction.response.defer()
-                # Clear and resync
-                self.bot.tree.clear_commands(guild=interaction.guild)
-                await self.bot.tree.sync(guild=interaction.guild)
-                commands = await self.bot.tree.fetch_commands(guild=interaction.guild)
-                await send_discord_message(
-                    interaction,
-                    "Resynced commands:\n" + "\n".join([f"- /{cmd.name}" for cmd in commands]),
-                )
-            except Exception as e:
-                logger.error(f"Error in resync command: {str(e)}", exc_info=True)
-                await send_discord_message(interaction, f"Error: {str(e)}")
-        else:
-            await send_discord_message(
-                interaction, "You need administrator permissions to use this command"
-            )
-
     @app_commands.command(name="verifydb")
     async def verify_db(self, interaction: discord.Interaction):
         """Command to verify database connectivity"""

@@ -81,6 +81,10 @@ class AdminCog(commands.Cog):
             name="show-stats", description="Show stats for the bot"
         )(self.show_bot_stats)
 
+        self.resync = bot.admin_group.command(
+            name="resync", description="Trigger re-synchronization of slash commands"
+        )(self.resync)
+
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
     # --------------------------------------------------------------------------
@@ -600,3 +604,25 @@ class AdminCog(commands.Cog):
                 msg += f"\n{k} = {v}"
             msg += "\n```"
             await send_discord_message(interaction, msg, ephemeral=True)
+
+    async def resync(self, interaction: discord.Interaction):
+        """Admin command to resync slash commands"""
+        logger.info("Resyncing commands")
+        if interaction.user.guild_permissions.administrator:
+            try:
+                await interaction.response.defer()
+                # Clear and resync
+                self.bot.tree.clear_commands(guild=interaction.guild)
+                await self.bot.tree.sync(guild=interaction.guild)
+                commands = await self.bot.tree.fetch_commands(guild=interaction.guild)
+                await send_discord_message(
+                    interaction,
+                    "Resynced commands:\n" + "\n".join([f"- /{cmd.name}" for cmd in commands]),
+                )
+            except Exception as e:
+                logger.error(f"Error in resync command: {str(e)}", exc_info=True)
+                await send_discord_message(interaction, f"Error: {str(e)}")
+        else:
+            await send_discord_message(
+                interaction, "You need administrator permissions to use this command"
+            )
