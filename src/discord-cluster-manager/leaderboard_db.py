@@ -14,12 +14,13 @@ from env import (
     POSTGRES_PORT,
     POSTGRES_USER,
 )
-from psycopg2 import Error
 from run_eval import CompileResult, RunResult
 from task import LeaderboardTask
-from utils import LeaderboardItem, LeaderboardRankedEntry, LRUCache
+from utils import LeaderboardItem, LeaderboardRankedEntry, LRUCache, setup_logging
 
 leaderboard_name_cache = LRUCache(max_size=512)
+
+logger = setup_logging(__name__)
 
 
 async def leaderboard_name_autocomplete(
@@ -41,7 +42,7 @@ async def leaderboard_name_autocomplete(
         ]
         return leaderboard_name_cache[current]
     except Exception as e:
-        logging.exception("Error in leaderboard autocomplete", exc_info=e)
+        logger.exception("Error in leaderboard autocomplete", exc_info=e)
         return []
 
 
@@ -68,8 +69,8 @@ class LeaderboardDB:
             )
             self.cursor = self.connection.cursor()
             return True
-        except Error as e:
-            print(f"Error connecting to PostgreSQL: {e}")
+        except psycopg2.Error as e:
+            logger.exception("Error connecting to PostgreSQL", exc_info=e)
             return False
 
     def disconnect(self):

@@ -2,14 +2,14 @@ import datetime
 import logging
 import re
 import subprocess
-from typing import Any, List, TypedDict
+from typing import Any, List, TypedDict, Optional
 
 import discord
 from consts import Language, SubmissionMode
 from task import LeaderboardTask
 
 
-def setup_logging():
+def setup_logging(name: Optional[str] = None):
     """Configure and setup logging for the application"""
 
     formatter = logging.Formatter(
@@ -20,13 +20,23 @@ def setup_logging():
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
 
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger(name or __name__)
     logger.setLevel(logging.INFO)
 
     if not logger.handlers:
         logger.addHandler(console_handler)
 
     return logger
+
+
+class KernelBotError(Exception):
+    """
+    This class represents an Exception that has been sanitized,
+    i.e., whose message can be safely displayed to the user without
+    risk of leaking internal bot details.
+    """
+    def __init__(self, message):
+        super().__init__(message)
 
 
 def get_github_branch_name():
@@ -106,16 +116,6 @@ async def send_logs(thread: discord.Thread, logs: str) -> None:
         chunk_text = "\n".join(current_chunk)
         await thread.send(f"```\n{chunk_text}\n```")
 
-
-def extract_score(score_str: str) -> float:
-    """
-    Extract score from output logs and push to DB (kind of hacky).
-    """
-    match = re.search(r"score:\s*(-?\d+\.\d+)", score_str)
-    if match:
-        return float(match.group(1))
-    else:
-        return None
 
 
 class LRUCache:
