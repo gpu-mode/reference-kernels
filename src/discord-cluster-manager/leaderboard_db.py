@@ -129,9 +129,9 @@ class LeaderboardDB:
                 raise KernelBotError(
                     "Error: Tried to create a leaderboard "
                     f'"{leaderboard["name"]}" that already exists.'
-                )
+                ) from e
             self.connection.rollback()  # Ensure rollback if error occurs
-            raise KernelBotError("Error in leaderboard creation.")
+            raise KernelBotError("Error in leaderboard creation.") from e
 
     def update_leaderboard(self, name, deadline, task):
         try:
@@ -161,7 +161,7 @@ class LeaderboardDB:
         except psycopg2.Error as e:
             logger.exception("Could not delete leaderboard %s.", leaderboard_name, exc_info=e)
             self.connection.rollback()
-            raise KernelBotError(f"Could not delete leaderboard {leaderboard_name}.")
+            raise KernelBotError(f"Could not delete leaderboard {leaderboard_name}.") from e
 
     def create_submission(
         self, leaderboard: str, file_name: str, user_id: int, code: str, time: datetime.datetime
@@ -288,7 +288,7 @@ class LeaderboardDB:
                 exc_info=e,
             )
             self.connection.rollback()  # Ensure rollback if error occurs
-            raise KernelBotError("Could not create leaderboard submission entry in database")
+            raise KernelBotError("Could not create leaderboard submission entry in database") from e
 
     def get_leaderboard_names(self) -> list[str]:
         self.cursor.execute("SELECT name FROM leaderboard.leaderboard")
