@@ -307,7 +307,7 @@ class AdminCog(commands.Cog):
                     + f"Submission deadline: {date_value}"
                     + f"\nForum thread: {thread.thread.mention}",
                 )
-                return
+            return
 
         except discord.Forbidden:
             await send_discord_message(
