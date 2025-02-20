@@ -1,3 +1,5 @@
+import os
+
 import discord
 import psycopg2
 from discord import app_commands
@@ -42,3 +44,17 @@ class BotManagerCog(commands.Cog):
             message = "Error interacting with the database"
             logger.error(f"{message}: {str(e)}", exc_info=True)
             await send_discord_message(interaction, f"{message}.")
+
+    @app_commands.command(name="get-api-url")
+    async def get_api_url(self, interaction: discord.Interaction):
+        if not os.environ.get("HEROKU_APP_DEFAULT_DOMAIN_NAME"):
+            await send_discord_message(
+                interaction,
+                "No `HEROKU_APP_DEFAULT_DOMAIN_NAME` present,"
+                " are you sure you aren't running locally?",
+            )
+        else:
+            await send_discord_message(
+                interaction,
+                f"API URL: https://{os.environ['HEROKU_APP_DEFAULT_DOMAIN_NAME']}",
+            )
