@@ -1,0 +1,31 @@
+# name: conv2d-py
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a 2D convolution kernel that matches the reference implementation.
+  The kernel should perform 2D convolution with the given specifications (stride and padding).
+
+config:
+  main: "eval.py" 
+
+tests:
+  - {"size": 32, "kernel_size": 3, "channels": 16, "batch": 1, "seed": 4242}
+  - {"size": 32, "kernel_size": 5, "channels": 16, "batch": 2, "seed": 5236}
+  - {"size": 64, "kernel_size": 3, "channels": 32, "batch": 1, "seed": 1001}
+  - {"size": 64, "kernel_size": 5, "channels": 32, "batch": 2, "seed": 5531}
+  - {"size": 128, "kernel_size": 3, "channels": 64, "batch": 1, "seed": 9173}
+
+benchmarks:
+  - {"size": 128, "kernel_size": 3, "channels": 64, "batch": 4, "seed": 54352}
+  - {"size": 128, "kernel_size": 5, "channels": 64, "batch": 4, "seed": 93246}
+  - {"size": 256, "kernel_size": 3, "channels": 128, "batch": 2, "seed": 6256}
+  - {"size": 256, "kernel_size": 5, "channels": 128, "batch": 2, "seed": 8841}
+  - {"size": 512, "kernel_size": 3, "channels": 256, "batch": 1, "seed": 6252} 

@@ -1,0 +1,16 @@
+name: PMPP Practice Problems
+# when does this end (individual problems might close earlier)
+deadline: ""
+# A description for this particular competition
+description: ""
+# the list of problems
+problems:
+  - directory: pmpp/conv2d_py
+    name: conv2d
+    deadline: "2025-12-31"
+    gpus:
+      - H100
+      - A100
+      - T4
+      - L4
+    # Scoring rule/weights etc

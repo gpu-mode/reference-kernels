@@ -1,0 +1,44 @@
+from utils import verbose_allclose
+import torch
+from task import input_t, output_t
+
+def ref_kernel(data: input_t) -> output_t:
+    """
+    Reference implementation of RGB to grayscale conversion using PyTorch.
+    Uses the standard coefficients: Y = 0.2989 R + 0.5870 G + 0.1140 B
+    
+    Args:
+        data: RGB tensor of shape (H, W, 3) with values in [0, 1]
+    Returns:
+        Grayscale tensor of shape (H, W) with values in [0, 1]
+    """
+    # Standard RGB to Grayscale coefficients
+    weights = torch.tensor([0.2989, 0.5870, 0.1140], 
+                         device=data.device, 
+                         dtype=data.dtype)
+    return torch.sum(data * weights, dim=-1)
+
+def generate_input(size: int, seed: int) -> input_t:
+    """
+    Generates random RGB image tensor of specified size.
+    Returns:
+        Tensor of shape (size, size, 3) with values in [0, 1]
+    """
+    gen = torch.Generator(device='cuda')
+    gen.manual_seed(seed)
+    return torch.rand(size, size, 3, 
+                     device='cuda', 
+                     dtype=torch.float32, 
+                     generator=gen).contiguous()
+
+def check_implementation(
+    data: input_t,
+    output: output_t,
+) -> str:
+    expected = ref_kernel(data)
+    reasons = verbose_allclose(output, expected, rtol=1e-4, atol=1e-4)
+    
+    if len(reasons) > 0:
+        return "mismatch found! custom implementation doesn't match reference: " + reasons[0]
+    
+    return '' 

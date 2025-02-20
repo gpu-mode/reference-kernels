@@ -1,0 +1,31 @@
+# name: mergesort-cuda-inline
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a sort kernel that matches the reference implementation.
+  The kernel should sort the input array in ascending order using the merge sort algorithm.
+
+config:
+  main: "eval.py" 
+
+tests:
+  - {"size": 1023, "seed": 4242}
+  - {"size": 1024, "seed": 5236}
+  - {"size": 1025, "seed": 1001}
+  - {"size": 2048, "seed": 5531}
+  - {"size": 4096, "seed": 9173}
+
+benchmarks:
+  - {"size": 8192, "seed": 54352}
+  - {"size": 16384, "seed": 93246}
+  - {"size": 32768, "seed": 6256}
+  - {"size": 65536, "seed": 8841}
+  - {"size": 131072, "seed": 6252} 
