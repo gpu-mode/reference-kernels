@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import os
 
 import discord
 import uvicorn
@@ -267,7 +268,13 @@ async def start_bot_and_api(debug_mode: bool):
 
     init_api(bot_instance)
 
-    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info", limit_concurrency=10)
+    config = uvicorn.Config(
+        app,
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT") or 8000),
+        log_level="info",
+        limit_concurrency=10,
+    )
     server = uvicorn.Server(config)
 
     # we need this as discord and fastapi both run on the same event loop
