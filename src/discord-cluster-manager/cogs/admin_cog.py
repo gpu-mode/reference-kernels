@@ -229,7 +229,18 @@ class AdminCog(commands.Cog):
                 ephemeral=True,
             )
 
-        await self.leaderboard_create_impl(interaction, leaderboard_name, deadline, task)
+        await self.leaderboard_create_impl(interaction, leaderboard_name, deadline, task, gpus=None)
+
+    def _parse_deadline(self, deadline: str):
+        # Try parsing with time first
+        try:
+            return datetime.strptime(deadline, "%Y-%m-%d %H:%M")
+        except ValueError:
+            try:
+                return datetime.strptime(deadline, "%Y-%m-%d")
+            except ValueError as ve:
+                logger.error(f"Value Error: {str(ve)}", exc_info=True)
+        return None
 
     async def leaderboard_create_impl(  # noqa: C901
         self,
@@ -248,20 +259,13 @@ class AdminCog(commands.Cog):
             )
             return
 
-        # Try parsing with time first
-        try:
-            date_value = datetime.strptime(deadline, "%Y-%m-%d %H:%M")
-        except ValueError:
-            try:
-                date_value = datetime.strptime(deadline, "%Y-%m-%d")
-            except ValueError as ve:
-                logger.error(f"Value Error: {str(ve)}", exc_info=True)
-                await send_discord_message(
-                    interaction,
-                    "Invalid date format. Please use YYYY-MM-DD or YYYY-MM-DD HH:MM",
-                    ephemeral=True,
-                )
-                return
+        date_value = self._parse_deadline(deadline)
+        if date_value is None:
+            await send_discord_message(
+                interaction,
+                "Invalid date format. Please use YYYY-MM-DD or YYYY-MM-DD HH:MM",
+                ephemeral=True,
+            )
 
         if date_value < datetime.now():
             await send_discord_message(
@@ -519,7 +523,12 @@ class AdminCog(commands.Cog):
                 # check for differences
                 old = leaderboards[name]  # type: LeaderboardItem
                 new_task = make_task(source)
-                if old["deadline"] != problem["deadline"]:
+
+                # from the database, we get datetime with timezone,
+                # so we need to convert here to enable comparison
+                new_dl = self._parse_deadline(problem["deadline"])
+                new_dl = new_dl.astimezone()
+                if old["deadline"] != new_dl:
                     pass
                 elif old["gpu_types"] != problem["gpus"]:
                     await send_discord_message(
