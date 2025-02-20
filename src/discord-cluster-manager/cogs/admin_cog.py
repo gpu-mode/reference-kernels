@@ -462,7 +462,11 @@ class AdminCog(commands.Cog):
             interaction, "Bot will accept submissions again!", ephemeral=True
         )
 
-    async def update_problems(self, interaction: discord.Interaction):
+    @app_commands.describe(url="Repository from which to import problems",
+                           problem_set="Which problem set to load.")
+    async def update_problems(self, interaction: discord.Interaction,
+                              url: Optional[str] = None,
+                              problem_set: Optional[str] = None):
         is_admin = await self.admin_check(interaction)
         if not is_admin:
             await send_discord_message(
@@ -472,15 +476,18 @@ class AdminCog(commands.Cog):
             )
             return
 
+        if url is None:
+            url = f"https://github.com/{env.PROBLEMS_REPO}.git"
+
         await interaction.response.defer(ephemeral=True)
         with tempfile.TemporaryDirectory() as temp_dir:
             try:
-                subprocess.check_call(["git", "clone", "--depth", "1", f"https://github.com/{env.PROBLEMS_REPO}.git", temp_dir],
+                subprocess.check_call(["git", "clone", "--depth", "1", url, temp_dir],
                                       encoding="utf-8")
             except subprocess.CalledProcessError as E:
                 logger.exception("could not git clone problems repo: %s", E.stderr, exc_info=E)
                 # admin-only command, we can send error messages as ephemeral
-                msg = f"could not git clone problems repo:\nstdout: {E.stdout}\nstderr: {E.stderr}"
+                msg = f"could not git clone `{url}`:\nstdout: {E.stdout}\nstderr: {E.stderr}"
                 await send_discord_message(
                     interaction,
                     msg,
@@ -490,8 +497,22 @@ class AdminCog(commands.Cog):
 
             # OK, we have the problems. Go over them one-by-one
             problem_dir = Path(temp_dir) / "problems"
-            for competition in problem_dir.glob("*.yaml"):
-                await self.update_competition(interaction, competition)
+            if problem_set is None:
+                for competition in problem_dir.glob("*.yaml"):
+                    await self.update_competition(interaction, competition)
+            else:
+                problem_set = problem_dir / f"{problem_set}.yaml"
+                if not problem_set.exists():
+                    msg = f"Could not find problem set {problem_set} in repository {url}.\n"
+                    msg += "Available options:\n\n"
+                    msg += "\n* ".join([f.stem for f in problem_dir.glob("*.yaml")])
+                    await send_discord_message(
+                        interaction,
+                        msg,
+                        ephemeral=True,
+                    )
+                    return
+                await self.update_competition(interaction, problem_set)
 
     async def update_competition(self, interaction: discord.Interaction, spec_file: Path):
         root = spec_file.parent
@@ -576,6 +597,7 @@ class AdminCog(commands.Cog):
                 create_list.append(problem)
 
         # OK, now we know what we want to do
+        plan = ""
         if len(update_list) > 0:
             lst = "\n * ".join(x["name"] for x in update_list)
             await send_discord_message(
