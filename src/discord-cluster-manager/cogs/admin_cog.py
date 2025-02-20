@@ -1,14 +1,12 @@
 import subprocess
 import tempfile
-import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, TypedDict
 
 import discord
-import yaml
-
 import env
+import yaml
 from consts import GitHubGPU, ModalGPU
 from discord import app_commands
 from discord.ext import commands
@@ -54,10 +52,6 @@ async def leaderboard_dir_autocomplete(
 class AdminCog(commands.Cog):
     def __init__(self, bot: "ClusterBot"):
         self.bot = bot
-
-        self.leaderboard_create = bot.admin_group.command(
-            name="create", description="Create a new leaderboard"
-        )(self.leaderboard_create)
 
         # create-local should only be used for the development bot
         if self.bot.debug_mode:
@@ -151,85 +145,6 @@ class AdminCog(commands.Cog):
                 interaction,
                 f"Leaderboard '{leaderboard_name}' created.",
             )
-
-    @discord.app_commands.describe(
-        leaderboard_name="Name of the leaderboard",
-        deadline="Competition deadline in the form: 'Y-m-d'",
-        task_zip="Zipfile containing the task",
-    )
-    async def leaderboard_create(  # noqa: C901
-        self,
-        interaction: discord.Interaction,
-        leaderboard_name: str,
-        deadline: str,
-        task_zip: discord.Attachment,
-    ):
-        is_admin = await self.admin_check(interaction)
-        is_creator = await self.creator_check(interaction)
-        thread = None
-        if len(leaderboard_name) > 95:
-            await send_discord_message(
-                interaction,
-                "Leaderboard name is too long. Please keep it under 95 characters.",
-                ephemeral=True,
-            )
-            return
-
-        if not (is_admin or is_creator):
-            await send_discord_message(
-                interaction,
-                "You need the Leaderboard Creator role or the Leaderboard Admin role to use this command.",  # noqa: E501
-                ephemeral=True,
-            )
-            return
-
-        # Read the template file
-        try:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with tempfile.NamedTemporaryFile("w+b") as temp:
-                    temp.write(await task_zip.read())
-                    temp.flush()
-                    with zipfile.ZipFile(temp, "r") as zip_ref:
-                        zip_ref.extractall(tmpdir)
-
-                contents = list(Path(tmpdir).iterdir())
-                # support both a zipped directory, and files
-                # directly in the zip
-                if len(contents) == 1:
-                    task = make_task(contents[0])
-                else:
-                    task = make_task(tmpdir)
-        except FileNotFoundError as e:
-            file = Path(e.filename).name
-            if file == "task.yml":
-                await send_discord_message(
-                    interaction,
-                    "Error in leaderboard creation. Missing `task.yml`.",
-                    ephemeral=True,
-                )
-            else:
-                await send_discord_message(
-                    interaction,
-                    f"Error in leaderboard creation. Could not find `{file}`.",
-                    ephemeral=True,
-                )
-        except zipfile.BadZipFile:
-            # Handle any other errors
-            await send_discord_message(
-                interaction,
-                "Error in leaderboard creation. Is the uploaded file a valid zip archive?",
-                ephemeral=True,
-            )
-        except Exception as e:
-            logger.error(f"Error in leaderboard creation: {e}", exc_info=e)
-            # Handle any other errors
-            await send_discord_message(
-                interaction,
-                "Error in leaderboard creation.",
-                ephemeral=True,
-            )
-
-        await self.leaderboard_create_impl(interaction, leaderboard_name, deadline, task, gpus=None)
 
     def _parse_deadline(self, deadline: str):
         # Try parsing with time first
@@ -462,11 +377,18 @@ class AdminCog(commands.Cog):
             interaction, "Bot will accept submissions again!", ephemeral=True
         )
 
-    @app_commands.describe(url="Repository from which to import problems",
-                           problem_set="Which problem set to load.")
-    async def update_problems(self, interaction: discord.Interaction,
-                              url: Optional[str] = None,
-                              problem_set: Optional[str] = None):
+    @app_commands.describe(
+        url="Repository from which to import problems",
+        problem_set="Which problem set to load.",
+        branch="Which branch to pull from",
+    )
+    async def update_problems(
+        self,
+        interaction: discord.Interaction,
+        url: Optional[str] = None,
+        problem_set: Optional[str] = None,
+        branch: Optional[str] = None,
+    ):
         is_admin = await self.admin_check(interaction)
         if not is_admin:
             await send_discord_message(
@@ -481,9 +403,12 @@ class AdminCog(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
         with tempfile.TemporaryDirectory() as temp_dir:
+            args = ["git", "clone", "--depth", "1"]
+            if branch is not None:
+                args += ["--single-branch", "--branch", branch]
+            args += [url, temp_dir]
             try:
-                subprocess.check_call(["git", "clone", "--depth", "1", url, temp_dir],
-                                      encoding="utf-8")
+                subprocess.check_call(args, encoding="utf-8")
             except subprocess.CalledProcessError as E:
                 logger.exception("could not git clone problems repo: %s", E.stderr, exc_info=E)
                 # admin-only command, we can send error messages as ephemeral
@@ -623,7 +548,7 @@ class AdminCog(commands.Cog):
                 make_task(root / entry["directory"]),
                 entry["gpus"],
             )
-            steps += f"done\n"
+            steps += "done\n"
 
         for entry in update_list:
             with self.bot.leaderboard_db as db:
