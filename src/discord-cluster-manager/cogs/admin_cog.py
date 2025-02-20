@@ -227,8 +227,8 @@ class AdminCog(commands.Cog):
         except discord.Forbidden:
             await send_discord_message(
                 interaction,
-                "Error: Bot doesn't have permission to create forum threads. Leaderboard was not created.",
-                # noqa: E501
+                "Error: Bot doesn't have permission to create forum threads."
+                " Leaderboard was not created.",
                 ephemeral=True,
             )
         except discord.HTTPException:
@@ -429,7 +429,7 @@ class AdminCog(commands.Cog):
                 problem_set = problem_dir / f"{problem_set}.yaml"
                 if not problem_set.exists():
                     msg = f"Could not find problem set {problem_set} in repository {url}.\n"
-                    msg += "Available options:\n\n"
+                    msg += "Available options:\n\n* "
                     msg += "\n* ".join([f.stem for f in problem_dir.glob("*.yaml")])
                     await send_discord_message(
                         interaction,
@@ -439,14 +439,9 @@ class AdminCog(commands.Cog):
                     return
                 await self.update_competition(interaction, problem_set)
 
-    async def update_competition(self, interaction: discord.Interaction, spec_file: Path):
-        root = spec_file.parent
-        with open(spec_file) as f:
-            competition: CompetitionData = yaml.safe_load(f)
-
-        header = f"Handling `{competition['name']}`..."
-        await send_discord_message(interaction, header)
-
+    async def _create_update_plan(  # noqa: C901
+        self, interaction: discord.Interaction, competition: CompetitionData, root: Path
+    ):
         update_list = []
         create_list = []
 
@@ -486,13 +481,28 @@ class AdminCog(commands.Cog):
                 elif old["task"] != new_task:
                     ot = old["task"]
                     # now look what precisely has changed. For the moment, disallow anything
-                    # that would require us to do more careful task versioning; we can only change things
-                    # that have no bearing on existing runs (like description and templates)
+                    # that would require us to do more careful task versioning;
+                    # we can only change things that have no bearing on existing
+                    # runs (like description and templates)
                     if ot.files != new_task.files:
-                        await send_discord_message(
-                            interaction,
-                            "Changing task files an existing problem is currently not possible",
+                        file_list = set.symmetric_difference(
+                            set(ot.files.keys()), set(new_task.files)
                         )
+                        if len(file_list) != 0:
+                            await send_discord_message(
+                                interaction,
+                                f"Adding or removing task files of existing problem `{name}`"
+                                f" is currently not possible. File list difference: {file_list}",
+                            )
+                        else:
+                            diff_files = {
+                                key for key in ot.files if ot.files[key] != new_task.files[key]
+                            }
+                            await send_discord_message(
+                                interaction,
+                                f"Changing task files of existing problem `{name}`"
+                                f" is currently not possible. Changed files: {diff_files}",
+                            )
                         continue
                     if ot.config != new_task.config:
                         await send_discord_message(
@@ -522,39 +532,56 @@ class AdminCog(commands.Cog):
             else:
                 create_list.append(problem)
 
-        # OK, now we know what we want to do
-        plan = ""
-        if len(update_list) > 0:
-            lst = "\n * ".join(x["name"] for x in update_list)
-            plan += f"The following leaderboards will be updated:\n {lst}"
-        if len(create_list):
-            lst = "\n * ".join(x["name"] for x in create_list)
-            plan += f"The following new leaderboards will be created:\n {lst}"
+        return update_list, create_list
 
-        if plan == "":
-            plan = "Everything is up-to-date\n"
+    async def update_competition(self, interaction: discord.Interaction, spec_file: Path):
+        try:
+            root = spec_file.parent
+            with open(spec_file) as f:
+                competition: CompetitionData = yaml.safe_load(f)
 
-        await interaction.edit_original_response(content=f"{header}\n\n{plan}")
+            header = f"Handling `{competition['name']}`..."
+            await send_discord_message(interaction, header)
 
-        steps = ""
-        # TODO require confirmation here!
-        for entry in create_list:
-            steps += f"Creating {entry['name']}... "
-            await interaction.edit_original_response(content=f"{header}\n\n{plan}\n\n{steps}")
-            await self.leaderboard_create_impl(
-                interaction,
-                entry["name"],
-                entry["deadline"],
-                make_task(root / entry["directory"]),
-                entry["gpus"],
+            update_list, create_list = await self._create_update_plan(
+                interaction, competition, root
             )
-            steps += "done\n"
 
-        for entry in update_list:
-            with self.bot.leaderboard_db as db:
-                db.update_leaderboard(
-                    entry["name"], entry["deadline"], make_task(Path(entry["directory"]))
+            # OK, now we know what we want to do
+            plan = ""
+            if len(update_list) > 0:
+                lst = "\n * ".join(x["name"] for x in update_list)
+                plan += f"The following leaderboards will be updated:\n * {lst}\n"
+            if len(create_list):
+                lst = "\n * ".join(x["name"] for x in create_list)
+                plan += f"The following new leaderboards will be created:\n * {lst}\n"
+
+            if plan == "":
+                plan = "Everything is up-to-date\n"
+
+            await interaction.edit_original_response(content=f"{header}\n\n{plan}")
+
+            steps = ""
+            # TODO require confirmation here!
+            for entry in create_list:
+                steps += f"Creating {entry['name']}... "
+                await interaction.edit_original_response(content=f"{header}\n\n{plan}\n\n{steps}")
+                await self.leaderboard_create_impl(
+                    interaction,
+                    entry["name"],
+                    entry["deadline"],
+                    make_task(root / entry["directory"]),
+                    entry["gpus"],
                 )
+                steps += "done\n"
 
-        header += " DONE"
-        await interaction.edit_original_response(content=f"{header}\n\n{plan}\n\n{steps}")
+            for entry in update_list:
+                with self.bot.leaderboard_db as db:
+                    db.update_leaderboard(
+                        entry["name"], entry["deadline"], make_task(Path(entry["directory"]))
+                    )
+
+            header += " DONE"
+            await interaction.edit_original_response(content=f"{header}\n\n{plan}\n\n{steps}")
+        except Exception as e:
+            logger.exception("Error updating problem set", exc_info=e)
