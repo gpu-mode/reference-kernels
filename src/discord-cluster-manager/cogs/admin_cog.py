@@ -45,7 +45,7 @@ async def leaderboard_dir_autocomplete(
     current: str,
 ) -> list[discord.app_commands.Choice[str]]:
     """Return leaderboard names that match the current typed name"""
-    root = Path("examples")
+    root = Path(env.PROBLEM_DEV_DIR)
     return [
         discord.app_commands.Choice(name=x.name, value=x.name) for x in root.iterdir() if x.is_dir()
     ]
@@ -134,8 +134,8 @@ class AdminCog(commands.Cog):
             )
             return
 
-        directory = Path("examples") / directory
-        assert directory.resolve().is_relative_to(Path.cwd())
+        directory = Path(env.PROBLEM_DEV_DIR) / directory
+        assert directory.resolve().is_relative_to(Path.cwd() / env.PROBLEM_DEV_DIR)
         task = make_task(directory)
 
         # clearly mark this leaderboard as development-only

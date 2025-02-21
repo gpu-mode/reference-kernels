@@ -26,6 +26,9 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPO")
 PROBLEMS_REPO = os.getenv("PROBLEMS_REPO")
 
+# Directory that will be used for local problem development.
+PROBLEM_DEV_DIR = os.getenv("PROBLEM_DEV_DIR", "examples")
+
 # PostgreSQL-specific constants
 POSTGRES_HOST = os.getenv("POSTGRES_HOST")
 POSTGRES_DATABASE = os.getenv("POSTGRES_DATABASE")

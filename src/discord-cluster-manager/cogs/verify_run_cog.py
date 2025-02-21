@@ -6,6 +6,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 
 import discord
+import env
+from cogs import admin_cog
 from cogs.github_cog import GitHubCog
 from cogs.leaderboard_cog import LeaderboardSubmitCog
 from cogs.modal_cog import ModalCog
@@ -145,9 +147,10 @@ class VerifyRunCog(commands.Cog):
             return False
 
     @app_commands.command(name="verify-task")
+    @app_commands.autocomplete(task=admin_cog.leaderboard_dir_autocomplete)
     async def verify_task(self, interaction: discord.Interaction, task: str):
-        directory = Path("examples") / task
-        if not directory.resolve().is_relative_to(Path.cwd() / "examples"):
+        directory = Path(env.PROBLEM_DEV_DIR) / task
+        if not directory.resolve().is_relative_to(Path.cwd() / env.PROBLEM_DEV_DIR):
             await send_discord_message(interaction, f"Invalid path {directory.resolve()}")
             return
         try:
