@@ -234,7 +234,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 await send_discord_message(
                     interaction,
                     "Contradicting leaderboard name specification. "
-                    "Submitting to {leaderboard_name}",
+                    f"Submitting to `{leaderboard_name}`",
                 )
             else:
                 leaderboard_name = info["leaderboard"]
