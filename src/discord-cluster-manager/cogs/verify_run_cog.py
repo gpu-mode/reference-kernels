@@ -1,10 +1,13 @@
 import asyncio
+import datetime
 import re
+import uuid
 from pathlib import Path
 from unittest.mock import AsyncMock
 
 import discord
 from cogs.github_cog import GitHubCog
+from cogs.leaderboard_cog import LeaderboardSubmitCog
 from cogs.modal_cog import ModalCog
 from consts import SubmissionMode
 from discord import app_commands
@@ -45,6 +48,7 @@ class VerifyRunCog(commands.Cog):
         interaction: discord.Interaction,
         lang: str,
     ) -> bool:
+        # async_submit_cog_job
         github_command = github_cog.submit_leaderboard
         if lang == "py":
             sub_code = create_mock_attachment(
@@ -140,9 +144,65 @@ class VerifyRunCog(commands.Cog):
             )
             return False
 
+    @app_commands.command(name="verify-task")
+    async def verify_task(self, interaction: discord.Interaction, task: str):
+        directory = Path("examples") / task
+        if not directory.resolve().is_relative_to(Path.cwd() / "examples"):
+            await send_discord_message(interaction, f"Invalid path {directory.resolve()}")
+            return
+        try:
+            task = make_task(directory)
+        except Exception as E:
+            logger.exception("Could not make task", exc_info=E)
+            await send_discord_message(interaction, f"Invalid task {directory}")
+            return
+        await send_discord_message(interaction, f"Testing {directory}")
+
+        lb_name = f"test.{uuid.uuid4().hex}"
+        # create the dummy leaderboard
+        with self.bot.leaderboard_db as db:  # type: LeaderboardDB
+            err = db.create_leaderboard(
+                {
+                    "name": lb_name,
+                    "deadline": datetime.datetime.now() + datetime.timedelta(days=1),
+                    "task": task,
+                    "gpu_types": "T4",
+                    "creator_id": interaction.user.id,
+                }
+            )
+            if err:
+                logger.error(err)
+                await send_discord_message(interaction, err)
+
+        try:
+            # make submissions
+            submissions = []
+            for sub in directory.glob("submission*"):
+                for mode in [
+                    SubmissionMode.TEST,
+                    SubmissionMode.BENCHMARK,
+                    SubmissionMode.LEADERBOARD,
+                ]:
+                    submissions.append(self.verify_submission(interaction, lb_name, sub, mode))
+            await asyncio.gather(*submissions)
+        except Exception as E:
+            logger.exception("Error in LB test", exc_info=E)
+        finally:
+            with self.bot.leaderboard_db as db:
+                db.delete_leaderboard(lb_name)
+
+        await send_discord_message(interaction, "Done")
+
+    async def verify_submission(
+        self, interaction: discord.Interaction, lb_name: str, sub: Path, mode: SubmissionMode
+    ):
+        lb_cog = LeaderboardSubmitCog(self.bot)
+        script = create_mock_attachment(sub.name, sub.read_text())
+        await lb_cog.on_submit_hook(interaction, lb_name, script, mode, cmd_gpus=["T4"])
+
     @app_commands.command(name="verifyruns")
     async def verify_runs(self, interaction: discord.Interaction):
-        """Verify runs on on Modal, GitHub Nvidia, and GitHub AMD."""
+        """Verify runs on Modal, GitHub Nvidia, and GitHub AMD."""
 
         try:
             if not interaction.response.is_done():
