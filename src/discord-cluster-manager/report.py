@@ -169,8 +169,6 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
 
     runs = result.runs
 
-    print(runs)
-
     # minimal error messages for private run
     if mode == SubmissionMode.PRIVATE:
         for r in runs.values():
