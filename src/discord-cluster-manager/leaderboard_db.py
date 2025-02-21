@@ -111,7 +111,12 @@ class LeaderboardDB:
 
             leaderboard_id = self.cursor.fetchone()[0]
 
-            for gpu_type in leaderboard["gpu_types"]:
+            if isinstance(leaderboard["gpu_types"], str):
+                gpu_types = [leaderboard["gpu_types"]]
+            else:
+                gpu_types = leaderboard["gpu_types"]
+
+            for gpu_type in gpu_types:
                 self.cursor.execute(
                     """
                     INSERT INTO leaderboard.gpu_type (leaderboard_id, gpu_type)
