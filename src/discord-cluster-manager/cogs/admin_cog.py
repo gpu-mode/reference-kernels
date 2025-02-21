@@ -382,16 +382,16 @@ class AdminCog(commands.Cog):
         )
 
     @app_commands.describe(
-        url="Repository from which to import problems",
         problem_set="Which problem set to load.",
+        repository_name="Name of the repository to load problems from (in format: user/repo)",
         branch="Which branch to pull from",
     )
     async def update_problems(
         self,
         interaction: discord.Interaction,
-        url: Optional[str] = None,
+        repository_name: Optional[str] = None,
         problem_set: Optional[str] = None,
-        branch: Optional[str] = None,
+        branch: Optional[str] = "main",
     ):
         is_admin = await self.admin_check(interaction)
         if not is_admin:
@@ -402,15 +402,13 @@ class AdminCog(commands.Cog):
             )
             return
 
-        if url is None:
-            url = f"https://github.com/{env.PROBLEMS_REPO}.git"
+        repository_name = repository_name or env.PROBLEMS_REPO
+        url = f"https://github.com/{repository_name}/archive/{branch}.zip"
+        folder_name = repository_name.split("/")[-1] + "-" + branch
 
         await interaction.response.defer(ephemeral=True)
         with tempfile.TemporaryDirectory() as temp_dir:
-            args = ["git", "clone", "--depth", "1"]
-            if branch is not None:
-                args += ["--single-branch", "--branch", branch]
-            args += [url, temp_dir]
+            args = ["wget", "-O", temp_dir + "/problems.zip", url]
             try:
                 subprocess.check_call(args, encoding="utf-8")
             except subprocess.CalledProcessError as E:
@@ -424,8 +422,22 @@ class AdminCog(commands.Cog):
                 )
                 return
 
+            args = ["unzip", temp_dir + "/problems.zip", "-d", temp_dir]
+            try:
+                subprocess.check_call(args, encoding="utf-8")
+            except subprocess.CalledProcessError as E:
+                logger.exception("could not unzip problems repo: %s", E.stderr, exc_info=E)
+                # admin-only command, we can send error messages as ephemeral
+                msg = f"could not unzip `{temp_dir}/problems.zip`:\nstdout: {E.stdout}\nstderr: {E.stderr}"  # noqa: E501
+                await send_discord_message(
+                    interaction,
+                    msg,
+                    ephemeral=True,
+                )
+                return
+
             # OK, we have the problems. Go over them one-by-one
-            problem_dir = Path(temp_dir) / "problems"
+            problem_dir = Path(temp_dir) / folder_name / "problems"
             if problem_set is None:
                 for competition in problem_dir.glob("*.yaml"):
                     await self.update_competition(interaction, competition)
