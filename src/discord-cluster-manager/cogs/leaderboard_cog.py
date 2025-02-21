@@ -273,9 +273,11 @@ class LeaderboardSubmitCog(app_commands.Group):
                 if g in task_gpus:
                     selected_gpus.append(g)
                 else:
+                    task_gpu_list = "".join([f" * {t}\n" for t in task_gpus])
                     await send_discord_message(
                         interaction,
-                        f"GPU {g} not available for `{leaderboard_name}`",
+                        f"GPU {g} not available for `{leaderboard_name}`\n"
+                        f"Choose on of: {task_gpu_list}",
                         ephemeral=True,
                     )
                     return -1
