@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-from datetime import datetime
 
 import discord
 import uvicorn
@@ -226,7 +225,7 @@ class ClusterBot(commands.Bot):
         self, interaction: discord.Interaction, gpu_name: str, job_name: str
     ) -> discord.Thread:
         thread = await interaction.channel.create_thread(
-            name=f"{job_name} ({gpu_name}) - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            name=f"{job_name} ({gpu_name})",
             type=discord.ChannelType.public_thread,
             auto_archive_duration=1440,
         )
