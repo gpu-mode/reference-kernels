@@ -143,7 +143,7 @@ class AdminCog(commands.Cog):
 
         # create-local overwrites existing leaderboard
         with self.bot.leaderboard_db as db:
-            db.delete_leaderboard(leaderboard_name)
+            db.delete_leaderboard(leaderboard_name, force=True)
 
         if await self.create_leaderboard_in_db(
             interaction,

@@ -152,9 +152,33 @@ class LeaderboardDB:
             self.connection.rollback()
             return f"Error during leaderboard update: {e}"
 
-    def delete_leaderboard(self, leaderboard_name: str):
+    def delete_leaderboard(self, leaderboard_name: str, force: bool = False):
         try:
-            # TODO: wait for cascade to be implemented
+            if force:
+                self.cursor.execute(
+                    """
+                    DELETE FROM leaderboard.runs
+                    WHERE submission_id IN (
+                        SELECT leaderboard.submission.id
+                        FROM leaderboard.submission
+                        WHERE leaderboard.submission.leaderboard_id IN (
+                            SELECT leaderboard.leaderboard.id FROM leaderboard.leaderboard
+                                WHERE leaderboard.leaderboard.name = %s
+                        )
+                    );
+""",
+                    (leaderboard_name,),
+                )
+                self.cursor.execute(
+                    """
+                    DELETE FROM leaderboard.submission
+                    USING leaderboard.leaderboard
+                    WHERE leaderboard.submission.leaderboard_id = leaderboard.leaderboard.id
+                        AND leaderboard.leaderboard.name = %s;
+                    """,
+                    (leaderboard_name,),
+                )
+
             self.cursor.execute(
                 """
                 DELETE FROM leaderboard.leaderboard WHERE name = %s

@@ -192,7 +192,7 @@ class VerifyRunCog(commands.Cog):
             logger.exception("Error in LB test", exc_info=E)
         finally:
             with self.bot.leaderboard_db as db:
-                db.delete_leaderboard(lb_name)
+                db.delete_leaderboard(lb_name, force=True)
 
         await send_discord_message(interaction, "Done")
 
