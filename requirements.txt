@@ -13,3 +13,7 @@ pre-commit
 # api
 fastapi[all] # install all to avoid random bugs
 uvicorn
+
+# docs
+jinja2
+requests

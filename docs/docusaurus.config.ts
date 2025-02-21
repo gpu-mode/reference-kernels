@@ -2,42 +2,30 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
-// This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 const config: Config = {
-  title: 'GPU MODE Kernel Leaderboard' ,
-  tagline: 'Open-community leaderboard to build the fastest GPU kernels!',
+  title: 'GPU MODE Kernel Leaderboard',
   favicon: 'img/favicon.ico',
-
-  // Set the production url of your site here
   url: 'https://your-docusaurus-site.example.com',
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/discord-cluster-manager/',
-
-  // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'gpu-mode', // Usually your GitHub org/user name.
-  projectName: 'discord-cluster-manager', // Usually your repo name.
-
+  organizationName: 'gpu-mode',
+  projectName: 'discord-cluster-manager',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
-
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
+  
+  // Add staticDirectories configuration
+  staticDirectories: ['static'],
+  
   i18n: {
     defaultLocale: 'en',
     locales: ['en'],
   },
-
+  
   presets: [
     [
       'classic',
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
         },
         blog: {
           showReadingTime: true,
@@ -45,7 +33,6 @@ const config: Config = {
             type: ['rss', 'atom'],
             xslt: true,
           },
-          // Useful options to enforce blogging best practices
           onInlineTags: 'warn',
           onInlineAuthors: 'warn',
           onUntruncatedBlogPosts: 'warn',
@@ -56,16 +43,11 @@ const config: Config = {
       } satisfies Preset.Options,
     ],
   ],
-
+  
   themeConfig: {
-    // Replace with your project's social card
     image: 'img/popcorn.png',
     navbar: {
       title: 'Home',
-      // logo: {
-      //   alt: 'Popcorn',
-      //   src: 'img/logo.svg',
-      // },
       items: [
         {
           type: 'docSidebar',
@@ -73,7 +55,7 @@ const config: Config = {
           position: 'left',
           label: 'Guide',
         },
-      ],
+      ]
     },
     footer: {
       style: 'dark',

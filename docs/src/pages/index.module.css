@@ -21,3 +21,172 @@
   align-items: center;
   justify-content: center;
 }
+
+.leaderboardSection {
+  padding: 2rem 0;
+}
+
+.timestamp {
+  color: var(--ifm-color-secondary-darker);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.leaderboardGroup {
+  background: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.leaderboardGroup:hover {
+  border-color: var(--ifm-color-primary);
+}
+
+.leaderboardGroup.selected {
+  border-color: var(--ifm-color-primary);
+  box-shadow: 0 0 0 1px var(--ifm-color-primary);
+}
+
+.leaderboardName {
+  color: var(--ifm-color-primary);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.leaderboardDetails {
+  margin-left: 1rem;
+}
+
+.deadline {
+  color: var(--ifm-color-secondary-darker);
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.gpuTypesContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.gpuTypeGroup {
+  background: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.gpuTypeTitle {
+  color: var(--ifm-color-primary);
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--ifm-color-emphasis-200);
+}
+
+.problemsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.problemGroup {
+  background: var(--ifm-background-color);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-left: 1rem;
+  border-left: 3px solid var(--ifm-color-emphasis-300);
+}
+
+.problemName {
+  color: var(--ifm-color-emphasis-900);
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.problemDeadline {
+  color: var(--ifm-color-emphasis-600);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.submissionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.submission {
+  font-family: var(--ifm-font-family-monospace);
+  padding: 0.5rem;
+  border-radius: 4px;
+  background: var(--ifm-background-surface-color);
+  color: var(--ifm-color-emphasis-700);
+}
+
+.submission.fastest {
+  color: #22c55e;
+  font-weight: bold;
+  border-left: 3px solid #22c55e;
+}
+
+.gpuTypeButton,
+.selectedGPU,
+.selected {
+  display: none;
+}
+
+.gpuSection {
+  margin-left: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.gpuName {
+  margin-bottom: 0.25rem;
+}
+
+.submissions {
+  margin-left: 1rem;
+  font-family: var(--ifm-font-family-monospace);
+}
+
+.submission:first-child {
+  color: #22c55e; /* Success green */
+}
+
+.noSubmissions {
+  color: var(--ifm-color-secondary);
+  font-style: italic;
+}
+
+.timings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.timing {
+  font-family: var(--ifm-font-family-monospace);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  background: var(--ifm-background-color);
+}
+
+.fastest {
+  color: #22c55e; /* Success green */
+}
+
+.second {
+  color: var(--ifm-color-info);
+  border-left: 4px solid var(--ifm-color-info);
+}
+
+.third {
+  color: var(--ifm-color-warning);
+  border-left: 4px solid var(--ifm-color-warning);
+}
