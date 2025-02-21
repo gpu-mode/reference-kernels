@@ -398,6 +398,13 @@ class LeaderboardDB:
         ]
 
     def generate_stats(self):
+        try:
+            return self._generate_stats()
+        except Exception as e:
+            logging.exception("error generating stats", exc_info=e)
+            raise
+
+    def _generate_stats(self):
         # code-level stats
         self.cursor.execute(
             """
@@ -464,6 +471,30 @@ class LeaderboardDB:
             result[f"runs_passed.{row[0]}"] = row[2]
             result[f"runs_scored.{row[0]}"] = row[3]
             result[f"runs_secret.{row[0]}"] = row[4]
+
+        # calculate heavy hitters
+        self.cursor.execute(
+            """
+            WITH run_durations AS (
+                SELECT
+                    s.user_id AS user_id,
+                    r.end_time - r.start_time AS duration
+                FROM leaderboard.runs r
+                JOIN leaderboard.submission s ON r.submission_id = s.id
+                WHERE NOW() - s.submission_time <= interval '24 hours'
+            )
+            SELECT
+                user_id,
+                SUM(duration) AS total
+            FROM run_durations
+            GROUP BY user_id
+            ORDER BY total DESC
+            LIMIT 10;
+            """
+        )
+
+        for row in self.cursor.fetchall():
+            result[f"total.{row[0]}"] = row[1]
 
         return result
 
