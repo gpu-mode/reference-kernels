@@ -68,17 +68,6 @@ class LeaderboardSubmitCog(app_commands.Group):
                     else interaction.user.nick
                 )
 
-                if (
-                    "test" in result.runs
-                    and result.runs["test"].run.result.get("check", "") != "pass"
-                ):
-                    await discord_thread.send(
-                        f"Ran on {gpu.name} using {runner_name} runners!\n"
-                        + f"Leaderboard '{leaderboard_name}'.\n"
-                        + f"Submission title: {script.filename}.\n"
-                        + f"Submission user: {user_id}.\n"
-                    )
-
                 score = None
                 if "leaderboard" in result.runs:
                     score = 0.0
