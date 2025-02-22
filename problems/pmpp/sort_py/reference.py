@@ -12,15 +12,34 @@ def ref_kernel(data: input_t) -> output_t:
     """
     return torch.sort(data)[0]
 
-def generate_input(size: int, seed: int) -> input_t:
+def generate_input(size: int, seed: int) -> torch.Tensor:
     """
-    Generates random input tensor.
+    Generates random input tensor where elements are drawn from different distributions.
+    
+    Args:
+        size: Total size of the final 1D tensor
+        seed: Base seed for random generation
+    
     Returns:
-        Tensor to be sorted
+        1D tensor of size `size` containing flattened values from different distributions
     """
+    # Calculate dimensions for a roughly square 2D matrix
+    rows = int(size ** 0.5)  # Square root for roughly square shape
+    cols = (size + rows - 1) // rows  # Ceiling division to ensure total size >= requested size
+    
     gen = torch.Generator(device='cuda')
-    gen.manual_seed(seed)
-    return torch.randn(size, device='cuda', dtype=torch.float32, generator=gen).contiguous()
+    result = torch.empty((rows, cols), device='cuda', dtype=torch.float32)
+    
+    # Different seed for each row!
+    for i in range(rows):
+        row_seed = seed + i
+        gen.manual_seed(row_seed)
+        
+        # Generate values for this row with mean=row_seed
+        result[i, :] = torch.randn(cols, device='cuda', dtype=torch.float32, generator=gen) + row_seed
+    
+    # Flatten and trim to exact size requested
+    return result.flatten()[:size].contiguous()
 
 def check_implementation(
     data: input_t,
