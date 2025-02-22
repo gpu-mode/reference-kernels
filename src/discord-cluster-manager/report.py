@@ -250,6 +250,7 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
             if status == "fail":
                 bench_log.append(f"❌ {spec} failed testing:\n")
                 bench_log.append(bench_run.result.get(f"{base_name}.error"))
+                return
 
             mean = bench_run.result.get(f"{base_name}.mean")
             err = bench_run.result.get(f"{base_name}.err")
