@@ -8,6 +8,7 @@ import discord
 import psycopg2
 from env import (
     DATABASE_URL,
+    DISABLE_SSL,
     POSTGRES_DATABASE,
     POSTGRES_HOST,
     POSTGRES_PASSWORD,
@@ -63,7 +64,7 @@ class LeaderboardDB:
         """Establish connection to the database"""
         try:
             self.connection = (
-                psycopg2.connect(DATABASE_URL, sslmode="require")
+                psycopg2.connect(DATABASE_URL, sslmode="require" if not DISABLE_SSL else "disable")
                 if DATABASE_URL
                 else psycopg2.connect(**self.connection_params)
             )
