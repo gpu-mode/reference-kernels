@@ -151,7 +151,8 @@ class LeaderboardDB:
             )
         except psycopg2.Error as e:
             self.connection.rollback()
-            return f"Error during leaderboard update: {e}"
+            logger.exception("Error during leaderboard update", exc_info=e)
+            raise KernelBotError("Error during leaderboard update") from e
 
     def delete_leaderboard(self, leaderboard_name: str, force: bool = False):
         try:
@@ -189,8 +190,8 @@ class LeaderboardDB:
             self.connection.commit()
             leaderboard_name_cache.invalidate()  # Invalidate autocomplete cache
         except psycopg2.Error as e:
-            logger.exception("Could not delete leaderboard %s.", leaderboard_name, exc_info=e)
             self.connection.rollback()
+            logger.exception("Could not delete leaderboard %s.", leaderboard_name, exc_info=e)
             raise KernelBotError(f"Could not delete leaderboard {leaderboard_name}.") from e
 
     def create_submission(
@@ -247,8 +248,14 @@ class LeaderboardDB:
             self.connection.commit()
             return submission_id
         except psycopg2.Error as e:
-            print(f"Error during leaderboard submission: {e}")
+            logger.error(
+                "Error during creation of submission for leaderboard '%s' by user '%s'",
+                leaderboard,
+                user_id,
+                exc_info=e,
+            )
             self.connection.rollback()  # Ensure rollback if error occurs
+            raise KernelBotError("Error during creation of submission")
 
     def mark_submission_done(
         self,
@@ -265,8 +272,9 @@ class LeaderboardDB:
             )
             self.connection.commit()
         except psycopg2.Error as e:
-            print(f"Error during leaderboard submission: {e}")
+            logger.error("Could not mark submission '%s' as done.", submission, exc_info=e)
             self.connection.rollback()  # Ensure rollback if error occurs
+            raise KernelBotError("Error while finalizing submission")
 
     def create_submission_run(
         self,
@@ -338,7 +346,7 @@ class LeaderboardDB:
 
         for lb in lbs:
             self.cursor.execute(
-                "SELECT * from leaderboard.gpu_type where leaderboard_id = %s", [lb[0]]
+                "SELECT * from leaderboard.gpu_type WHERE leaderboard_id = %s", [lb[0]]
             )
             gpu_types = [x[1] for x in self.cursor.fetchall()]
 

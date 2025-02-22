@@ -598,7 +598,7 @@ class AdminCog(commands.Cog):
             for entry in update_list:
                 with self.bot.leaderboard_db as db:
                     db.update_leaderboard(
-                        entry["name"], entry["deadline"], make_task(Path(entry["directory"]))
+                        entry["name"], entry["deadline"], make_task(root / entry["directory"])
                     )
 
             header += " DONE"
