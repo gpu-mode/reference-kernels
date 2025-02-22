@@ -191,7 +191,7 @@ def benchmark(test: TestCase, recheck: bool, max_repeats: int, max_time_ns: floa
 
         if i > 1:
             stats = calculate_stats(durations)
-            if stats.err / stats.mean < 0.01 or stats.mean *  stats.runs > max_time_ns:
+            if stats.err / stats.mean < 0.01 or stats.mean * stats.runs > max_time_ns:
                 break
 
     return calculate_stats(durations)

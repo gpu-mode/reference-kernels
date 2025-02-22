@@ -164,7 +164,7 @@ class VerifyRunCog(commands.Cog):
         lb_name = f"test.{uuid.uuid4().hex}"
         # create the dummy leaderboard
         with self.bot.leaderboard_db as db:  # type: LeaderboardDB
-            err = db.create_leaderboard(
+            db.create_leaderboard(
                 {
                     "name": lb_name,
                     "deadline": datetime.datetime.now() + datetime.timedelta(days=1),
@@ -173,10 +173,6 @@ class VerifyRunCog(commands.Cog):
                     "creator_id": interaction.user.id,
                 }
             )
-            if err:
-                logger.error(err)
-                await send_discord_message(interaction, err)
-
         try:
             # make submissions
             submissions = []
