@@ -608,6 +608,15 @@ class AdminCog(commands.Cog):
 
     @with_error_handling
     async def show_bot_stats(self, interaction: discord.Interaction):
+        is_admin = await self.admin_check(interaction)
+        if not is_admin:
+            await send_discord_message(
+                interaction,
+                "You need to have Admin permissions to run this command",
+                ephemeral=True,
+            )
+            return
+
         with self.bot.leaderboard_db as db:
             stats = db.generate_stats()
             msg = """```"""
