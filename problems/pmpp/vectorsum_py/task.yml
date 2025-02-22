@@ -26,8 +26,8 @@ tests:
   - {"size": 4096, "seed": 9173}
 
 benchmarks:
-  - {"size": 8192, "seed": 54352}
   - {"size": 16384, "seed": 93246}
   - {"size": 32768, "seed": 6256}
   - {"size": 65536, "seed": 8841}
   - {"size": 131072, "seed": 6252} 
+  - {"size": 262144, "seed": 82135}
