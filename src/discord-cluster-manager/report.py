@@ -223,7 +223,7 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
             await _generate_test_report(thread, test_run)
             return
         else:
-            num_tests = int(test_run.result["test-count"])
+            num_tests = int(test_run.result.get("test-count", 0))
             for i in range(num_tests):
                 status = test_run.result.get(f"test.{i}.status", None)
                 if status is None:
@@ -242,7 +242,7 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
             await _generate_crash_report(thread, bench_run)
             return
 
-        num_bench = int(bench_run.result["benchmark-count"])
+        num_bench = int(bench_run.result.get("benchmark-count", 0))
 
         def log_one(base_name):
             status = bench_run.result.get(f"{base_name}.status")
