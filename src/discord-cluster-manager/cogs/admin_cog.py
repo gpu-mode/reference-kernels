@@ -1,6 +1,9 @@
+import json
 import subprocess
 import tempfile
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from io import StringIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, TypedDict
 
@@ -15,6 +18,7 @@ from task import LeaderboardTask, make_task
 from ui.misc import DeleteConfirmationModal, GPUSelectionView
 from utils import (
     KernelBotError,
+    SubmissionItem,
     send_discord_message,
     setup_logging,
     with_error_handling,
@@ -51,6 +55,15 @@ async def leaderboard_dir_autocomplete(
     ]
 
 
+# ensure valid serialization
+def serialize(obj: object):
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+
 class AdminCog(commands.Cog):
     def __init__(self, bot: "ClusterBot"):
         self.bot = bot
@@ -85,6 +98,10 @@ class AdminCog(commands.Cog):
         self.resync = bot.admin_group.command(
             name="resync", description="Trigger re-synchronization of slash commands"
         )(self.resync)
+
+        self.get_submission_by_id = bot.admin_group.command(
+            name="get-submission", description="Retrieve one of past submissions"
+        )(self.get_submission_by_id)
 
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
@@ -647,3 +664,44 @@ class AdminCog(commands.Cog):
             await send_discord_message(
                 interaction, "You need administrator permissions to use this command"
             )
+
+    # admin version of this command; less restricted
+    @discord.app_commands.describe(submission_id="ID of the submission")
+    @with_error_handling
+    async def get_submission_by_id(
+        self,
+        interaction: discord.Interaction,
+        submission_id: int,
+    ):
+        with self.bot.leaderboard_db as db:
+            sub: SubmissionItem = db.get_submission_by_id(submission_id)
+
+        # allowed/possible to see submission
+        if sub is None:
+            await send_discord_message(
+                interaction, f"Submission {submission_id} does not exist", ephemeral=True
+            )
+            return
+
+        msg = f"# Submission {submission_id}\n"
+        msg += f"submitted by {sub['user_id']} on {sub['submission_time']}"
+        msg += f" to leaderboard `{sub['leaderboard_name']}`."
+        if not sub["done"]:
+            msg += "\n*Submission is still running!*\n"
+
+        file = discord.File(fp=StringIO(sub["code"]), filename=sub["file_name"])
+
+        if len(sub["runs"]) > 0:
+            msg += "\nRuns:\n"
+        for run in sub["runs"]:
+            msg += f" * {run['mode']} on {run['runner']}: "
+            if run["score"] is not None and run["passed"]:
+                msg += f"{run['score']}"
+            else:
+                msg += "pass" if run["passed"] else "fail"
+            msg += "\n"
+
+        run_results = discord.File(
+            fp=StringIO(json.dumps(sub["runs"], default=serialize, indent=2)), filename="runs.json"
+        )
+        await send_discord_message(interaction, msg, ephemeral=True, files=[file, run_results])

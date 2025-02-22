@@ -199,6 +199,30 @@ class LeaderboardRankedEntry(TypedDict):
     gpu_type: str
 
 
+class RunItem(TypedDict):
+    start_time: datetime.datetime
+    end_time: datetime.datetime
+    mode: str
+    secret: bool
+    runner: str
+    score: Optional[float]
+    passed: bool
+    compilation: dict
+    meta: dict
+    result: dict
+
+
+class SubmissionItem(TypedDict):
+    leaderboard_id: int
+    leaderboard_name: str
+    file_name: str
+    user_id: int
+    submission_time: datetime.datetime
+    done: bool
+    code: str
+    runs: List[RunItem]
+
+
 def build_task_config(
     task: LeaderboardTask = None,
     submission_content: str = None,

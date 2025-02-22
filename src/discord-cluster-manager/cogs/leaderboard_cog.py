@@ -20,7 +20,7 @@ from utils import (
     get_user_from_id,
     send_discord_message,
     setup_logging,
-    with_error_handling,
+    with_error_handling, SubmissionItem,
 )
 
 if TYPE_CHECKING:
@@ -339,7 +339,7 @@ class LeaderboardSubmitCog(app_commands.Group):
 
         await send_discord_message(
             interaction,
-            f"{mode.value.capitalize()} submission to '{leaderboard_name}' "
+            f"{mode.value.capitalize()} submission {sub_id} to '{leaderboard_name}' "
             f"on GPUS: {', '.join([gpu.name for gpu in selected_gpus])} "
             f"using {', '.join({gpu.runner for gpu in selected_gpus})} runners succeeded!",
         )
@@ -515,6 +515,10 @@ class LeaderboardCog(commands.Cog):
         self.get_task_template = bot.leaderboard_group.command(
             name="template", description="Get a starter template file for a task"
         )(self.get_task_template)
+
+        self.get_submission_by_id = bot.leaderboard_group.command(
+            name="get-submission", description="Retrieve one of your past submissions"
+        )(self.get_submission_by_id)
 
         # Start updating leaderboard
         self.leaderboard_update.start()
@@ -828,3 +832,43 @@ class LeaderboardCog(commands.Cog):
         leaderboard_name: str,
     ):
         await self._get_submissions_helper(interaction, leaderboard_name, str(interaction.user.id))
+
+    @discord.app_commands.describe(submission_id="ID of the submission")
+    @with_error_handling
+    async def get_submission_by_id(
+            self,
+            interaction: discord.Interaction,
+            submission_id: int,
+    ):
+        with self.bot.leaderboard_db as db:
+            sub: SubmissionItem = db.get_submission_by_id(submission_id)
+
+        # allowed/possible to see submission
+        print(sub)
+        if sub is None or int(sub["user_id"]) != interaction.user.id:
+            await send_discord_message(interaction, f"Submission {submission_id} is not one of your submissions",
+                                       ephemeral=True)
+            return
+
+        msg = f"# Submission {submission_id}\n"
+        msg += f"submitted on {sub['submission_time']}"
+        msg += f" to leaderboard `{sub['leaderboard_name']}`."
+        if not sub['done']:
+            msg += "\n*Submission is still running!*\n"
+
+        file = discord.File(fp=StringIO(sub['code']), filename=sub['file_name'])
+
+        if len(sub['runs']) > 0:
+            msg += "\nRuns:\n"
+        for run in sub['runs']:
+            if run['secret']:
+                continue
+
+            msg += f" * {run['mode']} on {run['runner']}: "
+            if run['score'] is not None and run['passed']:
+                msg += f"{run['score']}"
+            else:
+                msg += "pass" if run['passed'] else "fail"
+            msg += "\n"
+
+        await send_discord_message(interaction, msg, ephemeral=True, file=file)

@@ -1,9 +1,10 @@
 from enum import Enum
-from typing import Optional, Tuple, Type
+from typing import Optional, Tuple, Type, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from bot import ClusterBot
 
 import discord
-
-from bot import ClusterBot
 from consts import SubmissionMode
 from discord import app_commands
 from discord.ext import commands

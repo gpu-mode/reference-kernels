@@ -17,7 +17,8 @@ from env import (
 )
 from run_eval import CompileResult, RunResult
 from task import LeaderboardTask
-from utils import KernelBotError, LeaderboardItem, LeaderboardRankedEntry, LRUCache, setup_logging
+from utils import KernelBotError, LeaderboardItem, LeaderboardRankedEntry, LRUCache, setup_logging, SubmissionItem, \
+    RunItem
 
 leaderboard_name_cache = LRUCache(max_size=512)
 
@@ -552,6 +553,45 @@ class LeaderboardDB:
             result[f"total.{row[0]}"] = row[1]
 
         return result
+
+    def get_submission_by_id(self, submission_id: int) -> Optional[SubmissionItem]:
+        query = """
+                SELECT s.leaderboard_id, lb.name, s.file_name, s.user_id, s.submission_time, s.done, c.code
+                FROM leaderboard.submission s
+                JOIN leaderboard.code_files c ON s.code_id = c.id
+                JOIN leaderboard.leaderboard lb ON s.leaderboard_id = lb.id
+                WHERE s.id = %s
+                """
+        self.cursor.execute(query, (submission_id,))
+        submission = self.cursor.fetchone()
+        if submission is None:
+            return None
+
+        # OK, now get the runs
+        query = """
+                SELECT start_time, end_time, mode, secret, runner, score, passed, compilation, meta, result
+                FROM leaderboard.runs
+                WHERE submission_id = %s
+                """
+        self.cursor.execute(query, (submission_id,))
+        runs = self.cursor.fetchall()
+
+        runs = [RunItem(
+            start_time=r[0],
+            end_time=r[1],
+            mode=r[2],
+            secret=r[3],
+            runner=r[4],
+            score=r[5],
+            passed=r[6],
+            compilation=r[7],
+            meta=r[8],
+            result=r[9]
+        ) for r in runs]
+
+        return SubmissionItem(leaderboard_id=submission[0], leaderboard_name=submission[1],
+                              file_name=submission[2], user_id=submission[3],
+                              submission_time=submission[4], done=submission[5], code=submission[6], runs=runs)
 
 
 if __name__ == "__main__":
