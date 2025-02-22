@@ -70,7 +70,7 @@ async def _generate_crash_report(thread: discord.Thread, run: RunResult):
     message = "# Running failed\n"
     message += "Command "
     message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
-    message += f"exited with error code **{run.exit_code}** after {run.duration:.2} seconds."
+    message += f"exited with error code **{run.exit_code}** after {float(run.duration):.2f} seconds."
 
     if len(run.stderr.strip()) > 0:
         message = await _send_split_log(thread, message, "Program stderr", run.stderr.strip())
@@ -82,13 +82,16 @@ async def _generate_crash_report(thread: discord.Thread, run: RunResult):
         await thread.send(message)
 
 
-def format_time(value: float | str, err: Optional[float | str] = None, scale=None):
+def format_time(value: float | str, err: Optional[float | str] = None, scale=None):  # noqa: C901
     # really ugly, but works for now
     value = float(value)
 
     scale = 1  # nanoseconds
     unit = "ns"
-    if value > 2000:
+    if value > 2_000_000:
+        scale = 1000_000
+        unit = "ms"
+    elif value > 2000:
         scale = 1000
         unit = "µs"
 
@@ -122,7 +125,7 @@ async def _generate_test_report(thread: discord.Thread, run: RunResult):
     message = "# Testing failed\n"
     message += "Command "
     message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
-    message += f"ran successfully in {run.duration:.2} seconds, but did not pass all tests.\n"
+    message += f"ran successfully in {run.duration:.2f} seconds, but did not pass all tests.\n"
 
     # Generate a test
     test_log = []
