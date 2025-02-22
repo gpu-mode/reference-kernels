@@ -1,5 +1,6 @@
 from typing import Optional
 
+import consts
 import discord
 from consts import SubmissionMode
 from run_eval import CompileResult, FullResult, RunResult
@@ -70,7 +71,12 @@ async def _generate_crash_report(thread: discord.Thread, run: RunResult):
     message = "# Running failed\n"
     message += "Command "
     message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
-    message += f"exited with error code **{run.exit_code}** after {float(run.duration):.2f} seconds."
+    if run.exit_code == consts.ExitCode.TIMEOUT_EXPIRED:
+        message += f"**timed out** after {float(run.duration):.2f} seconds."
+    else:
+        message += (
+            f"exited with error code **{run.exit_code}** after {float(run.duration):.2f} seconds."
+        )
 
     if len(run.stderr.strip()) > 0:
         message = await _send_split_log(thread, message, "Program stderr", run.stderr.strip())
