@@ -10,8 +10,11 @@ files:
 lang: "py"
 
 description: |
-  Implement a vector addition kernel using CUDA inline function that matches the reference implementation.
-  The kernel should add pairs of tensors element-wise.
+  Implement a float16 vector addition kernel.
+
+  Input: tuple(torch.Tensor, torch.Tensor) with tensors of shape (N, N) and type torch.float16. These tensors are from
+  a normal distribution with mean 0 and variance 1.
+  Output: torch.Tensor of shape (N, N) and type torch.float16
 
 config:
   main: "eval.py" 
@@ -29,4 +32,3 @@ benchmarks:
   - {"size": 4096, "seed": 2146}
   - {"size": 8192, "seed": 3129}
   - {"size": 16384, "seed": 54352}
-  - {"size": 24576, "seed": 93246}
