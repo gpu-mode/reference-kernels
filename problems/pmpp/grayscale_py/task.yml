@@ -9,7 +9,7 @@ lang: "py"
 
 description: |
   Implement an RGB to grayscale conversion kernel that matches the reference implementation.
-  The kernel should convert RGB images to grayscale using the standard coefficients:
+  The kernel should convert square RGB images to grayscale using the standard coefficients:
   Y = 0.2989 R + 0.5870 G + 0.1140 B
   
   Input: RGB tensor of shape (H, W, 3) with values in [0, 1]
@@ -26,8 +26,8 @@ tests:
   - {"size": 512, "seed": 9173}
 
 benchmarks:
-  - {"size": 1024, "seed": 54352}
-  - {"size": 2048, "seed": 93246}
-  - {"size": 4096, "seed": 6256}
-  - {"size": 8192, "seed": 8841}
+  - {"size": 8192, "seed": 54352}
+  - {"size": 10240, "seed": 93246}
+  - {"size": 12288, "seed": 6256}
+  - {"size": 14336, "seed": 8841}
   - {"size": 16384, "seed": 6252} 
