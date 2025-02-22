@@ -8,7 +8,7 @@ from discord.ext import commands
 from report import generate_report
 from run_eval import FullResult
 from task import LeaderboardTask
-from utils import build_task_config, send_discord_message, setup_logging
+from utils import build_task_config, send_discord_message, setup_logging, with_error_handling
 
 logger = setup_logging()
 
@@ -106,6 +106,7 @@ class SubmitCog(commands.Cog):
 
         return thread, result
 
+    @with_error_handling
     async def run_script(
         self,
         interaction: discord.Interaction,

@@ -17,6 +17,7 @@ from utils import (
     KernelBotError,
     send_discord_message,
     setup_logging,
+    with_error_handling,
 )
 
 if TYPE_CHECKING:
@@ -117,6 +118,7 @@ class AdminCog(commands.Cog):
         gpu=[app_commands.Choice(name=gpu.name, value=gpu.value) for gpu in GitHubGPU]
         + [app_commands.Choice(name=gpu.name, value=gpu.value) for gpu in ModalGPU]
     )
+    @with_error_handling
     async def leaderboard_create_local(
         self,
         interaction: discord.Interaction,
@@ -310,6 +312,7 @@ class AdminCog(commands.Cog):
 
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
     @discord.app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
+    @with_error_handling
     async def delete_leaderboard(self, interaction: discord.Interaction, leaderboard_name: str):
         is_admin = await self.admin_check(interaction)
         is_creator = await self.creator_check(interaction)
@@ -345,6 +348,7 @@ class AdminCog(commands.Cog):
 
         await interaction.response.send_modal(modal)
 
+    @with_error_handling
     async def stop(self, interaction: discord.Interaction):
         is_admin = await self.admin_check(interaction)
         if not is_admin:
@@ -360,6 +364,7 @@ class AdminCog(commands.Cog):
             interaction, "Bot will refuse all future submissions!", ephemeral=True
         )
 
+    @with_error_handling
     async def start(self, interaction: discord.Interaction):
         is_admin = await self.admin_check(interaction)
         if not is_admin:
@@ -380,6 +385,7 @@ class AdminCog(commands.Cog):
         repository_name="Name of the repository to load problems from (in format: user/repo)",
         branch="Which branch to pull from",
     )
+    @with_error_handling
     async def update_problems(
         self,
         interaction: discord.Interaction,
@@ -596,6 +602,7 @@ class AdminCog(commands.Cog):
         except Exception as e:
             logger.exception("Error updating problem set", exc_info=e)
 
+    @with_error_handling
     async def show_bot_stats(self, interaction: discord.Interaction):
         with self.bot.leaderboard_db as db:
             stats = db.generate_stats()
@@ -605,6 +612,7 @@ class AdminCog(commands.Cog):
             msg += "\n```"
             await send_discord_message(interaction, msg, ephemeral=True)
 
+    @with_error_handling
     async def resync(self, interaction: discord.Interaction):
         """Admin command to resync slash commands"""
         logger.info("Resyncing commands")

@@ -1,7 +1,8 @@
 import datetime
+import functools
 import logging
 import subprocess
-from typing import Any, List, TypedDict, Optional
+from typing import Any, List, Optional, TypedDict
 
 import discord
 from consts import Language, SubmissionMode
@@ -26,6 +27,22 @@ def setup_logging(name: Optional[str] = None):
         logger.addHandler(console_handler)
 
     return logger
+
+
+def with_error_handling(f: callable):
+    @functools.wraps(f)
+    async def wrap(self, interaction: discord.Interaction, *args, **kwargs):
+        try:
+            await f(self, interaction, *args, **kwargs)
+        except Exception as e:
+            logging.exception("Unhandled exception %s", e, exc_info=e)
+            await send_discord_message(
+                interaction,
+                "An unexpected error occurred. Please report this to the developers.",
+                ephemeral=True,
+            )
+
+    return wrap
 
 
 class KernelBotError(Exception):

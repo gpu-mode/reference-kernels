@@ -20,6 +20,7 @@ from utils import (
     get_user_from_id,
     send_discord_message,
     setup_logging,
+    with_error_handling,
 )
 
 if TYPE_CHECKING:
@@ -399,6 +400,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         gpu="Select GPU. Leave empty for interactive or automatic selection.",
     )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
+    @with_error_handling
     async def submit_test(
         self,
         interaction: discord.Interaction,
@@ -417,6 +419,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         gpu="Select GPU. Leave empty for interactive or automatic selection.",
     )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
+    @with_error_handling
     async def submit_bench(
         self,
         interaction: discord.Interaction,
@@ -437,6 +440,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         gpu="Select GPU. Leave empty for interactive or automatic selection.",
     )
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
+    @with_error_handling
     async def submit_ranked(
         self,
         interaction: discord.Interaction,
@@ -722,6 +726,7 @@ class LeaderboardCog(commands.Cog):
     # |                           COMMANDS                                      |
     # --------------------------------------------------------------------------
 
+    @with_error_handling
     async def get_leaderboards(self, interaction: discord.Interaction):
         """Display all leaderboards in a table format"""
         await interaction.response.defer(ephemeral=True)
@@ -742,6 +747,7 @@ class LeaderboardCog(commands.Cog):
 
     @app_commands.describe(leaderboard_name="Name of the leaderboard")
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
+    @with_error_handling
     async def get_leaderboard_task(self, interaction: discord.Interaction, leaderboard_name: str):
         await interaction.response.defer(ephemeral=True)
 
@@ -768,6 +774,7 @@ class LeaderboardCog(commands.Cog):
     @app_commands.autocomplete(
         leaderboard_name=leaderboard_name_autocomplete, lang=lang_autocomplete
     )
+    @with_error_handling
     async def get_task_template(
         self, interaction: discord.Interaction, leaderboard_name: str, lang: str
     ):
@@ -813,6 +820,7 @@ class LeaderboardCog(commands.Cog):
 
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
+    @with_error_handling
     async def get_leaderboard_submissions(
         self,
         interaction: discord.Interaction,
@@ -822,6 +830,7 @@ class LeaderboardCog(commands.Cog):
 
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
     @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
+    @with_error_handling
     async def get_user_leaderboard_submissions(
         self,
         interaction: discord.Interaction,

@@ -276,8 +276,7 @@ async def start_bot_and_api(debug_mode: bool):
 
 
 def on_unhandled_exception(loop, context):
-    task: asyncio.Task = context['future']
-    logger.exception("Unhandled exception: %s", context['message'], exc_info=context['exception'])
+    logger.exception("Unhandled exception: %s", context["message"], exc_info=context["exception"])
 
 
 def main():
