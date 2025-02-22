@@ -74,72 +74,81 @@ def fetch_leaderboard_data():
     try:
         with psycopg2.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
-                # Get active leaderboards with their GPU types and submission counts
-                cur.execute("""
-                    WITH ranked_submissions AS (
-                        SELECT
-                            l.id,
-                            l.name,
-                            l.deadline,
-                            gt.gpu_type,
-                            s.user_id,
-                            s.score as time,
-                            RANK() OVER (PARTITION BY l.id, gt.gpu_type ORDER BY s.score ASC) as rank
-                        FROM leaderboard.leaderboard l
-                        JOIN leaderboard.gpu_type gt ON gt.leaderboard_id = l.id
-                        LEFT JOIN leaderboard.submission s ON s.leaderboard_id = l.id AND s.gpu_type = gt.gpu_type
-                        WHERE l.deadline > NOW()
-                    )
-                    SELECT
-                        id,
-                        name,
-                        deadline,
-                        gpu_type,
-                        array_agg(
-                            CASE WHEN user_id IS NOT NULL THEN
-                                json_build_object(
-                                    'user_id', user_id,
-                                    'time', time,
-                                    'rank', rank
-                                )
-                            ELSE NULL END
-                        ) as submissions
-                    FROM ranked_submissions
-                    GROUP BY id, name, deadline, gpu_type
-                    HAVING COUNT(user_id) > 0
-                    ORDER BY deadline ASC;
-                """)
+                cur.execute(
+                    """
+                    SELECT id, name, deadline
+                    FROM leaderboard.leaderboard
+                    """
+                )
 
                 leaderboards = cur.fetchall()
-                print(f"Found {len(leaderboards)} active leaderboards with submissions")
+
+                # Get active leaderboards with their GPU types and submission counts
+                query = """
+                    WITH ranked_submissions AS (
+                        SELECT
+                            s.file_name,
+                            s.user_id,
+                            s.submission_time,
+                            r.score,
+                            r.runner,
+                            RANK() OVER (ORDER BY r.score ASC) as rank
+                        FROM leaderboard.runs r
+                        JOIN leaderboard.submission s ON r.submission_id = s.id
+                        JOIN leaderboard.leaderboard l ON s.leaderboard_id = l.id
+                        WHERE l.name = %s AND r.runner = %s AND NOT r.secret
+                            AND r.score IS NOT NULL AND r.passed
+                    )
+                    SELECT * FROM ranked_submissions
+                    ORDER BY %s ASC;
+                """
 
                 gpu_type_data = {}
+                for (
+                    _lb_id,
+                    name,
+                    deadline,
+                ) in leaderboards:
+                    cur.execute(
+                        "SELECT * from leaderboard.gpu_type where leaderboard_id = %s", [_lb_id]
+                    )
+                    gpu_types = [x[1] for x in cur.fetchall()]
 
-                for _lb_id, name, deadline, gpu_type, submissions_json in leaderboards:
-                    if gpu_type not in gpu_type_data:
-                        gpu_type_data[gpu_type] = {}
+                    for gpu_type in gpu_types:
+                        args = (name, gpu_type, deadline)
+                        cur.execute(query, args)
+                        submissions = cur.fetchall()
 
-                    if submissions_json:
-                        gpu_submissions = []
-                        for sub in submissions_json:
-                            if sub is not None:  # Skip NULL entries from array_agg
-                                global_name = get_name_from_id(sub["user_id"])
+                        print(
+                            f"Found {len(submissions)} active submissions in {name} for {gpu_type}"
+                        )
+
+                        if len(submissions) > 0:
+                            if gpu_type not in gpu_type_data:
+                                gpu_type_data[gpu_type] = {}
+
+                            gpu_submissions = []
+                            for lb in submissions:
+                                user_id = lb[1]
+                                time = lb[3]
+                                rank = lb[5]
+                                global_name = get_name_from_id(user_id)
                                 gpu_submissions.append(
                                     {
                                         "user": f"{global_name}",
-                                        "time": f"{sub['time']:.9f}",
-                                        "is_fastest": sub["rank"] == 1,
+                                        "time": f"{time:.9f}",
+                                        "is_fastest": rank == 1,
                                     }
                                 )
 
-                        # Sort submissions by time
-                        gpu_submissions.sort(key=lambda x: float(x["time"]))
+                            # Sort submissions by time
+                            gpu_submissions.sort(key=lambda x: float(x["time"]))
 
-                        gpu_type_data[gpu_type][name] = {
-                            "name": name,
-                            "deadline": deadline.strftime("%Y-%m-%d %H:%M"),
-                            "submissions": gpu_submissions,
-                        }
+                            gpu_type_data[gpu_type][name] = {
+                                "name": name,
+                                "deadline": deadline.strftime("%Y-%m-%d %H:%M"),
+                                "submissions": gpu_submissions,
+                            }
 
                 # Convert to final format
                 formatted_data = {
