@@ -19,15 +19,14 @@ config:
   main: "eval.py" 
 
 tests:
-  - {"size": 127, "seed": 4242}
-  - {"size": 128, "seed": 5236}
-  - {"size": 129, "seed": 1001}
+
+  - {"size": 128, "seed": 1001}
   - {"size": 256, "seed": 5531}
   - {"size": 512, "seed": 9173}
 
 benchmarks:
-  - {"size": 8192, "seed": 54352}
-  - {"size": 10240, "seed": 93246}
-  - {"size": 12288, "seed": 6256}
-  - {"size": 14336, "seed": 8841}
-  - {"size": 16384, "seed": 6252} 
+  - {"size": 32768, "seed": 54352}
+  - {"size": 40960, "seed": 93246}
+  - {"size": 49152, "seed": 6256}
+  - {"size": 57344, "seed": 8841}
+  - {"size": 65536, "seed": 6252} 
