@@ -27,11 +27,13 @@ class GPUSelectionView(ui.View):
 
 
 class DeleteConfirmationModal(ui.Modal, title="Confirm Deletion"):
-    def __init__(self, field_name: str, field_value: str, db):
+    def __init__(self, field_name: str, field_value: str, db, force: bool = False):
         super().__init__()
         self.field_name = field_name
         self.field_value = field_value
         self.db = db
+        self.force = force
+
         placeholder = f"Type '{field_value}'"[:100]
         label = f"To delete, type '{field_value}'"[:45]
         self.confirmation = ui.TextInput(
@@ -47,7 +49,7 @@ class DeleteConfirmationModal(ui.Modal, title="Confirm Deletion"):
                 method = getattr(db, f"delete_{self.field_name}", None)
                 assert method is not None, f"Delete method for {self.field_name} not found in db"
                 try:
-                    method(self.field_value)
+                    method(self.field_value, force=self.force)
                 except KernelBotError as e:
                     await send_discord_message(
                         interaction,

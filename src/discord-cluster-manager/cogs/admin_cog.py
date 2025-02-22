@@ -313,7 +313,9 @@ class AdminCog(commands.Cog):
     @discord.app_commands.describe(leaderboard_name="Name of the leaderboard")
     @discord.app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
     @with_error_handling
-    async def delete_leaderboard(self, interaction: discord.Interaction, leaderboard_name: str):
+    async def delete_leaderboard(
+        self, interaction: discord.Interaction, leaderboard_name: str, force: bool = False
+    ):
         is_admin = await self.admin_check(interaction)
         is_creator = await self.creator_check(interaction)
         is_creator_of_leaderboard = await self.is_creator_check(interaction, leaderboard_name)
@@ -334,7 +336,9 @@ class AdminCog(commands.Cog):
                 )
                 return
 
-        modal = DeleteConfirmationModal("leaderboard", leaderboard_name, self.bot.leaderboard_db)
+        modal = DeleteConfirmationModal(
+            "leaderboard", leaderboard_name, self.bot.leaderboard_db, force=force
+        )
 
         forum_channel = self.bot.get_channel(self.bot.leaderboard_forum_id)
         threads = [thread for thread in forum_channel.threads if thread.name == leaderboard_name]
