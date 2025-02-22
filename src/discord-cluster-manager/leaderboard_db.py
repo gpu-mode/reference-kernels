@@ -312,9 +312,10 @@ class LeaderboardDB:
             self.connection.commit()
         except psycopg2.Error as e:
             logger.exception(
-                "Error during submission for leaderboard '%s' by user '%s'",
-                submission["leaderboard_name"],
-                submission["user_id"],
+                "Error during adding %s run on %s for submission '%s'",
+                mode,
+                runner,
+                submission,
                 exc_info=e,
             )
             self.connection.rollback()  # Ensure rollback if error occurs
