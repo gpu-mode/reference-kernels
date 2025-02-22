@@ -275,6 +275,11 @@ async def start_bot_and_api(debug_mode: bool):
     await asyncio.gather(bot_instance.start_bot(token), server.serve())
 
 
+def on_unhandled_exception(loop, context):
+    task: asyncio.Task = context['future']
+    logger.exception("Unhandled exception: %s", context['message'], exc_info=context['exception'])
+
+
 def main():
     init_environment()
 
@@ -284,7 +289,9 @@ def main():
 
     logger.info("Starting bot and API server...")
 
-    asyncio.run(start_bot_and_api(args.debug))
+    with asyncio.Runner(debug=args.debug) as runner:
+        runner.get_loop().set_exception_handler(on_unhandled_exception)
+        runner.run(start_bot_and_api(args.debug))
 
 
 if __name__ == "__main__":
