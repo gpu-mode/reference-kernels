@@ -243,6 +243,9 @@ def build_task_config(
                 "benchmarks": task.benchmarks,
                 "tests": task.tests,
                 "mode": mode.value,
+                "test_timeout": task.test_timeout,
+                "benchmark_timeout": task.benchmark_timeout,
+                "ranked_timeout": task.ranked_timeout,
             }
         else:
             sources = {}
@@ -262,4 +265,7 @@ def build_task_config(
                 "benchmarks": task.benchmarks,
                 "include_dirs": task.config.include_dirs,
                 "mode": mode.value,
+                "test_timeout": task.test_timeout,
+                "benchmark_timeout": task.benchmark_timeout,
+                "ranked_timeout": task.ranked_timeout,
             }

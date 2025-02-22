@@ -180,11 +180,16 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
 
     # minimal error messages for private run
     if mode == SubmissionMode.PRIVATE:
+        any_compile = False
         for r in runs.values():
-            if r.compilation is not None and not r.compilation.success:
-                await thread.send("❌ Compilation failed")
-                return
-        await thread.send("✅ Compilation successful")
+            if r.compilation is not None:
+                any_compile = True
+                if not r.compilation.success:
+                    await thread.send("❌ Compilation failed")
+                    return
+
+        if any_compile:
+            await thread.send("✅ Compilation successful")
 
         if "test" not in runs or not runs["test"].run.success:
             await thread.send("❌ Running tests failed")
