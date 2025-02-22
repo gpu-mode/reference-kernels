@@ -39,17 +39,18 @@ class ClusterBot(commands.Bot):
         super().__init__(intents=intents, command_prefix="!")
         self.debug_mode = debug_mode
 
-        # Create the run group
-        self.run_group = app_commands.Group(
-            name="run", description="Run jobs on different platforms"
-        )
+        # Create the run group for leaderboardless runs. Debugging only.
+        if self.debug_mode:
+            self.run_group = app_commands.Group(
+                name="run", description="Run jobs on different platforms"
+            )
+            self.tree.add_command(self.run_group)
 
         self.leaderboard_group = app_commands.Group(
             name="leaderboard", description="Leaderboard commands"
         )
         self.admin_group = app_commands.Group(name="admin", description="Admin commands")
 
-        self.tree.add_command(self.run_group)
         self.tree.add_command(self.admin_group)
         self.tree.add_command(self.leaderboard_group)
 

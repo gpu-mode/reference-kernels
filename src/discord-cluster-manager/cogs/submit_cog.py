@@ -2,6 +2,8 @@ from enum import Enum
 from typing import Optional, Tuple, Type
 
 import discord
+
+from bot import ClusterBot
 from consts import SubmissionMode
 from discord import app_commands
 from discord.ext import commands
@@ -59,7 +61,7 @@ class SubmitCog(commands.Cog):
     """
 
     def __init__(self, bot, name: str, gpus: Type[Enum]):
-        self.bot = bot
+        self.bot: ClusterBot = bot
         self.name = name
 
         choices = [app_commands.Choice(name=c.name, value=c.value) for c in gpus]
@@ -81,9 +83,11 @@ class SubmitCog(commands.Cog):
             gpu_type=f"Choose the GPU type for {name}",
         )(run)
 
-        self.run_script = bot.run_group.command(
-            name=self.name.lower(), description=f"Run a script using {self.name}"
-        )(run)
+        # For now, direct (non-leaderboard) submissions are debug-only.
+        if self.bot.debug_mode:
+            self.run_script = bot.run_group.command(
+                name=self.name.lower(), description=f"Run a script using {self.name}"
+            )(run)
 
     async def submit_leaderboard(
         self,
