@@ -69,7 +69,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 )
 
                 score = None
-                if "leaderboard" in result.runs:
+                if "leaderboard" in result.runs and result.runs["leaderboard"].run.success:
                     score = 0.0
                     num_benchmarks = int(result.runs["leaderboard"].run.result["benchmark-count"])
                     for i in range(num_benchmarks):
