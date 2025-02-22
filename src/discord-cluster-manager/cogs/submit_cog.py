@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Tuple, Type, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple, Type
 
 if TYPE_CHECKING:
     from bot import ClusterBot

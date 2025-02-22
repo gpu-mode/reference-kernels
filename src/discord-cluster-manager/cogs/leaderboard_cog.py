@@ -17,10 +17,11 @@ from ui.misc import GPUSelectionView
 from ui.table import create_table
 from utils import (
     LeaderboardItem,
+    SubmissionItem,
     get_user_from_id,
     send_discord_message,
     setup_logging,
-    with_error_handling, SubmissionItem,
+    with_error_handling,
 )
 
 if TYPE_CHECKING:
@@ -836,39 +837,41 @@ class LeaderboardCog(commands.Cog):
     @discord.app_commands.describe(submission_id="ID of the submission")
     @with_error_handling
     async def get_submission_by_id(
-            self,
-            interaction: discord.Interaction,
-            submission_id: int,
+        self,
+        interaction: discord.Interaction,
+        submission_id: int,
     ):
         with self.bot.leaderboard_db as db:
             sub: SubmissionItem = db.get_submission_by_id(submission_id)
 
         # allowed/possible to see submission
-        print(sub)
         if sub is None or int(sub["user_id"]) != interaction.user.id:
-            await send_discord_message(interaction, f"Submission {submission_id} is not one of your submissions",
-                                       ephemeral=True)
+            await send_discord_message(
+                interaction,
+                f"Submission {submission_id} is not one of your submissions",
+                ephemeral=True,
+            )
             return
 
         msg = f"# Submission {submission_id}\n"
         msg += f"submitted on {sub['submission_time']}"
         msg += f" to leaderboard `{sub['leaderboard_name']}`."
-        if not sub['done']:
+        if not sub["done"]:
             msg += "\n*Submission is still running!*\n"
 
-        file = discord.File(fp=StringIO(sub['code']), filename=sub['file_name'])
+        file = discord.File(fp=StringIO(sub["code"]), filename=sub["file_name"])
 
-        if len(sub['runs']) > 0:
+        if len(sub["runs"]) > 0:
             msg += "\nRuns:\n"
-        for run in sub['runs']:
-            if run['secret']:
+        for run in sub["runs"]:
+            if run["secret"]:
                 continue
 
             msg += f" * {run['mode']} on {run['runner']}: "
-            if run['score'] is not None and run['passed']:
+            if run["score"] is not None and run["passed"]:
                 msg += f"{run['score']}"
             else:
-                msg += "pass" if run['passed'] else "fail"
+                msg += "pass" if run["passed"] else "fail"
             msg += "\n"
 
         await send_discord_message(interaction, msg, ephemeral=True, file=file)
