@@ -8,7 +8,6 @@ def ref_kernel(data: input_t) -> output_t:
     Reference implementation of 2D convolution using PyTorch.
     Args:
         data: Tuple of (input tensor, kernel tensor)
-        spec: Convolution specifications
     Returns:
         Output tensor after convolution
     """
