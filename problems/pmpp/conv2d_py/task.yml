@@ -23,7 +23,10 @@ description: |
   Output: 4D tensor of shape (batch, channels, height-kernelsize+1, width-kernelsize+1) with convolved values
 
 config:
-  main: "eval.py" 
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
 
 tests:
   - {"size": 32, "kernelsize": 4, "channels": 16, "batch": 1, "seed": 4242}
