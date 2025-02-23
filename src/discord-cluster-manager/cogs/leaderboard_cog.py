@@ -223,8 +223,8 @@ class LeaderboardSubmitCog(app_commands.Group):
             if leaderboard_name is not None:
                 await send_discord_message(
                     interaction,
-                    "Contradicting leaderboard name specification. "
-                    f"Submitting to `{leaderboard_name}`",
+                    "Leaderboard name specified in the command doesn't match the one "
+                    f"in the submission script header. Submitting to `{leaderboard_name}`",
                 )
             else:
                 leaderboard_name = info["leaderboard"]
@@ -233,9 +233,9 @@ class LeaderboardSubmitCog(app_commands.Group):
             await send_discord_message(
                 interaction,
                 "Missing leaderboard name. "
-                "Either supply as argument in the submit command, or "
-                "specify in your submission script using the "
-                "`{#,//}!POPCORN leaderboard` directive.",
+                "Either supply one as an argument in the submit command, or "
+                "specify it in your submission script using the "
+                "`{#,//}!POPCORN leaderboard <leaderboard_name>` directive.",
             )
             return -1
 
@@ -267,7 +267,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     await send_discord_message(
                         interaction,
                         f"GPU {g} not available for `{leaderboard_name}`\n"
-                        f"Choose on of: {task_gpu_list}",
+                        f"Choose one of: {task_gpu_list}",
                         ephemeral=True,
                     )
                     return -1
@@ -340,7 +340,7 @@ class LeaderboardSubmitCog(app_commands.Group):
 
         await send_discord_message(
             interaction,
-            f"{mode.value.capitalize()} submission {sub_id} to '{leaderboard_name}' "
+            f"{mode.value.capitalize()} submission with id `{sub_id}` to leaderboard `{leaderboard_name}` "  # noqa: E501
             f"on GPUS: {', '.join([gpu.name for gpu in selected_gpus])} "
             f"using {', '.join({gpu.runner for gpu in selected_gpus})} runners succeeded!",
         )
@@ -349,7 +349,7 @@ class LeaderboardSubmitCog(app_commands.Group):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.channel_id != self.bot.leaderboard_submissions_id:
             await interaction.response.send_message(
-                f"Please use submission commands in <#{self.bot.leaderboard_submissions_id}>",
+                f"Submissions are only allowed in <#{self.bot.leaderboard_submissions_id}> channel",
                 ephemeral=True,
             )
             return False
@@ -547,7 +547,7 @@ class LeaderboardCog(commands.Cog):
             if embed:
                 await message.edit(content="", embed=embed, view=view)
             else:
-                await message.edit(content="No active leaderboards.")
+                await message.edit(content="There are currently no active leaderboards.")
 
     @leaderboard_update.before_loop
     async def before_leaderboard_update(self):
@@ -583,7 +583,7 @@ class LeaderboardCog(commands.Cog):
         if not submissions:
             await send_discord_message(
                 interaction,
-                f'No submissions found for "{leaderboard_name}".',
+                f"There are currently no submissions for leaderboard `{leaderboard_name}`.",
                 ephemeral=True,
             )
             return
@@ -655,7 +655,7 @@ class LeaderboardCog(commands.Cog):
             view = GPUSelectionView(gpus)
             await send_discord_message(
                 interaction,
-                f"Please select GPUs view for leaderboard: {leaderboard_name}.",
+                f"Please select GPUs to view for leaderboard `{leaderboard_name}`. ",
                 view=view,
                 ephemeral=True,
             )
@@ -730,7 +730,9 @@ class LeaderboardCog(commands.Cog):
         embed, view = await self._get_leaderboard_helper()
 
         if not embed:
-            await send_discord_message(interaction, "No leaderboards found.", ephemeral=True)
+            await send_discord_message(
+                interaction, "There are currently no active leaderboards.", ephemeral=True
+            )
             return
 
         await send_discord_message(
@@ -750,7 +752,11 @@ class LeaderboardCog(commands.Cog):
         with self.bot.leaderboard_db as db:
             leaderboard_item = db.get_leaderboard(leaderboard_name)  # type: LeaderboardItem
             if not leaderboard_item:
-                await send_discord_message(interaction, "Leaderboard not found.", ephemeral=True)
+                await send_discord_message(
+                    interaction,
+                    f"Leaderboard with name `{leaderboard_name}` not found.",
+                    ephemeral=True,
+                )
                 return
 
         code = leaderboard_item["task"].files
@@ -781,7 +787,9 @@ class LeaderboardCog(commands.Cog):
                 leaderboard_item = db.get_leaderboard(leaderboard_name)  # type: LeaderboardItem
                 if not leaderboard_item:
                     await send_discord_message(
-                        interaction, "Leaderboard not found.", ephemeral=True
+                        interaction,
+                        f"Leaderboard with name `{leaderboard_name}` not found.",
+                        ephemeral=True,
                     )
                     return
 
@@ -791,8 +799,8 @@ class LeaderboardCog(commands.Cog):
                 )
                 await send_discord_message(
                     interaction,
-                    f"Task `{leaderboard_name}` does not have a template for `{lang}`.\n"
-                    f"Choose from:\n{langs}",
+                    f"Leaderboard `{leaderboard_name}` does not have a template for `{lang}`.\n"  # noqa: E501
+                    f"Choose one of:\n{langs}",
                     ephemeral=True,
                 )
                 return
@@ -801,7 +809,7 @@ class LeaderboardCog(commands.Cog):
             ext = {"CUDA": "cu", "Python": "py", "Triton": "py"}
             file_name = f"{leaderboard_name}.{ext[lang]}"
             file = discord.File(fp=StringIO(template), filename=file_name)
-            message = f"**Starter code for {leaderboard_name}**\n"
+            message = f"**Starter code for leaderboard `{leaderboard_name}`**\n"
             await send_discord_message(interaction, message, ephemeral=True, file=file)
         except Exception as E:
             logger.exception(
@@ -809,7 +817,7 @@ class LeaderboardCog(commands.Cog):
             )
             await send_discord_message(
                 interaction,
-                f"Could not fetch template {lang} for {leaderboard_name}",
+                f"Could not find a template with language `{lang}` for leaderboard `{leaderboard_name}`",  # noqa: E501
                 ephemeral=True,
             )
             return
@@ -848,7 +856,7 @@ class LeaderboardCog(commands.Cog):
         if sub is None or int(sub["user_id"]) != interaction.user.id:
             await send_discord_message(
                 interaction,
-                f"Submission {submission_id} is not one of your submissions",
+                f"Submission with id `{submission_id}` is not one of your submissions",
                 ephemeral=True,
             )
             return

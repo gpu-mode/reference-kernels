@@ -35,6 +35,6 @@ class ModalCog(SubmitCog):
             lambda: modal.Function.lookup("discord-bot-runner", func_name).remote(config=config),
         )
 
-        await status.update("  Waiting for available GPU... Done")
+        await status.update("✅ Waiting for available GPU... Done")
 
         return result
