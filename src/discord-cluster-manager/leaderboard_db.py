@@ -419,8 +419,10 @@ class LeaderboardDB:
     def get_leaderboard_submissions(
         self, leaderboard_name: str, gpu_name: str, user_id: Optional[str] = None
     ) -> list[LeaderboardRankedEntry]:
-        query = """
-            WITH ranked_submissions AS (
+        # separate cases, for personal we want all submissions, for general we want best per user
+        if user_id:
+            # Query all if user_id (means called from show-personal)
+            query = """
                 SELECT
                     s.file_name,
                     s.user_id,
@@ -431,19 +433,43 @@ class LeaderboardDB:
                 FROM leaderboard.runs r
                 JOIN leaderboard.submission s ON r.submission_id = s.id
                 JOIN leaderboard.leaderboard l ON s.leaderboard_id = l.id
-                WHERE l.name = %s AND r.runner = %s AND NOT r.secret
-                      AND r.score IS NOT NULL AND r.passed
-            )
-            SELECT * FROM ranked_submissions
-            """
-        if user_id:
-            query += " WHERE user_id = %s"
-
-        query += " ORDER BY score ASC"
-
-        args = (leaderboard_name, gpu_name)
-        if user_id:
-            args = args + (user_id,)
+                WHERE l.name = %s
+                    AND r.runner = %s
+                    AND NOT r.secret
+                    AND r.score IS NOT NULL
+                    AND r.passed
+                    AND s.user_id = %s
+                ORDER BY r.score ASC
+                """
+            args = (leaderboard_name, gpu_name, user_id)
+        else:
+            # Query best submission per user if no user_id (means called from show)
+            query = """
+                WITH best_submissions AS (
+                    SELECT DISTINCT ON (s.user_id)
+                        s.file_name,
+                        s.user_id,
+                        s.submission_time,
+                        r.score,
+                        r.runner
+                    FROM leaderboard.runs r
+                    JOIN leaderboard.submission s ON r.submission_id = s.id
+                    JOIN leaderboard.leaderboard l ON s.leaderboard_id = l.id
+                    WHERE l.name = %s AND r.runner = %s AND NOT r.secret
+                          AND r.score IS NOT NULL AND r.passed
+                    ORDER BY s.user_id, r.score ASC
+                )
+                SELECT
+                    file_name,
+                    user_id,
+                    submission_time,
+                    score,
+                    runner,
+                    RANK() OVER (ORDER BY score ASC) as rank
+                FROM best_submissions
+                ORDER BY score ASC
+                """
+            args = (leaderboard_name, gpu_name)
 
         self.cursor.execute(query, args)
 
