@@ -11,7 +11,7 @@ def ref_kernel(data: input_t) -> output_t:
     Returns:
         Tensor containing the inclusive prefix sum
     """
-    return torch.cumsum(data, dim=0)
+    return torch.cumsum(data.to(torch.float64), dim=0).to(torch.float64)
 
 
 def generate_input(size: int, seed: int) -> input_t:
