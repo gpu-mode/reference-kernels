@@ -11,7 +11,9 @@ def ref_kernel(data: input_t) -> output_t:
     Returns:
         Tensor containing the sum of all elements
     """
-    return data.sum()
+    # Let's be on the safe side here, and do the reduction in 64 bit
+    return data.to(torch.float64).sum().to(torch.float32)
+
 
 def generate_input(size: int, seed: int) -> input_t:
     """
