@@ -22,14 +22,18 @@ def generate_input(size: int, seed: int) -> input_t:
     gen.manual_seed(seed)
     return torch.randn(size, device='cuda', dtype=torch.float32, generator=gen).contiguous()
 
-def check_implementation(
-    data: input_t,
-    output: output_t,
-) -> str:
+# This algorithm is very sensitive to the tolerance and the error is magnified by the input size
+# The tolerance is scaled by the square root of the input size
+def check_implementation(data: input_t, output: output_t) -> str:
     expected = ref_kernel(data)
-    reasons = verbose_allclose(output, expected, rtol=1e-5, atol=1e-5)
     
+    # Then get the size for scaling the tolerance
+    n = data.numel()
+    
+    scale_factor = n ** 0.5  # Square root of input size
+    rtol = 1e-5 * scale_factor
+    atol = 1e-5 * scale_factor
+    reasons = verbose_allclose(output, expected, rtol=rtol, atol=atol)
     if len(reasons) > 0:
         return "mismatch found! custom implementation doesn't match reference: " + reasons[0]
-    
-    return '' 
+    return ''
