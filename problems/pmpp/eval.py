@@ -161,7 +161,7 @@ def benchmark(test: TestCase, recheck: bool, max_repeats: int, max_time_ns: floa
     durations = []
     # generate input data once
     data = generate_input(**test.args)
-    #  first, one obligatory correctness check
+    # first, one obligatory correctness check; also triggers triton compile for the given shape
     output = custom_kernel(data)
     error = check_implementation(data, output)
     if error:
