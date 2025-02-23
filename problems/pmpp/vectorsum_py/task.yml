@@ -10,8 +10,10 @@ files:
 lang: "py"
 
 description: |
-  Implement a vector sum reduction kernel using CUDA inline function that matches the reference implementation.
-  The kernel should compute the sum of all elements in the input tensor.
+  Implement a vector sum reduction kernel. This kernel computes the sum of all elements in the input tensor.
+
+  Input: A tensor of shape `(N,)` with values from a normal distribution with mean 0 and variance 1.
+  Output: A scalar value equal to the sum of all elements in the input tensor.
 
 config:
   main: "eval.py" 
@@ -24,8 +26,9 @@ tests:
   - {"size": 4096, "seed": 9173}
 
 benchmarks:
-  - {"size": 8192, "seed": 54352}
-  - {"size": 16384, "seed": 93246}
-  - {"size": 32768, "seed": 6256}
-  - {"size": 65536, "seed": 8841}
-  - {"size": 131072, "seed": 6252} 
+  - {"size": 1638400, "seed": 93246}
+  - {"size": 3276800, "seed": 6256}
+  - {"size": 6553600, "seed": 8841}
+  - {"size": 13107200, "seed": 6252}
+  - {"size": 26214400, "seed": 82135}
+  - {"size": 52428800, "seed": 12345}
