@@ -1,6 +1,7 @@
-from utils import verbose_allclose
+from utils import make_match_reference
 import torch
 from task import input_t, output_t
+
 
 def ref_kernel(data: input_t) -> output_t:
     """
@@ -18,6 +19,7 @@ def ref_kernel(data: input_t) -> output_t:
                          dtype=data.dtype)
     return torch.sum(data * weights, dim=-1)
 
+
 def generate_input(size: int, seed: int) -> input_t:
     """
     Generates random RGB image tensor of specified size.
@@ -31,14 +33,5 @@ def generate_input(size: int, seed: int) -> input_t:
                      dtype=torch.float32, 
                      generator=gen).contiguous()
 
-def check_implementation(
-    data: input_t,
-    output: output_t,
-) -> str:
-    expected = ref_kernel(data)
-    reasons = verbose_allclose(output, expected, rtol=1e-4, atol=1e-4)
-    
-    if len(reasons) > 0:
-        return "mismatch found! custom implementation doesn't match reference: " + reasons[0]
-    
-    return '' 
+
+check_implementation = make_match_reference(ref_kernel, rtol=1e-4, atol=1e-4)

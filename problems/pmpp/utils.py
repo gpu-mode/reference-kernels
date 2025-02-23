@@ -93,3 +93,22 @@ def verbose_allclose(
         return mismatch_details
 
     return []
+
+
+def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08):
+    """
+    Convenient "default" implementation for tasks' `check_implementation` function.
+    """
+    expected = reference(data)
+    reasons = verbose_allclose(output, expected, rtol=rtol, atol=atol)
+
+    if len(reasons) > 0:
+        return "mismatch found! custom implementation doesn't match reference: " + " ".join(reasons)
+
+    return ''
+
+
+def make_match_reference(reference: callable, **kwargs):
+    def wrapped(data, output):
+        return match_reference(data, output, reference=reference, **kwargs)
+    return wrapped

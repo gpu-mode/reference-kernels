@@ -1,6 +1,7 @@
 import torch
 from task import input_t, output_t
-from utils import verbose_allclose
+from utils import make_match_reference
+
 
 def generate_input(m: int, n: int, k: int, seed: int) -> input_t:
     gen = torch.Generator(device='cuda')
@@ -11,16 +12,10 @@ def generate_input(m: int, n: int, k: int, seed: int) -> input_t:
     b.uniform_(0, 1, generator=gen)
     return (a, b)
 
+
 def ref_kernel(data: input_t) -> output_t:
     a, b = data
     return a @ b
 
-def check_implementation(data: input_t, output: output_t) -> str:
-    expected = ref_kernel(data)
-    reasons = verbose_allclose(output, expected)
-    if len(reasons) > 0:
-        # TODO better processing of reasons
-        return "mismatch found! custom implementation doesn't match reference.: " + reasons[0]
 
-    return ''
-
+check_implementation = make_match_reference(ref_kernel)

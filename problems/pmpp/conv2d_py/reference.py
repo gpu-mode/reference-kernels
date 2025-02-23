@@ -1,7 +1,8 @@
-from utils import verbose_allclose
+from utils import make_match_reference
 import torch
 import torch.nn.functional as F
 from task import input_t, output_t
+
 
 def ref_kernel(data: input_t) -> output_t:
     """
@@ -21,6 +22,7 @@ def ref_kernel(data: input_t) -> output_t:
         stride=1,
         padding=0
     )
+
 
 def generate_input(size: int, kernelsize: int, channels: int, batch: int, seed: int) -> input_t:
     """
@@ -50,14 +52,5 @@ def generate_input(size: int, kernelsize: int, channels: int, batch: int, seed: 
     
     return (input_tensor, kernel)
 
-def check_implementation(
-    data: input_t,
-    output: output_t,
-) -> str:
-    expected = ref_kernel(data)
-    reasons = verbose_allclose(output, expected, rtol=1e-3, atol=1e-3)
-    
-    if len(reasons) > 0:
-        return "mismatch found! custom implementation doesn't match reference: " + reasons[0]
-    
-    return '' 
+
+check_implementation = make_match_reference(ref_kernel, rtol=1e-3, atol=1e-3)
