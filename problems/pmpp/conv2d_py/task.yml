@@ -37,4 +37,4 @@ benchmarks:
   - {"size": 128, "kernelsize": 16, "channels": 64, "batch": 4, "seed": 93246}
   - {"size": 256, "kernelsize": 16, "channels": 128, "batch": 2, "seed": 6256}
   - {"size": 256, "kernelsize": 16, "channels": 128, "batch": 2, "seed": 8841}
-  - {"size": 512, "kernelsize": 32, "channels": 256, "batch": 1, "seed": 6252} 
+  - {"size": 256, "kernelsize": 32, "channels": 128, "batch": 1, "seed": 6252}
