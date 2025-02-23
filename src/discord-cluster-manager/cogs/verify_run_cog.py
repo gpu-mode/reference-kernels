@@ -13,9 +13,10 @@ from cogs.leaderboard_cog import LeaderboardSubmitCog
 from cogs.modal_cog import ModalCog
 from consts import SubmissionMode
 from discord import app_commands
+from discord.app_commands import Choice
 from discord.ext import commands
 from task import make_task
-from utils import send_discord_message, setup_logging
+from utils import RunItem, SubmissionItem, send_discord_message, setup_logging, with_error_handling
 
 logger = setup_logging()
 
@@ -148,7 +149,18 @@ class VerifyRunCog(commands.Cog):
 
     @app_commands.command(name="verify-task")
     @app_commands.autocomplete(task=admin_cog.leaderboard_dir_autocomplete)
-    async def verify_task(self, interaction: discord.Interaction, task: str):
+    @app_commands.choices(
+        mode=[
+            Choice(name=SubmissionMode.TEST.name, value=SubmissionMode.TEST.value),
+            Choice(name=SubmissionMode.BENCHMARK.name, value=SubmissionMode.BENCHMARK.value),
+            Choice(name=SubmissionMode.LEADERBOARD.name, value=SubmissionMode.LEADERBOARD.value),
+            Choice(name="All", value="all"),
+        ]
+    )
+    @with_error_handling
+    async def verify_task(
+        self, interaction: discord.Interaction, task: str, mode: Choice[str] = None
+    ):
         directory = Path(env.PROBLEM_DEV_DIR) / task
         if not directory.resolve().is_relative_to(Path.cwd() / env.PROBLEM_DEV_DIR):
             await send_discord_message(interaction, f"Invalid path {directory.resolve()}")
@@ -160,6 +172,14 @@ class VerifyRunCog(commands.Cog):
             await send_discord_message(interaction, f"Invalid task {directory}")
             return
         await send_discord_message(interaction, f"Testing {directory}")
+
+        modes = []
+        if mode is None:
+            modes = [SubmissionMode.LEADERBOARD]
+        elif mode.value == "all":
+            modes = [SubmissionMode.TEST, SubmissionMode.BENCHMARK, SubmissionMode.LEADERBOARD]
+        else:
+            modes = [SubmissionMode(mode.value)]
 
         lb_name = f"test.{uuid.uuid4().hex}"
         # create the dummy leaderboard
@@ -176,28 +196,70 @@ class VerifyRunCog(commands.Cog):
         try:
             # make submissions
             submissions = []
-            for sub in directory.glob("submission*"):
-                for mode in [
-                    SubmissionMode.TEST,
-                    SubmissionMode.BENCHMARK,
-                    SubmissionMode.LEADERBOARD,
-                ]:
-                    submissions.append(self.verify_submission(interaction, lb_name, sub, mode))
+            reports = []
+            for sub in directory.glob("solutions/*/*"):
+                for mode in modes:
+                    submissions.append(
+                        self.verify_submission(interaction, lb_name, sub, mode, reports)
+                    )
             await asyncio.gather(*submissions)
         except Exception as E:
             logger.exception("Error in LB test", exc_info=E)
+            await send_discord_message(interaction, str(E), ephemeral=True)
+            return
         finally:
             with self.bot.leaderboard_db as db:
                 db.delete_leaderboard(lb_name, force=True)
 
-        await send_discord_message(interaction, "Done")
+        report = f"Report:```{'\n'.join(sorted(reports))}```"
+
+        await send_discord_message(interaction, report)
 
     async def verify_submission(
-        self, interaction: discord.Interaction, lb_name: str, sub: Path, mode: SubmissionMode
+        self,
+        interaction: discord.Interaction,
+        lb_name: str,
+        sub: Path,
+        mode: SubmissionMode,
+        reports: list,
     ):
         lb_cog = LeaderboardSubmitCog(self.bot)
         script = create_mock_attachment(sub.name, sub.read_text())
-        await lb_cog.on_submit_hook(interaction, lb_name, script, mode, cmd_gpus=["T4"])
+        sub_id = await lb_cog.on_submit_hook(interaction, lb_name, script, mode, cmd_gpus=["T4"])
+
+        run_id = f"{sub.parent.name}/{sub.name}:"
+
+        if sub_id == -1:
+            reports.append(f"❌ {run_id:20} submitting failed")
+            return
+
+        report_success = True
+
+        # verify results
+        with self.bot.leaderboard_db as db:
+            sub_data: SubmissionItem = db.get_submission_by_id(sub_id)
+        if sub_data is None:
+            reports.append(f"❌ {run_id:20} cannot find in db")
+            return
+
+        if sub_data["done"] is not True:
+            reports.append(f"❌ {run_id:20} is unfinished")
+            return
+
+        if sub.parent.name == "correct":
+            run: RunItem
+            for run in sub_data["runs"]:
+                if run["passed"] is not True:
+                    reports.append(f"❌ {run_id:20} run {run['mode']} failed")
+                    report_success = False
+        elif sub.parent.name == "wrong":
+            for run in sub_data["runs"]:
+                if run["passed"] is True:
+                    reports.append(f"❌ {run_id:20} run {run['mode']} passed")
+                    report_success = False
+
+        if report_success:
+            reports.append(f"✅ {run_id:20} {mode.name} behaved as expected")
 
     @app_commands.command(name="verifyruns")
     async def verify_runs(self, interaction: discord.Interaction):

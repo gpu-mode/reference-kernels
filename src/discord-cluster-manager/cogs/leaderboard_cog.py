@@ -344,7 +344,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             f"on GPUS: {', '.join([gpu.name for gpu in selected_gpus])} "
             f"using {', '.join({gpu.runner for gpu in selected_gpus})} runners succeeded!",
         )
-        return 0
+        return sub_id
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.channel_id != self.bot.leaderboard_submissions_id:
