@@ -19,6 +19,9 @@ description: |
 config:
   main: "eval.py" 
 
+templates:
+  Python: "../template.py"
+
 tests:
   - {"size": 127, "seed": 4242}
   - {"size": 128, "seed": 5236}
