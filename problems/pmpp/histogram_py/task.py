@@ -6,5 +6,6 @@ output_t = TypeVar("output_t", bound=torch.Tensor)
 
 class TestSpec(TypedDict):
     size: int
-    seed: int 
+    seed: int
+    contention: int
 
