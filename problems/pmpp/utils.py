@@ -23,10 +23,12 @@ def get_device(use_cuda: bool = True) -> torch.device:
             print("No compatible GPU found. Falling back to CPU.")
     return torch.device("cpu")
 
+
 # Adapted from https://github.com/linkedin/Liger-Kernel/blob/main/test/utils.py
+@torch.no_grad()
 def verbose_allclose(
-        tensor1: torch.Tensor,
-        tensor2: torch.Tensor,
+        received: torch.Tensor,
+        expected: torch.Tensor,
         rtol=1e-05,
         atol=1e-08,
         max_print=5
@@ -35,9 +37,9 @@ def verbose_allclose(
     Assert that two tensors are element-wise equal within a tolerance, providing detailed information about mismatches.
 
     Parameters:
-    tensor1 (torch.Tensor): First tensor to compare.
-    tensor2 (torch.Tensor): Second tensor to compare.
-    rtol (float): Relative tolerance.
+    received (torch.Tensor): Tensor we actually got.
+    expected (torch.Tensor): Tensor we expected to receive.
+    rtol (float): Relative tolerance; relative to expected
     atol (float): Absolute tolerance.
     max_print (int): Maximum number of mismatched elements to print.
 
@@ -45,25 +47,25 @@ def verbose_allclose(
     AssertionError: If the tensors are not all close within the given tolerance.
     """
     # Check if the shapes of the tensors match
-    if tensor1.shape != tensor2.shape:
+    if received.shape != expected.shape:
         return ["SIZE MISMATCH"]
 
     # Calculate the difference between the tensors
-    diff = torch.abs(tensor1 - tensor2)
+    diff = torch.abs(received - expected)
 
     # Determine the tolerance
-    tolerance = atol + rtol * torch.abs(tensor2)
+    tolerance = atol + rtol * torch.abs(expected)
 
     # Find tolerance mismatched elements
     tol_mismatched = diff > tolerance
 
     # Find nan mismatched elements
-    nan_mismatched = torch.logical_xor(torch.isnan(tensor1), torch.isnan(tensor2))
+    nan_mismatched = torch.logical_xor(torch.isnan(received), torch.isnan(expected))
 
     # Find +inf mismatched elements
-    posinf_mismatched = torch.logical_xor(torch.isposinf(tensor1), torch.isposinf(tensor2))
+    posinf_mismatched = torch.logical_xor(torch.isposinf(received), torch.isposinf(expected))
     # Find -inf mismatched elements
-    neginf_mismatched = torch.logical_xor(torch.isneginf(tensor1), torch.isneginf(tensor2))
+    neginf_mismatched = torch.logical_xor(torch.isneginf(received), torch.isneginf(expected))
 
     # Find all mismatched elements
     mismatched = torch.logical_or(
@@ -81,12 +83,11 @@ def verbose_allclose(
 
     # Raise AssertionError with detailed information if there are mismatches
     if not all_close and num_mismatched >= 1:
-        mismatch_details = [f"Number of mismatched elements: {num_mismatched}",
-                            f"Mismatched elements: {mismatched_indices}"]
+        mismatch_details = [f"Number of mismatched elements: {num_mismatched}"]
 
         for index in mismatched_indices[:max_print]:
             i = tuple(index.tolist())
-            mismatch_details.append(f"ERROR AT {i}: {tensor1[i]} {tensor2[i]}")
+            mismatch_details.append(f"ERROR AT {i}: {received[i]} {expected[i]}")
         if num_mismatched > max_print:
             mismatch_details.append(f"... and {num_mismatched - max_print} more mismatched elements.")
         return mismatch_details
