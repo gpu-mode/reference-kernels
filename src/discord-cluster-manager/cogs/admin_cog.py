@@ -443,7 +443,7 @@ class AdminCog(commands.Cog):
                 )
                 return
 
-            args = ["unzip", temp_dir + "/problems.zip", "-d", temp_dir + "/problems"]
+            args = ["unzip", temp_dir + "/problems.zip", "-d", temp_dir]
             try:
                 subprocess.check_call(args, encoding="utf-8")
             except subprocess.CalledProcessError as E:
