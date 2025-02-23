@@ -1,14 +1,13 @@
 from utils import verbose_allclose
 import torch
 import torch.nn.functional as F
-from task import input_t, output_t, KernelSpec
+from task import input_t, output_t
 
-def ref_kernel(data: input_t, spec: KernelSpec) -> output_t:
+def ref_kernel(data: input_t) -> output_t:
     """
     Reference implementation of 2D convolution using PyTorch.
     Args:
         data: Tuple of (input tensor, kernel tensor)
-        spec: Convolution specifications (stride, padding)
     Returns:
         Output tensor after convolution
     """
@@ -16,11 +15,14 @@ def ref_kernel(data: input_t, spec: KernelSpec) -> output_t:
     return F.conv2d(
         input_tensor, 
         kernel,
-        stride=spec.stride,
-        padding=spec.padding
+
+        # No padding and no striding
+        # TODO: Can revisit this in future problems
+        stride=1,
+        padding=0
     )
 
-def generate_input(size: int, kernel_size: int, channels: int, batch: int, seed: int) -> input_t:
+def generate_input(size: int, kernelsize: int, channels: int, batch: int, seed: int) -> input_t:
     """
     Generates random input and kernel tensors.
     Returns:
@@ -40,7 +42,7 @@ def generate_input(size: int, kernel_size: int, channels: int, batch: int, seed:
     # Generate kernel tensor: [out_channels, in_channels, kernel_height, kernel_width]
     # Here we use same number of output channels as input channels for simplicity
     kernel = torch.randn(
-        channels, channels, kernel_size, kernel_size,
+        channels, channels, kernelsize, kernelsize,
         device='cuda',
         dtype=torch.float32,
         generator=gen
@@ -50,10 +52,9 @@ def generate_input(size: int, kernel_size: int, channels: int, batch: int, seed:
 
 def check_implementation(
     data: input_t,
-    spec: KernelSpec,
     output: output_t,
 ) -> str:
-    expected = ref_kernel(data, spec)
+    expected = ref_kernel(data)
     reasons = verbose_allclose(output, expected, rtol=1e-3, atol=1e-3)
     
     if len(reasons) > 0:

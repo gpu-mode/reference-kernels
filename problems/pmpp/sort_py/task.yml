@@ -11,7 +11,11 @@ lang: "py"
 
 description: |
   Implement a sort kernel that matches the reference implementation.
-  The kernel should sort the input array in ascending order using the merge sort algorithm.
+  The kernel should sort the input array in ascending order using a sort algorithm of your choice.
+  
+  Input arrays are generated as random floating-point numbers, where each row of a roughly square matrix
+  is drawn from a normal distribution with a different mean value per row based on the seed and then flattened into a 1D array.
+  
 
 config:
   main: "eval.py" 
@@ -24,8 +28,8 @@ tests:
   - {"size": 4096, "seed": 9173}
 
 benchmarks:
-  - {"size": 8192, "seed": 54352}
-  - {"size": 16384, "seed": 93246}
-  - {"size": 32768, "seed": 6256}
-  - {"size": 65536, "seed": 8841}
-  - {"size": 131072, "seed": 6252} 
+  - {"size": 100000, "seed": 54352}
+  - {"size": 500000, "seed": 93246}
+  - {"size": 1000000, "seed": 6256}
+  - {"size": 10000000, "seed": 8841}
+  - {"size": 100000000, "seed": 6252} 
