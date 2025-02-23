@@ -76,13 +76,43 @@ def verbose_allclose(
     mismatched_indices = torch.nonzero(mismatched)
 
     # Count the number of mismatched elements
-    num_mismatched = mismatched.sum().item()
+    num_mismatched = mismatched.count_nonzero().item()
 
-    # Check if all elements are close
-    all_close = num_mismatched == 0
+    # Generate detailed information if there are mismatches
+    if num_mismatched >= 1:
+        mismatch_details = [f"Number of mismatched elements: {num_mismatched}"]
 
-    # Raise AssertionError with detailed information if there are mismatches
-    if not all_close and num_mismatched >= 1:
+        for index in mismatched_indices[:max_print]:
+            i = tuple(index.tolist())
+            mismatch_details.append(f"ERROR AT {i}: {received[i]} {expected[i]}")
+        if num_mismatched > max_print:
+            mismatch_details.append(f"... and {num_mismatched - max_print} more mismatched elements.")
+        return mismatch_details
+
+    return []
+
+
+@torch.no_grad()
+def verbose_allequal(received: torch.Tensor, expected: torch.Tensor, max_print: int=5):
+    """
+    Assert that two tensors are element-wise perfectly equal, providing detailed information about mismatches.
+
+    Parameters:
+    received (torch.Tensor): Tensor we actually got.
+    expected (torch.Tensor): Tensor we expected to receive.
+    max_print (int): Maximum number of mismatched elements to print.
+
+    Returns:
+         Empty string if tensors are equal, otherwise detailed error information
+    """
+    mismatched = torch.not_equal(received, expected)
+    mismatched_indices = torch.nonzero(mismatched)
+
+    # Count the number of mismatched elements
+    num_mismatched = mismatched.count_nonzero().item()
+
+    # Generate detailed information if there are mismatches
+    if num_mismatched >= 1:
         mismatch_details = [f"Number of mismatched elements: {num_mismatched}"]
 
         for index in mismatched_indices[:max_print]:
