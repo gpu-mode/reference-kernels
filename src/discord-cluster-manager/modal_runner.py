@@ -38,7 +38,15 @@ cuda_image = (
         "clang-11",  # note i skip a step
     )
     .pip_install(
-        "ninja", "packaging", "wheel", "torch", "numpy", "triton", "jax[cuda12]", "jax2torch"
+        "ninja",
+        "packaging",
+        "wheel",
+        "torch",
+        "numpy",
+        "triton",
+        "jax[cuda12]",
+        "jax2torch",
+        "tinygrad",
     )
     .run_commands(
         "update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100 "
