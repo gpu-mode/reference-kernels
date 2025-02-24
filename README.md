@@ -346,3 +346,19 @@ If you'd like to donate a GPU to our efforts, we can make you a CI admin in Gith
 - Thank you Modal for credits and speedy spartup times
 - Luca Antiga did something very similar for the NeurIPS LLM efficiency competition, it was great!
 - Midjourney was a similar inspiration in terms of UX
+
+## Citation
+
+If you used our software please cite it as 
+
+```
+@misc{kernelbot2025,
+    title={KernelBot: A Discord-based GPU Kernel Evaluation and Competition Platform},
+    author={Sirovatka, Matej and Zhang, Alex and Schultheis, Erik and Horowitz, Ben and Saroufim, Mark},
+    year={2025},
+    month={2},
+    note={Equal contribution},
+    url={https://github.com/gpu-mode/discord-cluster-manager},
+    publisher={GitHub}
+}
+```

@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "KernelBot: A Discord-based GPU Kernel Evaluation and Competition Platform"
+authors:
+  - family-names: "Sirovatka"
+    given-names: "Matej"
+  - family-names: "Zhang"
+    given-names: "Alex"
+  - family-names: "Schultheis"
+    given-names: "Erik"
+  - family-names: "Horowitz"
+    given-names: "Ben"
+  - family-names: "Saroufim"
+    given-names: "Mark"
+date-released: 2025-02
+url: "https://github.com/gpu-mode/discord-cluster-manager"
+type: software
+notes: "All authors contributed equally to this work." 
