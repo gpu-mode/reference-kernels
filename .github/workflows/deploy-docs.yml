@@ -4,7 +4,7 @@ name: Deploy Docs to GitHub Pages
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Runs at 00:00 UTC daily
+    - cron: '*/10 0 * * *'  # Runs at 00:00 UTC daily
   push:
     branches:
       - main  # only run on main branch pushes
