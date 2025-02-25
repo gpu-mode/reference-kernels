@@ -93,22 +93,29 @@ def fetch_leaderboard_data():
 
                 # Get active leaderboards with their GPU types and submission counts
                 query = """
-                    WITH ranked_submissions AS (
-                        SELECT
+                    WITH unique_best_submissions AS (
+                        SELECT DISTINCT ON (s.user_id)
                             s.file_name,
                             s.user_id,
                             s.submission_time,
                             r.score,
-                            r.runner,
-                            RANK() OVER (ORDER BY r.score ASC) as rank
+                            r.runner
                         FROM leaderboard.runs r
                         JOIN leaderboard.submission s ON r.submission_id = s.id
                         JOIN leaderboard.leaderboard l ON s.leaderboard_id = l.id
                         WHERE l.name = %s AND r.runner = %s AND NOT r.secret
                             AND r.score IS NOT NULL AND r.passed
+                        ORDER BY s.user_id, r.score ASC
                     )
-                    SELECT * FROM ranked_submissions
-                    ORDER BY %s ASC;
+                    SELECT
+                        file_name,
+                        user_id,
+                        submission_time,
+                        score,
+                        runner,
+                        ROW_NUMBER() OVER (ORDER BY score ASC) as rank
+                    FROM unique_best_submissions
+                    ORDER BY score ASC;
                 """
 
                 gpu_type_data = {}
@@ -123,7 +130,7 @@ def fetch_leaderboard_data():
                     gpu_types = [x[1] for x in cur.fetchall()]
 
                     for gpu_type in gpu_types:
-                        args = (name, gpu_type, deadline)
+                        args = (name, gpu_type)
                         cur.execute(query, args)
                         submissions = cur.fetchall()
 
