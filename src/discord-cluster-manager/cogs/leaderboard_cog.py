@@ -65,12 +65,6 @@ class LeaderboardSubmitCog(app_commands.Group):
 
         try:
             if result.success:
-                user_id = (
-                    interaction.user.global_name
-                    if interaction.user.nick is None
-                    else interaction.user.nick
-                )
-
                 score = None
                 if "leaderboard" in result.runs and result.runs["leaderboard"].run.success:
                     score = 0.0
@@ -97,14 +91,6 @@ class LeaderboardSubmitCog(app_commands.Group):
                             result=value.run,
                             system=result.system,
                         )
-
-                if score is not None:
-                    await discord_thread.send(
-                        "## Result:\n"
-                        + f"Leaderboard `{leaderboard_name}`:\n"
-                        + f"> **{user_id}**'s `{script.filename}` on `{gpu.name}` ran "
-                        + f"for `{score:.9f}` seconds!",
-                    )
         except Exception as e:
             logger.error("Error in leaderboard submission", exc_info=e)
             await discord_thread.send(
@@ -346,13 +332,65 @@ class LeaderboardSubmitCog(app_commands.Group):
             with self.bot.leaderboard_db as db:
                 db.mark_submission_done(sub_id)
 
-        await send_discord_message(
-            interaction,
-            f"{mode.value.capitalize()} submission with id `{sub_id}` to leaderboard `{leaderboard_name}` "  # noqa: E501
-            f"on GPUS: {', '.join([gpu.name for gpu in selected_gpus])} "
-            f"using {', '.join({gpu.runner for gpu in selected_gpus})} runners succeeded!",
-        )
+        await self.post_submit_hook(interaction, mode, sub_id)
         return sub_id
+
+    async def post_submit_hook(
+        self, interaction: discord.Interaction, mode: SubmissionMode, sub_id: int
+    ):
+        with self.bot.leaderboard_db as db:
+            sub_data: SubmissionItem = db.get_submission_by_id(sub_id)
+
+        medals = {1: "🥇 First", 2: "🥈 Second", 3: "🥉 Third"}
+
+        result_lines = []
+        for run in sub_data["runs"]:
+            if (
+                not run["secret"]
+                and run["mode"] == SubmissionMode.LEADERBOARD.value
+                and run["passed"]
+            ):
+                # got a high score?
+                with self.bot.leaderboard_db as db:
+                    competition = db.get_leaderboard_submissions(
+                        sub_data["leaderboard_name"], run["runner"]
+                    )
+                # compare against the competition
+                found = False
+                other_by_user = False
+                run_time = float(run["score"])
+                score_text = format_time(run_time * 1e9)
+                for entry in competition:
+                    # can we find our own run? Only if it is the fastest submission by this user
+                    if entry["submission_id"] == sub_id:
+                        rank = entry["rank"]
+                        if 1 <= rank <= 3:
+                            result_lines += [
+                                f"> {medals[rank]} place on {run['runner']}: {score_text}"
+                            ]
+                        elif rank <= 10:
+                            result_lines += [f"> {rank}th place on {run['runner']}: {score_text}"]
+                        else:
+                            result_lines += [f"> Personal best on {run['runner']}: {score_text}"]
+                        found = True
+                    elif entry["user_id"] == sub_data["user_id"]:
+                        other_by_user = True
+                if not found:
+                    if other_by_user:
+                        # User already has a submission that is faster
+                        result_lines += [f"> Successful on {run['runner']}: {score_text}"]
+                    else:
+                        # no submission by the user exists
+                        result_lines += [
+                            f"> 🍾 First successful submission on {run['runner']}: {score_text}"
+                        ]
+
+        if len(result_lines) > 0:
+            await send_discord_message(
+                interaction,
+                f"{interaction.user.mention}'s submission with id `{sub_id}` to leaderboard `{sub_data['leaderboard_name']}`:\n"  # noqa: E501
+                + "\n".join(result_lines),
+            )
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.channel_id != self.bot.leaderboard_submissions_id:
