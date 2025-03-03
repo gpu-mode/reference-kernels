@@ -9,6 +9,7 @@ psycopg2-binary
 yoyo-migrations
 ruff
 pre-commit
+better_profanity
 
 # api
 fastapi[all] # install all to avoid random bugs
