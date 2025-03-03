@@ -1,12 +1,12 @@
 ## Reference Kernels
 
-This repo holds reference kernels for the KernelBot which hosts regular competitions on discord.gg/gpumode
+This repo holds reference kernels for the KernelBot which hosts regular competitions on [discord.gg/gpumode](discord.gg/gpumode).
 
 ## Competition
-1. PMPP practice problems: Starting on Sunday Feb 21, 2025
+1. [PMPP practice problems](https://gpu-mode.github.io/discord-cluster-manager/docs/active#practice-round-leaderboard): Starting on Sunday Feb 21, 2025.
 2. LLM competition: Coming soon!
 
-## Making a submission
+## Making a Leaderboard Submission
 
 Please take a look at `vectoradd_py` to see multiple examples of expected submisisons ranging from PyTorch code to Triton to inline CUDA.
 
