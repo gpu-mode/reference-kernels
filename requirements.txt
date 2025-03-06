@@ -10,6 +10,7 @@ yoyo-migrations
 ruff
 pre-commit
 better_profanity
+unittest
 
 # api
 fastapi[all] # install all to avoid random bugs
