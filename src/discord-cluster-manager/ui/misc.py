@@ -1,3 +1,5 @@
+from typing import Awaitable, Callable
+
 import discord
 from discord import Interaction, SelectOption, ui
 from utils import KernelBotError, send_discord_message
@@ -25,6 +27,39 @@ class GPUSelectionView(ui.View):
         await interaction.response.defer(ephemeral=True)
         self.stop()
 
+
+class ConfirmationView(ui.View):
+    def __init__(self, *,
+                 confirm_text: str,
+                 confirm_callback: Callable[[], Awaitable],
+                 reject_text: str,
+                 reject_callback: Callable[[], Awaitable],
+                 timeout: int = 30
+                 ):
+        super().__init__(timeout=timeout)
+
+        async def callback_yes(_: Interaction):
+            await confirm_callback()
+            self.stop()
+
+        async def callback_no(_: Interaction):
+            await reject_callback()
+            self.stop()
+
+        self._reject_callback = reject_callback
+
+        # Create buttons
+        button = ui.Button(label=confirm_text)
+        button.callback = callback_yes
+        self.add_item(button)
+
+        button = ui.Button(label=reject_text)
+        button.callback = callback_no
+        self.add_item(button)
+
+    async def on_timeout(self) -> None:
+        await self._reject_callback()
+        self.stop()
 
 class DeleteConfirmationModal(ui.Modal, title="Confirm Deletion"):
     def __init__(self, field_name: str, field_value: str, db, force: bool = False):

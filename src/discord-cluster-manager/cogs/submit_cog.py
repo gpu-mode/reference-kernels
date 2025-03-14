@@ -165,7 +165,7 @@ class SubmitCog(commands.Cog):
             task=task, submission_content=script_content, arch=self._get_arch(gpu_type), mode=mode
         )
 
-        logger.info("submitting task %s to runner %s", config, self.name)
+        logger.info("submitting task to runner %s", self.name)
 
         result = await self._run_submission(config, gpu_type, status)
         await status.update_header(f"Running on {self.name}... ✅ success")

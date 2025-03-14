@@ -55,7 +55,7 @@ TEMPLATE = """
                     {% for submission in problem.submissions %}
                     <div class="submission{% if submission.rank == 1 %} first{% elif submission.rank == 2 %} second{% elif submission.rank == 3 %} third{% endif %}"
                          data-user="{{ submission.user }}"
-                         data-time="{{ submission.time }}s"
+                         data-time="{{ submission.time }}ns"
                          {% if submission.rank %}data-rank="{{ submission.rank }}"{% endif %}>
                         {% if submission.rank == 1 %}🥇 {% elif submission.rank == 2 %}🥈 {% elif submission.rank == 3 %}🥉 {% else %}{{ submission.rank }}. {% endif %}{{ submission.user }} - {{ submission.time }}
                     </div>
@@ -149,7 +149,11 @@ def fetch_leaderboard_data():
                                 rank = lb[5]
                                 global_name = get_name_from_id(user_id)
                                 gpu_submissions.append(
-                                    {"user": f"{global_name}", "time": f"{time:.9f}", "rank": rank}
+                                    {
+                                        "user": f"{global_name}",
+                                        "time": f"{time:.9f}",
+                                        "rank": rank,
+                                    }
                                 )
 
                             # Sort submissions by time

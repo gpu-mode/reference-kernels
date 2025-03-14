@@ -15,7 +15,7 @@ from discord import app_commands
 from discord.ext import commands
 from leaderboard_db import leaderboard_name_autocomplete
 from task import LeaderboardTask, make_task
-from ui.misc import DeleteConfirmationModal, GPUSelectionView
+from ui.misc import ConfirmationView, DeleteConfirmationModal, GPUSelectionView
 from utils import (
     KernelBotError,
     SubmissionItem,
@@ -76,8 +76,12 @@ class AdminCog(commands.Cog):
             )(self.leaderboard_create_local)
 
         self.delete_leaderboard = bot.admin_group.command(
-            name="delete", description="Delete a leaderboard"
+            name="delete-leaderboard", description="Delete a leaderboard"
         )(self.delete_leaderboard)
+
+        self.delete_submission = bot.admin_group.command(
+            name="delete-submission", description="Delete a submission"
+        )(self.delete_submission)
 
         self.accept_jobs = bot.admin_group.command(
             name="start", description="Make the bot accept new submissions"
@@ -368,6 +372,66 @@ class AdminCog(commands.Cog):
             await thread.edit(name=new_name, archived=True)
 
         await interaction.response.send_modal(modal)
+
+    @discord.app_commands.describe(submission="ID of the submission to delete")
+    @with_error_handling
+    async def delete_submission(self, interaction: discord.Interaction, submission: int):
+        is_admin = await self.admin_check(interaction)
+
+        if not is_admin:
+            await send_discord_message(
+                interaction,
+                "You need to be Admin to use this command.",
+                ephemeral=True,
+            )
+            return
+
+        with self.bot.leaderboard_db as db:
+            sub = db.get_submission_by_id(submission_id=submission)
+
+        if sub is None:
+            await send_discord_message(
+                interaction,
+                f"No submission of id `{submission}`.",
+                ephemeral=True,
+            )
+            return
+
+        msg, files = self._make_submission_message(submission, sub)
+
+        async def do_delete():
+            with self.bot.leaderboard_db as db:
+                db.delete_submission(submission_id=submission)
+
+            await send_discord_message(
+                interaction,
+                f"💥 Submission `{submission}` has been **deleted**.",
+                ephemeral=True,
+            )
+
+        async def no_delete():
+            await send_discord_message(
+                interaction,
+                f"💾 Submission `{submission}` has **not** been deleted.",
+                ephemeral=True,
+            )
+
+        confirm = ConfirmationView(
+            confirm_text="Delete",
+            confirm_callback=do_delete,
+            reject_text="Keep",
+            reject_callback=no_delete,
+        )
+        await send_discord_message(
+            interaction, "# Attention\nYou are about to **delete** the following submission:\n"
+        )
+        await send_discord_message(interaction, msg, files=files)
+        await send_discord_message(
+            interaction,
+            "💂 Please confirm!",
+            view=confirm,
+            ephemeral=True,
+        )
 
     @with_error_handling
     async def stop(self, interaction: discord.Interaction):
@@ -683,6 +747,10 @@ class AdminCog(commands.Cog):
             )
             return
 
+        msg, files = self._make_submission_message(submission_id, sub)
+        await send_discord_message(interaction, msg, ephemeral=True, files=files)
+
+    def _make_submission_message(self, submission_id: int, sub: SubmissionItem):
         msg = f"# Submission {submission_id}\n"
         msg += f"submitted by {sub['user_id']} on {sub['submission_time']}"
         msg += f" to leaderboard `{sub['leaderboard_name']}`."
@@ -704,4 +772,5 @@ class AdminCog(commands.Cog):
         run_results = discord.File(
             fp=StringIO(json.dumps(sub["runs"], default=serialize, indent=2)), filename="runs.json"
         )
-        await send_discord_message(interaction, msg, ephemeral=True, files=[file, run_results])
+
+        return msg, [file, run_results]

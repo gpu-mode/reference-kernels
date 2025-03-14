@@ -1,9 +1,8 @@
-from typing import Optional
-
 import consts
 import discord
 from consts import SubmissionMode
 from run_eval import CompileResult, FullResult, RunResult
+from utils import format_time
 
 
 def _limit_length(text: str, maxlen: int):
@@ -88,45 +87,6 @@ async def _generate_crash_report(thread: discord.Thread, run: RunResult):
         await thread.send(message)
 
 
-def format_time(value: float | str, err: Optional[float | str] = None, scale=None):  # noqa: C901
-    # really ugly, but works for now
-    value = float(value)
-
-    scale = 1  # nanoseconds
-    unit = "ns"
-    if value > 2_000_000:
-        scale = 1000_000
-        unit = "ms"
-    elif value > 2000:
-        scale = 1000
-        unit = "µs"
-
-    value /= scale
-    if err is not None:
-        err = float(err)
-        err /= scale
-    if value < 1:
-        if err:
-            return f"{value} ± {err} {unit}"
-        else:
-            return f"{value} {unit}"
-    elif value < 10:
-        if err:
-            return f"{value:.2f} ± {err:.3f} {unit}"
-        else:
-            return f"{value:.2f} {unit}"
-    elif value < 100:
-        if err:
-            return f"{value:.1f} ± {err:.2f} {unit}"
-        else:
-            return f"{value:.1f} {unit}"
-    else:
-        if err:
-            return f"{value:.0f} ± {err:.1f} {unit}"
-        else:
-            return f"{value:.0f} {unit}"
-
-
 async def _generate_test_report(thread: discord.Thread, run: RunResult):
     message = "# Testing failed\n"
     message += "Command "
@@ -188,35 +148,39 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
                     await thread.send("❌ Compilation failed")
                     return
 
+        message = ""
         if any_compile:
-            await thread.send("✅ Compilation successful")
+            message += "✅ Compilation successful\n"
 
         if "test" not in runs or not runs["test"].run.success:
-            await thread.send("❌ Running tests failed")
+            message += "❌ Running tests failed\n"
+            await thread.send(message)
             return
         elif not runs["test"].run.passed:
-            await thread.send("❌ Testing failed")
+            message += "❌ Testing failed"
+            await thread.send(message)
             return
         else:
-            await thread.send("✅ Testing successful")
+            message += "✅ Testing successful\n"
 
         if "benchmark" not in runs or not runs["benchmark"].run.success:
-            await thread.send("❌ Running benchmarks failed")
+            message += "❌ Running benchmarks failed\n"
+            await thread.send(message)
             return
         elif not runs["benchmark"].run.passed:
-            await thread.send("❌ Benchmarking failed")
+            message += "❌ Benchmarking failed\n"
+            await thread.send(message)
             return
         else:
-            await thread.send("✅ Benchmarking successful")
+            message += "✅ Benchmarking successful\n"
 
         if "leaderboard" not in runs or not runs["leaderboard"].run.success:
-            await thread.send("❌ Running leaderboard failed")
+            message += "❌ Running leaderboard failed\n"
         elif not runs["leaderboard"].run.passed:
-            await thread.send("❌ Leaderboard run failed")
-            return
+            message += "❌ Leaderboard run failed\n"
         else:
-            await thread.send("✅ Leaderboard run successful")
-            return
+            message += "✅ Leaderboard run successful\n"
+        await thread.send(message)
 
     message = ""
 
