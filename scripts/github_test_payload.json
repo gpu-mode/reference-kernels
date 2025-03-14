@@ -1,0 +1,8 @@
+{
+  "lang": "py",
+  "sources": {
+    "main.py": "import torch\n\nprint(f\"CUDA available: {torch.cuda.is_available()}\")\nprint(f\"PyTorch version: {torch.__version__}\")\n\nif torch.cuda.is_available():\n  x = torch.randn(5, device='cuda')\n  print(f\"Random tensor on GPU: {x}\")"
+  },
+  "main": "main.py",
+  "mode": "script"
+}
