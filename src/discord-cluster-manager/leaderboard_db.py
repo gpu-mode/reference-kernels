@@ -203,7 +203,13 @@ class LeaderboardDB:
             raise KernelBotError(f"Could not delete leaderboard {leaderboard_name}.") from e
 
     def create_submission(
-        self, leaderboard: str, file_name: str, user_id: int, code: str, time: datetime.datetime
+        self,
+        leaderboard: str,
+        file_name: str,
+        user_id: int,
+        code: str,
+        time: datetime.datetime,
+        user_name: str = None,
     ) -> Optional[int]:
         try:
             # check if we already have the code
@@ -233,7 +239,21 @@ class LeaderboardDB:
                     (code,),
                 )
                 code_id = self.cursor.fetchone()
-
+            # Check if user exists in user_info, if not add them
+            self.cursor.execute(
+                """
+                SELECT 1 FROM leaderboard.user_info WHERE id = %s
+                """,
+                (str(user_id),),
+            )
+            if not self.cursor.fetchone():
+                self.cursor.execute(
+                    """
+                    INSERT INTO leaderboard.user_info (id, user_name)
+                    VALUES (%s, %s)
+                    """,
+                    (str(user_id), user_name),
+                )
             self.cursor.execute(
                 """
                 INSERT INTO leaderboard.submission (leaderboard_id, file_name,

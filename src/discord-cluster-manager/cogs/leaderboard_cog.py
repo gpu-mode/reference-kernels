@@ -293,6 +293,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             await send_discord_message(interaction, "❌ Required runner not found!")
             return -1
 
+        user_name = interaction.user.global_name or interaction.user.name
         # Create a submission entry in the database
         with self.bot.leaderboard_db as db:
             sub_id = db.create_submission(
@@ -301,6 +302,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 code=submission_content,
                 user_id=interaction.user.id,
                 time=datetime.now(),
+                user_name=user_name,
             )
 
         try:
