@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 from consts import MODAL_PATH
 from modal import App, Image, Mount
-from run_eval import FullResult, run_config
+from run_eval import FullResult, SystemInfo, run_config
 
 # Create a stub for the Modal app
 # IMPORTANT: This has to stay in separate file or modal breaks
@@ -96,6 +96,7 @@ def modal_run_config(  # noqa: C901
             success=False,
             error=f"Timeout Error: {str(e)}",
             runs={},
+            system=SystemInfo(),
         )
     except Exception as e:
         exception = "".join(traceback.format_exception(e))
@@ -103,4 +104,5 @@ def modal_run_config(  # noqa: C901
             success=False,
             error=f"Error executing script:\n{exception}",
             runs={},
+            system=SystemInfo(),
         )

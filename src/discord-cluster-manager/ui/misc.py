@@ -29,13 +29,15 @@ class GPUSelectionView(ui.View):
 
 
 class ConfirmationView(ui.View):
-    def __init__(self, *,
-                 confirm_text: str,
-                 confirm_callback: Callable[[], Awaitable],
-                 reject_text: str,
-                 reject_callback: Callable[[], Awaitable],
-                 timeout: int = 30
-                 ):
+    def __init__(
+        self,
+        *,
+        confirm_text: str,
+        confirm_callback: Callable[[], Awaitable],
+        reject_text: str,
+        reject_callback: Callable[[], Awaitable],
+        timeout: int = 30,
+    ):
         super().__init__(timeout=timeout)
 
         async def callback_yes(_: Interaction):
@@ -60,6 +62,7 @@ class ConfirmationView(ui.View):
     async def on_timeout(self) -> None:
         await self._reject_callback()
         self.stop()
+
 
 class DeleteConfirmationModal(ui.Modal, title="Confirm Deletion"):
     def __init__(self, field_name: str, field_value: str, db, force: bool = False):

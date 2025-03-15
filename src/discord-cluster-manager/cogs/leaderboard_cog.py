@@ -95,6 +95,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                             secret=mode == SubmissionMode.PRIVATE,
                             compilation=value.compilation,
                             result=value.run,
+                            system=result.system,
                         )
 
                 if score is not None:

@@ -15,7 +15,7 @@ from env import (
     POSTGRES_PORT,
     POSTGRES_USER,
 )
-from run_eval import CompileResult, RunResult
+from run_eval import CompileResult, RunResult, SystemInfo
 from task import LeaderboardTask
 from utils import (
     KernelBotError,
@@ -315,6 +315,7 @@ class LeaderboardDB:
         score: Optional[float],
         compilation: Optional[CompileResult],
         result: RunResult,
+        system: SystemInfo,
     ):
         try:
             if compilation is not None:
@@ -327,9 +328,9 @@ class LeaderboardDB:
             self.cursor.execute(
                 """
                 INSERT INTO leaderboard.runs (submission_id, start_time, end_time, mode,
-                secret, runner, score, passed, compilation, meta, result
+                secret, runner, score, passed, compilation, meta, result, system_info
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     submission,
@@ -343,6 +344,7 @@ class LeaderboardDB:
                     compilation,
                     json.dumps(meta),
                     json.dumps(result.result),
+                    json.dumps(dataclasses.asdict(system)),
                 ),
             )
             self.connection.commit()
@@ -652,7 +654,7 @@ class LeaderboardDB:
         # OK, now get the runs
         query = """
                 SELECT start_time, end_time, mode, secret, runner, score,
-                       passed, compilation, meta, result
+                       passed, compilation, meta, result, system_info
                 FROM leaderboard.runs
                 WHERE submission_id = %s
                 """
@@ -671,6 +673,7 @@ class LeaderboardDB:
                 compilation=r[7],
                 meta=r[8],
                 result=r[9],
+                system=r[10],
             )
             for r in runs
         ]

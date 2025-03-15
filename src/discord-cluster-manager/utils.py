@@ -213,6 +213,7 @@ class RunItem(TypedDict):
     compilation: dict
     meta: dict
     result: dict
+    system: dict
 
 
 class SubmissionItem(TypedDict):

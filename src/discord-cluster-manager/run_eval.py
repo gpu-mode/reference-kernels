@@ -41,6 +41,16 @@ class RunResult:
 
 
 @dataclasses.dataclass
+class SystemInfo:
+    # fmt: off
+    gpu: str = ''           # Model name of the GPU
+    cpu: str = ''           # Model name of the CPU
+    platform: str = ''      # Platform string of the machine
+    torch: str = ''         # Torch version
+    # fmt: on
+
+
+@dataclasses.dataclass
 class EvalResult:
     # fmt: off
     start: datetime.datetime            # when did this run start (excluding container setup time)
@@ -55,6 +65,7 @@ class FullResult:
     # fmt: off
     success: bool                  # did the runner (github/modal) execute successfully
     error: str                     # if not success, an error message
+    system: SystemInfo             # specs of the system this was run on
     # results of running. There can be multiple runs in one submission, using separate
     # 'test' and 'benchmark' keys, for example
     runs: dict[str, EvalResult] = dataclasses.field(default_factory=dict)
@@ -294,6 +305,56 @@ def run_single_evaluation(
         return run_program(call, seed=seed, timeout=Timeout.SCRIPT)
 
 
+def make_system_info() -> SystemInfo:
+    info = SystemInfo()
+    try:
+        import torch
+
+        info.torch = torch.torch_version.internal_version
+        # Note: cuda.is_available() also covers HiP
+        # https://pytorch.org/docs/stable/notes/hip.html
+        if torch.cuda.is_available():
+            info.gpu = torch.cuda.get_device_name()
+    except ImportError:
+        # get GPU info manually
+        try:
+            info.gpu = subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"], encoding="utf-8"
+            )
+        except subprocess.CalledProcessError:
+            # try again for HIP
+            # TODO suggested by Claude, untested
+            try:
+                info.gpu = subprocess.check_output(
+                    ["rocm-smi", "--showproductname"], encoding="utf-8"
+                )
+            except subprocess.CalledProcessError:
+                # OK, no GPU info available
+                pass
+
+    try:
+        cpu_info_str = Path("/proc/cpuinfo").read_text()
+        cpu_info_dict = {}
+        for line in cpu_info_str.splitlines():
+            key, _, val = line.partition(":")
+            cpu_info_dict[key.strip()] = val.strip()
+        info.cpu = cpu_info_dict.get("model name", "")
+        # on modal, we don't get to know the exact CPU model
+        # make due with the vendor in that case
+        if info.cpu == "unknown":
+            # ¯\_(ツ)_/¯
+            info.cpu = cpu_info_dict.get("vendor_id", "")
+
+    except PermissionError:
+        # nothing we can do here; we're not getting CPU info
+        pass
+    import platform
+
+    info.platform = platform.platform()
+
+    return info
+
+
 def run_cuda_script(  # # noqa: C901
     sources: dict[str, str],
     headers: Optional[dict[str, str]] = None,
@@ -340,7 +401,10 @@ def run_cuda_script(  # # noqa: C901
 
         if not compile_result.success:
             return EvalResult(
-                start=start, end=datetime.datetime.now(), compilation=compile_result, run=None
+                start=start,
+                end=datetime.datetime.now(),
+                compilation=compile_result,
+                run=None,
             )
 
     # cleaning up all source files _before_ we let the user code run, just in
@@ -353,7 +417,10 @@ def run_cuda_script(  # # noqa: C901
 
     run_result = run_single_evaluation(["./eval.out"], **kwargs)
     return EvalResult(
-        start=start, end=datetime.datetime.now(), compilation=compile_result, run=run_result
+        start=start,
+        end=datetime.datetime.now(),
+        compilation=compile_result,
+        run=run_result,
     )
 
 
@@ -500,4 +567,4 @@ def run_config(config: dict):
         raise ValueError(f"Invalid language {config['lang']}")
 
     results = run_evaluation(runner, config["mode"])
-    return FullResult(success=True, error="", runs=results)
+    return FullResult(success=True, error="", runs=results, system=make_system_info())
