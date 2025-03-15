@@ -107,6 +107,14 @@ class AdminCog(commands.Cog):
             name="get-submission", description="Retrieve one of past submissions"
         )(self.get_submission_by_id)
 
+        self.get_user_names = bot.admin_group.command(
+            name="get-user-names", description="Get user names"
+        )(self.get_user_names)
+
+        self.update_user_names = bot.admin_group.command(
+            name="update-user-names", description="Update user names"
+        )(self.update_user_names)
+
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
     # --------------------------------------------------------------------------
@@ -774,3 +782,120 @@ class AdminCog(commands.Cog):
         )
 
         return msg, [file, run_results]
+
+    async def get_user_names(self, interaction: discord.Interaction):
+        """Get a mapping of user IDs to their names"""
+        if not await self.admin_check(interaction):
+            await send_discord_message(
+                interaction,
+                "You need to have Admin permissions to run this command",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer()
+        try:
+            with self.bot.leaderboard_db as db:
+                db.cursor.execute("""
+                    SELECT DISTINCT user_id
+                    FROM leaderboard.submission
+                """)
+                user_ids = [row[0] for row in db.cursor.fetchall()]
+
+            user_mapping = {}
+            for user_id in user_ids:
+                try:
+                    discord_id = int(user_id)
+                    user = await self.bot.fetch_user(discord_id)
+                    user_mapping[user_id] = user.global_name or user.name
+                except (ValueError, discord.NotFound, discord.HTTPException) as e:
+                    logger.error(f"Error fetching user {user_id}: {str(e)}")
+                    user_mapping[user_id] = "Unknown User"
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="w") as temp_file:
+                json.dump(user_mapping, temp_file, indent=2)
+
+            await interaction.followup.send(
+                content="Here's the mapping of user IDs to names:",
+                file=discord.File(temp_file.name, filename="user_mapping.json"),
+            )
+
+            import os
+
+            os.unlink(temp_file.name)
+
+        except Exception as e:
+            error_message = f"Error generating user mapping: {str(e)}"
+            logger.error(error_message, exc_info=True)
+            await send_discord_message(interaction, error_message)
+
+    @app_commands.describe(attachment="The JSON file containing user ID to name mapping")
+    async def update_user_names(
+        self, interaction: discord.Interaction, attachment: discord.Attachment
+    ):
+        """Update the database with user names from a JSON file"""
+        if not await self.admin_check(interaction):
+            await send_discord_message(
+                interaction,
+                "You need to have Admin permissions to run this command",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer()
+
+        try:
+            if not attachment.filename.endswith(".json"):
+                await send_discord_message(
+                    interaction, "Please attach a JSON file with .json extension."
+                )
+                return
+
+            json_content = await attachment.read()
+            user_mapping = json.loads(json_content)
+
+            updated_count = 0
+            with self.bot.leaderboard_db as db:
+                for user_id, user_name in user_mapping.items():
+                    try:
+                        # First check if user exists in user_info
+                        db.cursor.execute(
+                            """
+                            SELECT 1 FROM leaderboard.user_info WHERE id = %s LIMIT 1
+                            """,
+                            (user_id,),
+                        )
+                        if db.cursor.fetchone():
+                            # Update existing user
+                            db.cursor.execute(
+                                """
+                                UPDATE leaderboard.user_info
+                                SET user_name = %s
+                                WHERE id = %s
+                                """,
+                                (user_name, user_id),
+                            )
+                        else:
+                            # Insert new user
+                            db.cursor.execute(
+                                """
+                                INSERT INTO leaderboard.user_info (id, user_name)
+                                VALUES (%s, %s)
+                                """,
+                                (user_id, user_name),
+                            )
+                        updated_count += db.cursor.rowcount
+                    except Exception as e:
+                        logger.error(f"Error updating user {user_id}: {str(e)}")
+
+                db.connection.commit()
+
+            await send_discord_message(
+                interaction,
+                f"Successfully updated {updated_count} user records with names.",
+            )
+
+        except json.JSONDecodeError:
+            await send_discord_message(interaction, "Invalid JSON format in the attached file.")
+        except Exception as e:
+            error_message = f"Error updating database with user names: {str(e)}"
+            logger.error(error_message, exc_info=True)
+            await send_discord_message(interaction, error_message)

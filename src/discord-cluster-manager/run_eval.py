@@ -181,8 +181,9 @@ def compile_cuda_script(  # # noqa: C901
 
     print_("[Compiling]")
     try:
-        compile_process = subprocess.run(command, capture_output=True,
-                                          text=True, check=True, timeout=Timeout.COMPILE)
+        compile_process = subprocess.run(
+            command, capture_output=True, text=True, check=True, timeout=Timeout.COMPILE
+        )
     except subprocess.CalledProcessError as e:
         return CompileResult(
             nvcc_found=True,
@@ -386,26 +387,27 @@ def run_pytorch_script(  # noqa: C901
             if "-DTORCH_EXTENSION_NAME" in compile_run.stdout:
                 comp = CompileResult(
                     nvcc_found=True,
-                    nvcc_version='',
+                    nvcc_version="",
                     success=True,
                     command=compile_run.command,
                     stdout=compile_run.stdout,
                     stderr=compile_run.stderr,
-                    exit_code=compile_run.exit_code
+                    exit_code=compile_run.exit_code,
                 )
             else:
                 comp = None
         except subprocess.CalledProcessError as e:
             # This step is purely optional, so we just go on
             # if it fails
-            comp = CompileResult(nvcc_found=False,
-                                 nvcc_version='',
-                                 success=False,
-                                 command="python submission.py",
-                                 stdout=e.stdout,
-                                 stderr=e.stderr,
-                                 exit_code=e.returncode,
-                                 )
+            comp = CompileResult(
+                nvcc_found=False,
+                nvcc_version="",
+                success=False,
+                command="python submission.py",
+                stdout=e.stdout,
+                stderr=e.stderr,
+                exit_code=e.returncode,
+            )
 
         run = run_single_evaluation(["python", main], **kwargs)
 
