@@ -181,6 +181,7 @@ async def generate_report(thread: discord.Thread, result: FullResult, mode: Subm
         else:
             message += "✅ Leaderboard run successful\n"
         await thread.send(message)
+        return
 
     message = ""
 
