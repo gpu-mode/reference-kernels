@@ -154,12 +154,11 @@ class SubmitCog(commands.Cog):
 
         # TODO figure out the correct way to handle messaging here
         thread = await self.bot.create_thread(interaction, gpu_type.name, f"{thread_name}")
-        await thread.send(
-            f"Starting {mode.value.capitalize()} job on {self.name} for "
-            f"`{script.filename}` with {gpu_type.name}..."
+        run_msg = (
+            f"Running {mode.value.capitalize()} job for `{script.filename}`"
+            f" by {interaction.user} on {self.name} with {gpu_type.name}"
         )
-
-        status = await ProgressReporter.make_reporter(thread, f"Running on {self.name}...")
+        status = await ProgressReporter.make_reporter(thread, f"{run_msg}...")
 
         config = build_task_config(
             task=task, submission_content=script_content, arch=self._get_arch(gpu_type), mode=mode
@@ -168,7 +167,7 @@ class SubmitCog(commands.Cog):
         logger.info("submitting task to runner %s", self.name)
 
         result = await self._run_submission(config, gpu_type, status)
-        await status.update_header(f"Running on {self.name}... ✅ success")
+        await status.update_header(f"{run_msg}... ✅ success")
         try:
             await generate_report(thread, result, mode=mode)
         except Exception as E:
