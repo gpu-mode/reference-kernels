@@ -19,16 +19,6 @@ operating_sys = "ubuntu22.04"
 tag = f"{cuda_version}-{flavor}-{operating_sys}"
 
 # Move this to another file later:
-# TODO: only cuda image is used, we can remove this one
-python_image = Image.debian_slim(python_version="3.10").pip_install(
-    [
-        "torch",
-        "triton",
-        "jax[cuda12]",
-        "jax2torch",
-    ]
-)
-
 cuda_image = (
     Image.from_registry(f"nvidia/cuda:{tag}", add_python="3.11")
     .apt_install(
@@ -57,6 +47,13 @@ cuda_image = (
         "git clone https://github.com/HazyResearch/ThunderKittens.git",
         # "cd /ThunderKittens && pwd && python setup.py install",
     )
+)
+
+cuda_image = cuda_image.add_local_python_source(
+    "consts",
+    "modal_runner",
+    "modal_runner_archs",
+    "run_eval",
 )
 
 
