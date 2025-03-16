@@ -167,9 +167,16 @@ class SubmitCog(commands.Cog):
         logger.info("submitting task to runner %s", self.name)
 
         result = await self._run_submission(config, gpu_type, status)
-        await status.update_header(f"{run_msg}... ✅ success")
+
+        if not result.success:
+            await status.update_header(f"{run_msg}... ❌ failure")
+            await status.push(result.error)
+            return thread, result
+        else:
+            await status.update_header(f"{run_msg}... ✅ success")
+
         try:
-            await generate_report(thread, result, mode=mode)
+            await generate_report(thread, result.runs, mode=mode)
         except Exception as E:
             logger.error("Error generating report. Result: %s", result, exc_info=E)
             raise

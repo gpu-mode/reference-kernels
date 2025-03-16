@@ -1,7 +1,7 @@
 import consts
 import discord
 from consts import SubmissionMode
-from run_eval import CompileResult, FullResult, RunResult
+from run_eval import CompileResult, EvalResult, RunResult
 from utils import format_time
 
 
@@ -129,15 +129,9 @@ async def _generate_test_report(thread: discord.Thread, run: RunResult):
     return
 
 
-async def generate_report(thread: discord.Thread, result: FullResult, mode: SubmissionMode):  # noqa: C901
-    if not result.success:
-        message = "# Failure\n"
-        message += result.error
-        await thread.send(message)
-        return
-
-    runs = result.runs
-
+async def generate_report(
+    thread: discord.Thread, runs: dict[str, EvalResult], mode: SubmissionMode
+):  # noqa: C901
     # minimal error messages for private run
     if mode == SubmissionMode.PRIVATE:
         any_compile = False
