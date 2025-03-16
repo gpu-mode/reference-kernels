@@ -9,3 +9,4 @@ package-lock.json
 .ruff_cache/
 reference-kernels/
 yoyo.ini
+.venv

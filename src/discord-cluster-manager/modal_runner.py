@@ -47,6 +47,14 @@ cuda_image = (
         "git clone https://github.com/HazyResearch/ThunderKittens.git",
         # "cd /ThunderKittens && pwd && python setup.py install",
     )
+    .pip_install("requests")
+)
+
+cuda_image = cuda_image.add_local_python_source(
+    "consts",
+    "modal_runner",
+    "modal_runner_archs",
+    "run_eval",
 )
 
 cuda_image = cuda_image.add_local_python_source(

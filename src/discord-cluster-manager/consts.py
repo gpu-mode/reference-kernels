@@ -32,6 +32,7 @@ class ModalGPU(Enum):
     L4 = "L4"
     A100 = "A100"
     H100 = "H100"
+    B200 = "B200"
 
 
 @dataclasses.dataclass
@@ -112,6 +113,7 @@ GPU_TO_SM = {
     "L4": "80",
     "A100": "80",
     "H100": "90a",
+    "B200": "100",
 }
 
 
