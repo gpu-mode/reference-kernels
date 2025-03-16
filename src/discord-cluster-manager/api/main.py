@@ -128,8 +128,8 @@ async def get_leaderboards() -> list[LeaderboardItem]:
         return db.get_leaderboards()
 
 
-@app.get("/{leaderboard_name}/{runner_name}/gpus")
-async def get_gpus(leaderboard_name: str, runner_name: str) -> list[str]:
+@app.get("/gpus/{leaderboard_name}")
+async def get_gpus(leaderboard_name: str) -> list[str]:
     """An endpoint that returns all GPU types that are available for a given leaderboard and runner.
 
     Args:
@@ -140,10 +140,29 @@ async def get_gpus(leaderboard_name: str, runner_name: str) -> list[str]:
         list[str]: A list of GPU types that are available for the given leaderboard and runner.
     """
     await simple_rate_limit()
-
     with bot_instance.leaderboard_db as db:
         gpu_types = db.get_leaderboard_gpu_types(leaderboard_name)
 
     runner_gpu_names = [gpu.name.lower() for gpu in _GPU_LOOKUP.values()]
 
     return [x for x in gpu_types if x.lower() in runner_gpu_names]
+
+
+@app.get("/submissions/{leaderboard_name}/{gpu_name}")
+async def get_submissions(
+    leaderboard_name: str, gpu_name: str, limit: int = None, offset: int = 0
+) -> list[dict]:
+    await simple_rate_limit()
+    with bot_instance.leaderboard_db as db:
+        return db.get_leaderboard_submissions(
+            leaderboard_name, gpu_name, limit=limit, offset=offset
+        )
+
+
+@app.get("/submission_count/{leaderboard_name}/{gpu_name}")
+async def get_submission_count(leaderboard_name: str, gpu_name: str, user_id: str = None) -> dict:
+    """Get the total count of submissions for pagination"""
+    await simple_rate_limit()
+    with bot_instance.leaderboard_db as db:
+        count = db.get_leaderboard_submission_count(leaderboard_name, gpu_name, user_id)
+        return {"count": count}
