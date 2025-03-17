@@ -116,7 +116,7 @@ class GitHubRun:
                     return
 
                 await callback(self)
-                await asyncio.sleep(20)
+                await asyncio.sleep(3)
             except TimeoutError:
                 raise
             except Exception as e:
