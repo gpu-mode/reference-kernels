@@ -3,7 +3,7 @@ import time
 from dataclasses import asdict
 
 from cogs.submit_cog import SubmitCog
-from consts import _GPU_LOOKUP, SubmissionMode
+from consts import _GPU_LOOKUP, SubmissionMode, get_gpu_by_name
 from discord import app_commands
 from fastapi import FastAPI, HTTPException, UploadFile
 from utils import LeaderboardItem, build_task_config
@@ -53,15 +53,14 @@ class MockProgressReporter:
         pass
 
 
-@app.post("/{leaderboard_name}/{runner_name}/{gpu_type}/{submission_mode}")
+@app.post("/{leaderboard_name}/{gpu_type}/{submission_mode}")
 async def run_submission(
-    leaderboard_name: str, runner_name: str, gpu_type: str, submission_mode: str, file: UploadFile
+    leaderboard_name: str, gpu_type: str, submission_mode: str, file: UploadFile
 ) -> dict:
     """An endpoint that runs a submission on a given leaderboard, runner, and GPU type.
 
     Args:
         leaderboard_name (str): The name of the leaderboard to run the submission on.
-        runner_name (str): The name of the runner to run the submission on.
         gpu_type (str): The type of GPU to run the submission on.
         file (UploadFile): The file to run the submission on.
 
@@ -88,10 +87,14 @@ async def run_submission(
     if not bot_instance:
         raise HTTPException(status_code=500, detail="Bot not initialized")
 
-    runner_name = runner_name.lower()
-    cog_name = {"github": "GitHubCog", "modal": "ModalCog"}[runner_name]
-
     gpu_name = gpu_type.lower()
+    gpu = get_gpu_by_name(gpu_name)
+    if gpu is None:
+        raise HTTPException(status_code=400, detail="Invalid GPU type")
+
+    runner_name = gpu.runner.lower()
+
+    cog_name = {"github": "GitHubCog", "modal": "ModalCog"}[runner_name]
 
     with bot_instance.leaderboard_db as db:
         leaderboard_item: LeaderboardItem = db.get_leaderboard(leaderboard_name)
@@ -104,9 +107,6 @@ async def run_submission(
         arch=runner_cog._get_arch(app_commands.Choice(name=gpu_name, value=gpu_name)),
         mode=submission_mode,
     )
-
-    gpu = _GPU_LOOKUP[gpu_name]
-
     # limit the amount of concurrent submission by the API
     async with _submit_limiter:
         result = await runner_cog._run_submission(config, gpu, MockProgressReporter())
