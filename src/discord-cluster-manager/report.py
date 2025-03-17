@@ -1,6 +1,5 @@
 import consts
 import discord
-from consts import SubmissionMode
 from run_eval import CompileResult, EvalResult, RunResult
 from utils import format_time
 
@@ -129,54 +128,51 @@ async def _generate_test_report(thread: discord.Thread, run: RunResult):
     return
 
 
-async def generate_report(
-    thread: discord.Thread, runs: dict[str, EvalResult], mode: SubmissionMode
-):  # noqa: C901
-    # minimal error messages for private run
-    if mode == SubmissionMode.PRIVATE:
-        any_compile = False
-        for r in runs.values():
-            if r.compilation is not None:
-                any_compile = True
-                if not r.compilation.success:
-                    await thread.send("❌ Compilation failed")
-                    return
+def private_run_report(runs: dict[str, EvalResult]) -> list[str]:  # noqa: C901
+    """
+    Creates a minimalistic report for `runs`,
+    returned as a list of status strings
+    """
+    any_compile = False
+    result = []
+    for r in runs.values():
+        if r.compilation is not None:
+            any_compile = True
+            if not r.compilation.success:
+                return ["❌ Compilation failed"]
 
-        message = ""
-        if any_compile:
-            message += "✅ Compilation successful\n"
+    if any_compile:
+        result.append("✅ Compilation successful")
 
-        if "test" not in runs or not runs["test"].run.success:
-            message += "❌ Running tests failed\n"
-            await thread.send(message)
-            return
-        elif not runs["test"].run.passed:
-            message += "❌ Testing failed"
-            await thread.send(message)
-            return
-        else:
-            message += "✅ Testing successful\n"
+    if "test" not in runs or not runs["test"].run.success:
+        result.append("❌ Running tests failed")
+        return result
+    elif not runs["test"].run.passed:
+        result.append("❌ Testing failed")
+        return result
+    else:
+        result.append("✅ Testing successful")
 
-        if "benchmark" not in runs or not runs["benchmark"].run.success:
-            message += "❌ Running benchmarks failed\n"
-            await thread.send(message)
-            return
-        elif not runs["benchmark"].run.passed:
-            message += "❌ Benchmarking failed\n"
-            await thread.send(message)
-            return
-        else:
-            message += "✅ Benchmarking successful\n"
+    if "benchmark" not in runs or not runs["benchmark"].run.success:
+        result.append("❌ Running benchmarks failed")
+        return result
+    elif not runs["benchmark"].run.passed:
+        result.append("❌ Benchmarking failed")
+        return result
+    else:
+        result.append("✅ Benchmarking successful")
 
-        if "leaderboard" not in runs or not runs["leaderboard"].run.success:
-            message += "❌ Running leaderboard failed\n"
-        elif not runs["leaderboard"].run.passed:
-            message += "❌ Leaderboard run failed\n"
-        else:
-            message += "✅ Leaderboard run successful\n"
-        await thread.send(message)
-        return
+    if "leaderboard" not in runs or not runs["leaderboard"].run.success:
+        result.append("❌ Running leaderboard failed")
+    elif not runs["leaderboard"].run.passed:
+        result.append("❌ Leaderboard run failed")
+    else:
+        result.append("✅ Leaderboard run successful")
 
+    return result
+
+
+async def generate_report(thread: discord.Thread, runs: dict[str, EvalResult]):  # noqa: C901
     message = ""
 
     if "test" in runs:
@@ -250,7 +246,7 @@ async def generate_report(
         else:
             message += "❗ Could not find any benchmarks\n"
 
-    if mode == SubmissionMode.SCRIPT:
+    if "script" in runs:
         run = runs["script"]
         if run.compilation is not None and not run.compilation.success:
             await _generate_compile_report(thread, run.compilation)

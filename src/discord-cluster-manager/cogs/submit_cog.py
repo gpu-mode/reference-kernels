@@ -9,7 +9,7 @@ from better_profanity import profanity
 from consts import SubmissionMode
 from discord import app_commands
 from discord.ext import commands
-from report import generate_report
+from report import generate_report, private_run_report
 from run_eval import FullResult
 from task import LeaderboardTask
 from utils import build_task_config, send_discord_message, setup_logging, with_error_handling
@@ -28,8 +28,12 @@ class ProgressReporter:
         status_msg = await thread.send(f"**{content}**\n")
         return ProgressReporter(status_msg, content)
 
-    async def push(self, content: str):
-        self.lines.append(f"> {content}")
+    async def push(self, content: str | list[str]):
+        if isinstance(content, str):
+            self.lines.append(f"> {content}")
+        else:
+            for line in content:
+                self.lines.append(f"> {line}")
         await self._update_message()
 
     async def update(self, new_content: str):
@@ -175,11 +179,15 @@ class SubmitCog(commands.Cog):
         else:
             await status.update_header(f"{run_msg}... ✅ success")
 
-        try:
-            await generate_report(thread, result.runs, mode=mode)
-        except Exception as E:
-            logger.error("Error generating report. Result: %s", result, exc_info=E)
-            raise
+        if mode == SubmissionMode.PRIVATE:
+            lines = private_run_report(result.runs)
+            await status.push(lines)
+        else:
+            try:
+                await generate_report(thread, result.runs)
+            except Exception as E:
+                logger.error("Error generating report. Result: %s", result, exc_info=E)
+                raise
 
         return thread, result
 
