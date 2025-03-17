@@ -28,13 +28,13 @@ class ModalCog(SubmitCog):
 
         logger.info(f"Starting modal run using {func_name}")
 
-        await status.push("⏳ Waiting for available GPU...")
+        await status.push("⏳ Waiting for modal run to finish...")
 
         result = await loop.run_in_executor(
             None,
             lambda: modal.Function.lookup("discord-bot-runner", func_name).remote(config=config),
         )
 
-        await status.update("✅ Waiting for available GPU... Done")
+        await status.update("✅ Waiting for modal run to finish... Done")
 
         return result
