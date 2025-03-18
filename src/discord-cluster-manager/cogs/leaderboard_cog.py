@@ -251,6 +251,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             await interaction.response.defer(ephemeral=True)
 
         if cmd_gpus is not None:
+            needs_followup = True
             selected_gpus = []
             for g in cmd_gpus:
                 if g in task_gpus:
@@ -265,13 +266,10 @@ class LeaderboardSubmitCog(app_commands.Group):
                     )
                     return -1
         elif len(task_gpus) == 1:
-            await send_discord_message(
-                interaction,
-                f"Running for `{leaderboard_name}` on GPU: **{task_gpus[0]}**",
-                ephemeral=True,
-            )
+            needs_followup = True
             selected_gpus = task_gpus
         else:
+            needs_followup = False
             view = await self.select_gpu_view(interaction, leaderboard_name, task_gpus)
             selected_gpus = view.selected_gpus
 
@@ -291,6 +289,15 @@ class LeaderboardSubmitCog(app_commands.Group):
                 user_id=interaction.user.id,
                 time=datetime.now(),
                 user_name=user_name,
+            )
+
+        if needs_followup:
+            gpu_list = ", ".join([f"**{g.name}**" for g in selected_gpus])
+            plural = "" if len(selected_gpus) == 1 else "s"
+            await send_discord_message(
+                interaction,
+                f"Running for `{leaderboard_name}` on GPU{plural}: {gpu_list}",
+                ephemeral=True,
             )
 
         try:
