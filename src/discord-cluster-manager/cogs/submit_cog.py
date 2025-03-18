@@ -160,7 +160,7 @@ class SubmitCog(commands.Cog):
         thread = await self.bot.create_thread(interaction, gpu_type.name, f"{thread_name}")
         run_msg = (
             f"Running {mode.value.capitalize()} job for `{script.filename}`"
-            f" by {interaction.user} on {self.name} with {gpu_type.name}"
+            f" by {interaction.user.display_name} on {self.name} with {gpu_type.name}"
         )
         status = await ProgressReporter.make_reporter(thread, f"{run_msg}...")
 
