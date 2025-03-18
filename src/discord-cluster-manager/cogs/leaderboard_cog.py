@@ -18,6 +18,7 @@ from ui.misc import GPUSelectionView
 from ui.table import create_table
 from utils import (
     LeaderboardItem,
+    RunItem,
     SubmissionItem,
     format_time,
     get_user_from_id,
@@ -332,16 +333,45 @@ class LeaderboardSubmitCog(app_commands.Group):
             with self.bot.leaderboard_db as db:
                 db.mark_submission_done(sub_id)
 
-        await self.post_submit_hook(interaction, mode, sub_id)
+        if mode == SubmissionMode.LEADERBOARD:
+            await self.post_submit_hook(interaction, sub_id)
         return sub_id
 
-    async def post_submit_hook(
-        self, interaction: discord.Interaction, mode: SubmissionMode, sub_id: int
-    ):
+    def generate_run_verdict(self, run: RunItem, sub_data: SubmissionItem):
+        medals = {1: "🥇 First", 2: "🥈 Second", 3: "🥉 Third"}
+
+        # get the competition
+        with self.bot.leaderboard_db as db:
+            competition = db.get_leaderboard_submissions(
+                sub_data["leaderboard_name"], run["runner"]
+            )
+        # compare against the competition
+        other_by_user = False
+        run_time = float(run["score"])
+        score_text = format_time(run_time * 1e9)
+
+        for entry in competition:
+            # can we find our own run? Only if it is the fastest submission by this user
+            if entry["submission_id"] == sub_data["submission_id"]:
+                rank = entry["rank"]
+                if 1 <= rank <= 3:
+                    return f"> {medals[rank]} place on {run['runner']}: {score_text}"
+                elif rank <= 10:
+                    return f"> {rank}th place on {run['runner']}: {score_text}"
+                else:
+                    return f"> Personal best on {run['runner']}: {score_text}"
+            elif entry["user_id"] == sub_data["user_id"]:
+                other_by_user = True
+        if other_by_user:
+            # User already has a submission that is faster
+            return f"> Successful on {run['runner']}: {score_text}"
+        else:
+            # no submission by the user exists
+            return f"> 🍾 First successful submission on {run['runner']}: {score_text}"
+
+    async def post_submit_hook(self, interaction: discord.Interaction, sub_id: int):
         with self.bot.leaderboard_db as db:
             sub_data: SubmissionItem = db.get_submission_by_id(sub_id)
-
-        medals = {1: "🥇 First", 2: "🥈 Second", 3: "🥉 Third"}
 
         result_lines = []
         for run in sub_data["runs"]:
@@ -350,40 +380,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 and run["mode"] == SubmissionMode.LEADERBOARD.value
                 and run["passed"]
             ):
-                # got a high score?
-                with self.bot.leaderboard_db as db:
-                    competition = db.get_leaderboard_submissions(
-                        sub_data["leaderboard_name"], run["runner"]
-                    )
-                # compare against the competition
-                found = False
-                other_by_user = False
-                run_time = float(run["score"])
-                score_text = format_time(run_time * 1e9)
-                for entry in competition:
-                    # can we find our own run? Only if it is the fastest submission by this user
-                    if entry["submission_id"] == sub_id:
-                        rank = entry["rank"]
-                        if 1 <= rank <= 3:
-                            result_lines += [
-                                f"> {medals[rank]} place on {run['runner']}: {score_text}"
-                            ]
-                        elif rank <= 10:
-                            result_lines += [f"> {rank}th place on {run['runner']}: {score_text}"]
-                        else:
-                            result_lines += [f"> Personal best on {run['runner']}: {score_text}"]
-                        found = True
-                    elif entry["user_id"] == sub_data["user_id"]:
-                        other_by_user = True
-                if not found:
-                    if other_by_user:
-                        # User already has a submission that is faster
-                        result_lines += [f"> Successful on {run['runner']}: {score_text}"]
-                    else:
-                        # no submission by the user exists
-                        result_lines += [
-                            f"> 🍾 First successful submission on {run['runner']}: {score_text}"
-                        ]
+                result_lines.append(self.generate_run_verdict(run, sub_data))
 
         if len(result_lines) > 0:
             await send_discord_message(

@@ -692,6 +692,7 @@ class LeaderboardDB:
         ]
 
         return SubmissionItem(
+            submission_id=submission_id,
             leaderboard_id=submission[0],
             leaderboard_name=submission[1],
             file_name=submission[2],
