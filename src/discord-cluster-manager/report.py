@@ -273,3 +273,62 @@ async def generate_report(thread: discord.Thread, runs: dict[str, EvalResult]): 
 
     if len(message) != 0:
         await thread.send(message)
+
+
+class MultiProgressReporter:
+    def __init__(self, header: str):
+        self.header = header
+        self.runs = []
+        self.interaction = None
+
+    async def show(self, interaction: discord.Interaction):
+        assert self.interaction is None
+        self.interaction = interaction
+        await self._update_message()
+
+    def add_run(self, title: str) -> "RunProgressReporter":
+        rpr = RunProgressReporter(self, title)
+        self.runs.append(rpr)
+        return rpr
+
+    def make_message(self):
+        formatted_runs = []
+        for run in self.runs:
+            formatted_runs.append(run.get_message())
+
+        return str.join("\n\n", [f"# {self.header}"] + formatted_runs)
+
+    async def _update_message(self):
+        if self.interaction is None:
+            return
+
+        await self.interaction.edit_original_response(content=self.make_message(), view=None)
+
+
+class RunProgressReporter:
+    def __init__(self, root: MultiProgressReporter, title: str):
+        self.title = title
+        self.lines = []
+        self.root = root
+
+    async def push(self, content: str | list[str]):
+        if isinstance(content, str):
+            self.lines.append(f"> {content}")
+        else:
+            for line in content:
+                self.lines.append(f"> {line}")
+        await self._update_message()
+
+    async def update(self, new_content: str):
+        self.lines[-1] = f"> {new_content}"
+        await self._update_message()
+
+    async def update_title(self, new_title):
+        self.title = new_title
+        await self._update_message()
+
+    async def _update_message(self):
+        await self.root._update_message()
+
+    def get_message(self):
+        return str.join("\n", [f"**{self.title}**"] + self.lines)

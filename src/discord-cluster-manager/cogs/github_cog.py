@@ -1,10 +1,11 @@
 import datetime
 import json
 
-from cogs.submit_cog import ProgressReporter, SubmitCog
+from cogs.submit_cog import SubmitCog
 from consts import AMD_REQUIREMENTS, NVIDIA_REQUIREMENTS, GitHubGPU, GPUType
 from discord import app_commands
 from github_runner import GitHubRun
+from report import RunProgressReporter
 from run_eval import CompileResult, EvalResult, FullResult, RunResult, SystemInfo
 from utils import setup_logging
 
@@ -19,7 +20,7 @@ class GitHubCog(SubmitCog):
         return None
 
     async def _run_submission(
-        self, config: dict, gpu_type: GPUType, status: ProgressReporter
+        self, config: dict, gpu_type: GPUType, status: RunProgressReporter
     ) -> FullResult:
         selected_gpu = GPUType.AMD if gpu_type.value == "amd" else GPUType.NVIDIA
 
@@ -91,7 +92,7 @@ class GitHubCog(SubmitCog):
         system = SystemInfo(**data.get("system", {}))
         return FullResult(success=True, error="", runs=runs, system=system)
 
-    async def wait_callback(self, run: GitHubRun, status: ProgressReporter):
+    async def wait_callback(self, run: GitHubRun, status: RunProgressReporter):
         await status.update(
             f"⏳ Workflow [{run.run_id}]({run.html_url}): {run.status} "
             f"({run.elapsed_time.total_seconds():.1f}s)"

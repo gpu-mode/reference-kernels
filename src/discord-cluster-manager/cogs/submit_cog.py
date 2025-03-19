@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import TYPE_CHECKING, Optional, Tuple, Type
+from typing import TYPE_CHECKING, Optional, Type
 
 if TYPE_CHECKING:
     from bot import ClusterBot
@@ -9,44 +9,12 @@ from better_profanity import profanity
 from consts import SubmissionMode
 from discord import app_commands
 from discord.ext import commands
-from report import generate_report, private_run_report
+from report import MultiProgressReporter, RunProgressReporter, generate_report, private_run_report
 from run_eval import FullResult
 from task import LeaderboardTask
 from utils import build_task_config, send_discord_message, setup_logging, with_error_handling
 
 logger = setup_logging()
-
-
-class ProgressReporter:
-    def __init__(self, status_msg: discord.Message, header: str):
-        self.header = header
-        self.lines = []
-        self.status = status_msg
-
-    @staticmethod
-    async def make_reporter(thread: discord.Thread, content: str):
-        status_msg = await thread.send(f"**{content}**\n")
-        return ProgressReporter(status_msg, content)
-
-    async def push(self, content: str | list[str]):
-        if isinstance(content, str):
-            self.lines.append(f"> {content}")
-        else:
-            for line in content:
-                self.lines.append(f"> {line}")
-        await self._update_message()
-
-    async def update(self, new_content: str):
-        self.lines[-1] = f"> {new_content}"
-        await self._update_message()
-
-    async def update_header(self, new_header):
-        self.header = new_header
-        await self._update_message()
-
-    async def _update_message(self):
-        message = str.join("\n", [f"**{self.header}**"] + self.lines)
-        await self.status.edit(content=message, suppress=True)
 
 
 class SubmitCog(commands.Cog):
@@ -100,21 +68,23 @@ class SubmitCog(commands.Cog):
         interaction: discord.Interaction,
         script: discord.Attachment,
         gpu_type: app_commands.Choice[str],
+        reporter: RunProgressReporter,
         task: LeaderboardTask,
         mode: SubmissionMode,
-    ) -> Tuple[Optional[discord.Thread], Optional[FullResult]]:
+    ) -> Optional[FullResult]:
         """
         Function invoked by `leaderboard_cog` to handle a leaderboard run.
         """
-        thread, result = await self._handle_submission(
+        result = await self._handle_submission(
             interaction,
             gpu_type,
+            reporter,
             script=script,
             task=task,
             mode=mode,
         )
 
-        return thread, result
+        return result
 
     @with_error_handling
     async def run_script(
@@ -126,18 +96,22 @@ class SubmitCog(commands.Cog):
         """
         Function invoked by the `run` command to run a single script.
         """
+        reporter = MultiProgressReporter("Script run")
+        rep = reporter.add_run(f"{gpu_type.name}")
+        await reporter.show(interaction)
         await self._handle_submission(
-            interaction, gpu_type, script=script, task=None, mode=SubmissionMode.SCRIPT
+            interaction, gpu_type, rep, script=script, task=None, mode=SubmissionMode.SCRIPT
         )
 
     async def _handle_submission(
         self,
         interaction: discord.Interaction,
         gpu_type: app_commands.Choice[str],
+        reporter: RunProgressReporter,
         script: discord.Attachment,
         task: Optional[LeaderboardTask],
         mode: SubmissionMode,
-    ) -> Tuple[Optional[discord.Thread], Optional[FullResult]]:
+    ) -> Optional[FullResult]:
         """
         Generic function to handle code submissions.
         Args:
@@ -147,49 +121,45 @@ class SubmitCog(commands.Cog):
             task: Task specification, of provided
 
         Returns:
-            if successful, returns the created discord thread, and the result of
-            the run.
+            if successful, returns the result of the run.
         """
         thread_name = f"{self.name} - {mode.value.capitalize()} Job"
 
         script_content = await self._validate_input_file(interaction, script)
         if script_content is None:
-            return None, None
+            return None
 
         # TODO figure out the correct way to handle messaging here
-        thread = await self.bot.create_thread(interaction, gpu_type.name, f"{thread_name}")
-        run_msg = (
-            f"Running {mode.value.capitalize()} job for `{script.filename}`"
-            f" by {interaction.user.display_name} on {self.name} with {gpu_type.name}"
-        )
-        status = await ProgressReporter.make_reporter(thread, f"{run_msg}...")
-
+        if mode != SubmissionMode.PRIVATE:
+            thread = await self.bot.create_thread(interaction, gpu_type.name, f"{thread_name}")
         config = build_task_config(
             task=task, submission_content=script_content, arch=self._get_arch(gpu_type), mode=mode
         )
 
         logger.info("submitting task to runner %s", self.name)
 
-        result = await self._run_submission(config, gpu_type, status)
+        result = await self._run_submission(config, gpu_type, reporter)
 
         if not result.success:
-            await status.update_header(f"{run_msg}... ❌ failure")
-            await status.push(result.error)
-            return thread, result
+            await reporter.update_title(reporter.title + " ❌ failure")
+            await reporter.push(result.error)
+            return result
         else:
-            await status.update_header(f"{run_msg}... ✅ success")
+            await reporter.update_title(reporter.title + " ✅ success")
 
         if mode == SubmissionMode.PRIVATE:
-            lines = private_run_report(result.runs)
-            await status.push(lines)
+            await reporter.push(private_run_report(result.runs))
         else:
+            if mode == SubmissionMode.LEADERBOARD:
+                await reporter.push(private_run_report(result.runs))
+
             try:
                 await generate_report(thread, result.runs)
             except Exception as E:
                 logger.error("Error generating report. Result: %s", result, exc_info=E)
                 raise
 
-        return thread, result
+        return result
 
     async def _validate_input_file(
         self,
@@ -225,7 +195,7 @@ class SubmitCog(commands.Cog):
             return None
 
     async def _run_submission(
-        self, config: dict, gpu_type: app_commands.Choice[str], status: ProgressReporter
+        self, config: dict, gpu_type: app_commands.Choice[str], status: RunProgressReporter
     ) -> FullResult:
         """
         Run a submission specified by `config`.

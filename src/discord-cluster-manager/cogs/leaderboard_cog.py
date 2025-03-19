@@ -12,6 +12,7 @@ from consts import (
 from discord import app_commands
 from discord.ext import commands, tasks
 from leaderboard_db import LeaderboardDB, leaderboard_name_autocomplete
+from report import MultiProgressReporter, RunProgressReporter
 from run_eval import FullResult
 from task import LeaderboardTask
 from ui.misc import GPUSelectionView
@@ -45,24 +46,21 @@ class LeaderboardSubmitCog(app_commands.Group):
         script: discord.Attachment,
         command: Callable,
         task: LeaderboardTask,
-        submission_content,
+        reporter: RunProgressReporter,
         gpu: app_commands.Choice[str],
         runner_name: str,
         mode: SubmissionMode,
         submission_id: int,
     ):
-        discord_thread, result = await command(
+        result = await command(
             interaction,
             script,
             gpu,
+            reporter,
             task=task,
             mode=mode,
         )
         result: FullResult
-
-        # no point going further if this already failed
-        if discord_thread is None:
-            return -1
 
         try:
             if result.success:
@@ -93,11 +91,13 @@ class LeaderboardSubmitCog(app_commands.Group):
                             system=result.system,
                         )
         except Exception as e:
-            logger.error("Error in leaderboard submission", exc_info=e)
-            await discord_thread.send(
+            logger.error("Error in recording leaderboard submission", exc_info=e)
+            await send_discord_message(
+                interaction,
                 "## Result:\n"
                 + f"Leaderboard submission to '{leaderboard_name}' on {gpu.name} "
-                + f"using {runner_name} runners failed!\n",
+                + f"using {runner_name} could not be recorded in the database!\n",
+                ephemeral=True,
             )
 
     async def select_gpu_view(
@@ -251,7 +251,6 @@ class LeaderboardSubmitCog(app_commands.Group):
             await interaction.response.defer(ephemeral=True)
 
         if cmd_gpus is not None:
-            needs_followup = True
             selected_gpus = []
             for g in cmd_gpus:
                 if g in task_gpus:
@@ -266,10 +265,8 @@ class LeaderboardSubmitCog(app_commands.Group):
                     )
                     return -1
         elif len(task_gpus) == 1:
-            needs_followup = True
             selected_gpus = task_gpus
         else:
-            needs_followup = False
             view = await self.select_gpu_view(interaction, leaderboard_name, task_gpus)
             selected_gpus = view.selected_gpus
 
@@ -291,15 +288,8 @@ class LeaderboardSubmitCog(app_commands.Group):
                 user_name=user_name,
             )
 
-        if needs_followup:
-            gpu_list = ", ".join([f"**{g.name}**" for g in selected_gpus])
-            plural = "" if len(selected_gpus) == 1 else "s"
-            await send_discord_message(
-                interaction,
-                f"Running for `{leaderboard_name}` on GPU{plural}: {gpu_list}",
-                ephemeral=True,
-            )
-
+        run_msg = f"Submission **{sub_id}**: `{script.filename}` for `{leaderboard_name}`"
+        reporter = MultiProgressReporter(run_msg)
         try:
             tasks = [
                 self.async_submit_cog_job(
@@ -308,7 +298,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     script,
                     command,
                     task,
-                    submission_content,
+                    reporter.add_run(f"{gpu.name} on {gpu.runner}"),
                     app_commands.Choice(name=gpu.name, value=gpu.value),
                     gpu.runner,
                     mode,
@@ -326,7 +316,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                         script,
                         command,
                         task,
-                        submission_content,
+                        reporter.add_run(f"{gpu.name} on {gpu.runner} (secret)"),
                         app_commands.Choice(name=gpu.name, value=gpu.value),
                         gpu.runner,
                         SubmissionMode.PRIVATE,
@@ -334,7 +324,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     )
                     for gpu, command in zip(selected_gpus, commands, strict=False)
                 ]
-
+            await reporter.show(interaction)
             await asyncio.gather(*tasks)
         finally:
             with self.bot.leaderboard_db as db:
