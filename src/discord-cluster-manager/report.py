@@ -93,29 +93,12 @@ async def _generate_test_report(thread: discord.Thread, run: RunResult):
     message += f"ran successfully in {run.duration:.2f} seconds, but did not pass all tests.\n"
 
     # Generate a test
-    test_log = []
-    for i in range(len(run.result)):
-        status = run.result.get(f"test.{i}.status", None)
-        spec = run.result.get(f"test.{i}.spec", "<Error>")
-        if status is None:
-            break
-        if status == "pass":
-            test_log.append(f"✅ {spec}")
-        elif status == "fail":
-            test_log.append(f"❌ {spec}")
-            error = run.result.get(f"test.{i}.error", "No error information available")
-            if error:
-                test_log.append(f"> {error}")
-
-    if len(test_log) > 0:
-        message = await _send_split_log(
-            thread,
-            message,
-            "Test log",
-            str.join("\n", test_log),
-        )
-    else:
-        message += "❗ Could not find any test cases\n"
+    message = await _send_split_log(
+        thread,
+        message,
+        "Test log",
+        make_test_log(run),
+    )
 
     if len(run.stderr.strip()) > 0:
         message = await _send_split_log(thread, message, "Program stderr", run.stderr.strip())
@@ -172,6 +155,58 @@ def private_run_report(runs: dict[str, EvalResult]) -> list[str]:  # noqa: C901
     return result
 
 
+def make_test_log(run: RunResult) -> str:
+    test_log = []
+    for i in range(len(run.result)):
+        status = run.result.get(f"test.{i}.status", None)
+        spec = run.result.get(f"test.{i}.spec", "<Error>")
+        if status is None:
+            break
+        if status == "pass":
+            test_log.append(f"✅ {spec}")
+        elif status == "fail":
+            test_log.append(f"❌ {spec}")
+            error = run.result.get(f"test.{i}.error", "No error information available")
+            if error:
+                test_log.append(f"> {error}")
+    if len(test_log) > 0:
+        return str.join("\n", test_log)
+    else:
+        return "❗ Could not find any test cases"
+
+
+def make_benchmark_log(run: RunResult) -> str:
+    num_bench = int(run.result.get("benchmark-count", 0))
+
+    def log_one(base_name):
+        status = run.result.get(f"{base_name}.status")
+        spec = run.result.get(f"{base_name}.spec")
+        if status == "fail":
+            bench_log.append(f"❌ {spec} failed testing:\n")
+            bench_log.append(run.result.get(f"{base_name}.error"))
+            return
+
+        mean = run.result.get(f"{base_name}.mean")
+        err = run.result.get(f"{base_name}.err")
+        best = run.result.get(f"{base_name}.best")
+        worst = run.result.get(f"{base_name}.worst")
+
+        bench_log.append(f"{spec}")
+        bench_log.append(f" ⏱ {format_time(mean, err)}")
+        if best is not None and worst is not None:
+            bench_log.append(f" ⚡ {format_time(best)} 🐌 {format_time(worst)}")
+
+    bench_log = []
+    for i in range(num_bench):
+        log_one(f"benchmark.{i}")
+        bench_log.append("")
+
+    if len(bench_log) > 0:
+        return "\n".join(bench_log)
+    else:
+        return "❗ Could not find any benchmarks"
+
+
 async def generate_report(thread: discord.Thread, runs: dict[str, EvalResult]):  # noqa: C901
     message = ""
 
@@ -198,7 +233,12 @@ async def generate_report(thread: discord.Thread, runs: dict[str, EvalResult]): 
                 if status is None:
                     break
 
-            message += f"✅ Passed {num_tests}/{num_tests} tests\n"
+            message = await _send_split_log(
+                thread,
+                message,
+                "Tests",
+                f"✅ Passed {num_tests}/{num_tests} tests",
+            )
 
     if "benchmark" in runs:
         bench_run = runs["benchmark"]
@@ -211,40 +251,12 @@ async def generate_report(thread: discord.Thread, runs: dict[str, EvalResult]): 
             await _generate_crash_report(thread, bench_run)
             return
 
-        num_bench = int(bench_run.result.get("benchmark-count", 0))
-
-        def log_one(base_name):
-            status = bench_run.result.get(f"{base_name}.status")
-            spec = bench_run.result.get(f"{base_name}.spec")
-            if status == "fail":
-                bench_log.append(f"❌ {spec} failed testing:\n")
-                bench_log.append(bench_run.result.get(f"{base_name}.error"))
-                return
-
-            mean = bench_run.result.get(f"{base_name}.mean")
-            err = bench_run.result.get(f"{base_name}.err")
-            best = bench_run.result.get(f"{base_name}.best")
-            worst = bench_run.result.get(f"{base_name}.worst")
-
-            bench_log.append(f"{spec}")
-            bench_log.append(f" ⏱ {format_time(mean, err)}")
-            if best is not None and worst is not None:
-                bench_log.append(f" ⚡ {format_time(best)} 🐌 {format_time(worst)}")
-
-        bench_log = []
-        for i in range(num_bench):
-            log_one(f"benchmark.{i}")
-            bench_log.append("")
-
-        if len(bench_log) > 0:
-            message = await _send_split_log(
-                thread,
-                message,
-                "Benchmarks",
-                str.join("\n", bench_log),
-            )
-        else:
-            message += "❗ Could not find any benchmarks\n"
+        message = await _send_split_log(
+            thread,
+            message,
+            "Benchmarks",
+            make_benchmark_log(bench_run),
+        )
 
     if "script" in runs:
         run = runs["script"]
