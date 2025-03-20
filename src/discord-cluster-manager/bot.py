@@ -223,16 +223,6 @@ class ClusterBot(commands.Bot):
 
         await self._setup_leaderboards()
 
-    async def create_thread(
-        self, interaction: discord.Interaction, gpu_name: str, job_name: str
-    ) -> discord.Thread:
-        thread = await interaction.channel.create_thread(
-            name=f"{job_name} ({gpu_name})",
-            type=discord.ChannelType.public_thread,
-            auto_archive_duration=1440,
-        )
-        return thread
-
     async def send_chunked_message(self, channel, content: str, code_block: bool = True):
         """
         Send a long message in chunks to avoid Discord's message length limit

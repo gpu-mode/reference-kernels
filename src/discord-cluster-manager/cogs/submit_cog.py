@@ -123,15 +123,18 @@ class SubmitCog(commands.Cog):
         Returns:
             if successful, returns the result of the run.
         """
-        thread_name = f"{self.name} - {mode.value.capitalize()} Job"
-
         script_content = await self._validate_input_file(interaction, script)
         if script_content is None:
             return None
 
         # TODO figure out the correct way to handle messaging here
         if mode != SubmissionMode.PRIVATE:
-            thread = await self.bot.create_thread(interaction, gpu_type.name, f"{thread_name}")
+            thread = await interaction.channel.create_thread(
+                name=f"{script.filename} on {gpu_type.name} ({self.name})",
+                type=discord.ChannelType.private_thread,
+                auto_archive_duration=1440,
+            )
+            await thread.add_tags(interaction.user)
         config = build_task_config(
             task=task, submission_content=script_content, arch=self._get_arch(gpu_type), mode=mode
         )
@@ -155,6 +158,7 @@ class SubmitCog(commands.Cog):
 
             try:
                 await generate_report(thread, result.runs)
+                await reporter.push(f"See results at {thread.jump_url}")
             except Exception as E:
                 logger.error("Error generating report. Result: %s", result, exc_info=E)
                 raise
