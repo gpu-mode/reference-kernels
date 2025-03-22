@@ -1,6 +1,5 @@
 import asyncio
-from datetime import datetime
-from decimal import Decimal
+from datetime import datetime, timedelta
 from io import StringIO
 from typing import TYPE_CHECKING, Callable, List, Optional
 
@@ -19,6 +18,7 @@ from ui.misc import GPUSelectionView
 from ui.table import create_table
 from utils import (
     LeaderboardItem,
+    LeaderboardRankedEntry,
     RunItem,
     SubmissionItem,
     format_time,
@@ -52,7 +52,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         mode: SubmissionMode,
         submission_id: int,
     ):
-        result = await command(
+        result: FullResult = await command(
             interaction,
             script,
             gpu,
@@ -60,7 +60,6 @@ class LeaderboardSubmitCog(app_commands.Group):
             task=task,
             mode=mode,
         )
-        result: FullResult
 
         try:
             if result.success:
@@ -606,7 +605,7 @@ class LeaderboardCog(commands.Cog):
 
     async def _display_lb_submissions_helper(
         self,
-        submissions,
+        submissions: list[LeaderboardRankedEntry],
         interaction,
         leaderboard_name: str,
         gpu: str,
@@ -629,26 +628,52 @@ class LeaderboardCog(commands.Cog):
             return
 
         # Create embed
-        processed_submissions = [
-            {
-                "Rank": submission["rank"],
-                "User": await get_user_from_id(submission["user_id"], interaction, self.bot),
-                "Score": f"{format_time(submission['submission_score'] * Decimal(1e9))}",
-                "Submission Name": submission["submission_name"],
+        if user_id is None:
+            processed_submissions = [
+                {
+                    "Rank": submission["rank"],
+                    "User": await get_user_from_id(submission["user_id"], interaction, self.bot),
+                    "Score": f"{format_time(float(submission['submission_score']) * 1e9)}",
+                    "Submission Name": submission["submission_name"],
+                }
+                for submission in submissions
+            ]
+            column_widths = {
+                "Rank": 4,
+                "User": 14,
+                "Score": 12,
+                "Submission Name": 14,
             }
-            for submission in submissions
-        ]
+        else:
+
+            def _time(t: datetime):
+                if (datetime.now(tz=t.tzinfo) - t) > timedelta(hours=24):
+                    return t.strftime("%y-%m-%d")
+                else:
+                    return t.strftime("%H:%M:%S")
+
+            processed_submissions = [
+                {
+                    "Rank": submission["rank"],
+                    "ID": submission["submission_id"],
+                    "Score": f"{format_time(float(submission['submission_score']) * 1e9)}",
+                    "Submission Name": submission["submission_name"],
+                    "Time": _time(submission["submission_time"]),
+                }
+                for submission in submissions
+            ]
+            column_widths = {
+                "ID": 5,
+                "Rank": 4,
+                "Score": 10,
+                "Submission Name": 14,
+                "Time": 8,
+            }
 
         title = f'Leaderboard Submissions for "{leaderboard_name}" on {gpu}'
         if user_id:
             title += f" for user {await get_user_from_id(user_id, interaction, self.bot)}"
 
-        column_widths = {
-            "Rank": 4,
-            "User": 14,
-            "Score": 12,
-            "Submission Name": 14,
-        }
         embed, view = create_table(
             title,
             processed_submissions,
