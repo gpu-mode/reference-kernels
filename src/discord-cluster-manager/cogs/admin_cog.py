@@ -18,6 +18,7 @@ from task import LeaderboardTask, make_task
 from ui.misc import ConfirmationView, DeleteConfirmationModal, GPUSelectionView
 from utils import (
     KernelBotError,
+    LeaderboardItem,
     SubmissionItem,
     send_discord_message,
     setup_logging,
@@ -220,6 +221,16 @@ class AdminCog(commands.Cog):
                 logger.error(f"Value Error: {str(ve)}", exc_info=True)
         return None
 
+    def _leaderboard_opening_message(
+        self, leaderboard_name: str, deadline: datetime, description: str
+    ):
+        return f"""
+        # New Leaderboard: {leaderboard_name}\n
+        **Deadline**: {deadline.strftime('%Y-%m-%d %H:%M')}\n
+        {description}\n
+        Submit your entries using `/leaderboard submit ranked` in the submissions channel.\n
+        Good luck to all participants! 🚀 <@&{self.bot.leaderboard_participant_role_id}>"""
+
     async def leaderboard_create_impl(  # noqa: C901
         self,
         interaction: discord.Interaction,
@@ -257,12 +268,8 @@ class AdminCog(commands.Cog):
         try:
             forum_thread = await forum_channel.create_thread(
                 name=leaderboard_name,
-                content=(
-                    f"# New Leaderboard: {leaderboard_name}\n\n"
-                    f"**Deadline**: {date_value.strftime('%Y-%m-%d %H:%M')}\n\n"
-                    f"{task.description}\n\n"
-                    "Submit your entries using `/leaderboard submit ranked` in the submissions channel.\n\n"  # noqa: E501
-                    f"Good luck to all participants! 🚀 <@&{self.bot.leaderboard_participant_role_id}>"  # noqa: E501
+                content=self._leaderboard_opening_message(
+                    leaderboard_name, date_value, task.description
                 ),
                 auto_archive_duration=10080,  # 7 days
             )
@@ -710,8 +717,17 @@ class AdminCog(commands.Cog):
 
             for entry in update_list:
                 with self.bot.leaderboard_db as db:
-                    db.update_leaderboard(
-                        entry["name"], entry["deadline"], make_task(root / entry["directory"])
+                    task = make_task(root / entry["directory"])
+                    db.update_leaderboard(entry["name"], entry["deadline"], task)
+                    new_lb: LeaderboardItem = db.get_leaderboard(entry["name"])
+
+                forum_id = new_lb["forum_id"]
+                forum_thread = await self.bot.fetch_channel(forum_id)
+                if forum_thread:
+                    await forum_thread.starter_message.edit(
+                        content=self._leaderboard_opening_message(
+                            entry["name"], new_lb["deadline"], task.description
+                        )
                     )
 
             header += " DONE"
