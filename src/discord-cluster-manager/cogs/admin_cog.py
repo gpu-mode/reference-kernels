@@ -961,6 +961,13 @@ class AdminCog(commands.Cog):
                     # search forum threads
                     forum_channel = self.bot.get_channel(self.bot.leaderboard_forum_id)
                     threads = [thread for thread in forum_channel.threads if thread.name == name]
+                    if len(threads) == 0:
+                        # is it an archived thread?
+                        threads = [
+                            thread
+                            async for thread in forum_channel.archived_threads()
+                            if thread.name == name
+                        ]
                     if len(threads) != 1:
                         await send_discord_message(
                             interaction, f"Could not set forum thread for {name}", ephemeral=True
@@ -973,8 +980,7 @@ class AdminCog(commands.Cog):
                         SET forum_id = %s
                         WHERE id = %s
                         """,
-                        thread.id,
-                        id,
+                        (thread.id, id),
                     )
 
                 db.connection.commit()
