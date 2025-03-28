@@ -134,7 +134,7 @@ class SubmitCog(commands.Cog):
                 type=discord.ChannelType.private_thread,
                 auto_archive_duration=1440,
             )
-            await thread.add_tags(interaction.user)
+            await thread.add_user(interaction.user)
         config = build_task_config(
             task=task, submission_content=script_content, arch=self._get_arch(gpu_type), mode=mode
         )
