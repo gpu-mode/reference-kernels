@@ -20,16 +20,10 @@ def generate_input(m: int, n: int, k: int, seed: int) -> input_t:
     a_scale = torch.randn([m, scale_k], dtype=torch.float32, generator=gen)
     b_scale = torch.randn([scale_n, scale_k], dtype=torch.float32, generator=gen)
 
-    return (a, b, a_scale, b_scale)
-
-
-def ref_kernel(data: input_t) -> output_t:
-    a, b, a_scale, b_scale = data
-    block_shape_n, block_shape_k = block_shape
-    scale_n, scale_k = b_scale.shape
     # Apply scaling to input 'a'
     a = a.to(a_scale.dtype).view(m, k//block_shape_k, block_shape_k) * a_scale.unsqueeze(-1)
-    a = a.view(m, k)    
+    a = a.view(m, k)
+
     # Apply scaling to input 'b'
     b_scale = (
         b_scale.view(-1, 1)
@@ -39,8 +33,13 @@ def ref_kernel(data: input_t) -> output_t:
         .reshape(scale_n * block_shape_n, scale_k * block_shape_k)
     )
     b_scale = b_scale[:n, :k]
-    b = b.to(b_scale.dtype) * b_scale    
-    return a @ b
+    b = b.to(b_scale.dtype) * b_scale
+    return (a, b)
+
+
+def ref_kernel(data: input_t) -> output_t:
+    a, b, = data
+    return (a @ b).to(torch.bfloat16)
+
 
 check_implementation = make_match_reference(ref_kernel)
-

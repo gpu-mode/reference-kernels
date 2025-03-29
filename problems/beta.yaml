@@ -5,6 +5,11 @@ deadline: ""
 description: ""
 # the list of problems
 problems:
+  - directory: pmpp/blockmatmul_py
+    name: blockmatmul
+    deadline: "2025-04-30"
+    gpus:
+      - MI300
   - directory: pmpp/conv2d_py
     name: conv2d
     deadline: "2025-04-30"
