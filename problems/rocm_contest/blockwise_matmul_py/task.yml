@@ -1,0 +1,43 @@
+# name: blockwise-matmul-py
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a custom blockwise matmul function that matches the reference implementation.
+  The function should handle a tuple of input tensors and apply matmul
+  The shapes of all outer and inner dimensions of tensors are from DeepSeek-R1
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"m": , "n": 1536, "k": 7168, "seed": }
+  - {"m": , "n": 3072, "k": 1536, "seed": }
+  - {"m": , "n": 576, "k": 7168, "seed": }
+  - {"m": , "n": 7168, "k": 256, "seed": }
+  - {"m": , "n": 7168, "k": 2048, "seed": }
+  - {"m": , "n": 4608, "k": 7168, "seed": }
+  - {"m": , "n": 7168, "k": 2304, "seed": }
+  - {"m": , "n": 512, "k": 7168, "seed": }
+  - {"m": , "n": 4096, "k": 512, "seed": }
+
+benchmarks:
+  - {"m": , "n": 1536, "k": 7168, "seed": }
+  - {"m": , "n": 3072, "k": 1536, "seed": }
+  - {"m": , "n": 576, "k": 7168, "seed": }
+  - {"m": , "n": 7168, "k": 256, "seed": }
+  - {"m": , "n": 7168, "k": 2048, "seed": }
+  - {"m": , "n": 4608, "k": 7168, "seed": }
+  - {"m": , "n": 7168, "k": 2304, "seed": }
+  - {"m": , "n": 512, "k": 7168, "seed": }
+  - {"m": , "n": 4096, "k": 512, "seed": }
