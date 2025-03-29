@@ -2,7 +2,7 @@ import copy
 import dataclasses
 import json
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Optional, Union
 
 from consts import Language
 
@@ -60,6 +60,7 @@ class LeaderboardTask:
     benchmark_timeout: int = 60
     ranked_timeout: int = 90
     templates: dict[str, str] = dataclasses.field(default_factory=dict)
+    seed: Optional[int] = None
 
     @staticmethod
     def from_dict(data: dict):

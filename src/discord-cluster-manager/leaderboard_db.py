@@ -418,7 +418,7 @@ class LeaderboardDB:
     def get_leaderboard(self, leaderboard_name: str) -> LeaderboardItem | None:
         self.cursor.execute(
             """
-            SELECT id, name, deadline, task, creator_id, forum_id
+            SELECT id, name, deadline, task, creator_id, forum_id, secret_seed
             FROM leaderboard.leaderboard
             WHERE name = %s
             """,
@@ -436,6 +436,7 @@ class LeaderboardDB:
                 task=task,
                 creator_id=res[4],
                 forum_id=res[5],
+                secret_seed=res[6],
             )
         else:
             return None

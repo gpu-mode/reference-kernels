@@ -2,7 +2,7 @@ import datetime
 import functools
 import logging
 import subprocess
-from typing import Any, List, Optional, TypedDict
+from typing import Any, List, NotRequired, Optional, TypedDict
 
 import discord
 from consts import Language, SubmissionMode
@@ -191,6 +191,7 @@ class LeaderboardItem(TypedDict):
     task: LeaderboardTask
     gpu_types: List[str]
     forum_id: int
+    secret_seed: NotRequired[int]
 
 
 class LeaderboardRankedEntry(TypedDict):
@@ -266,18 +267,23 @@ def build_task_config(
             else:
                 all_files[n] = c
 
+        common = {
+            "lang": task.lang.value,
+            "arch": arch,
+            "benchmarks": task.benchmarks,
+            "tests": task.tests,
+            "mode": mode.value,
+            "test_timeout": task.test_timeout,
+            "benchmark_timeout": task.benchmark_timeout,
+            "ranked_timeout": task.ranked_timeout,
+            "seed": task.seed,
+        }
+
         if task.lang == Language.Python:
             return {
-                "lang": task.lang.value,
-                "arch": arch,
                 "main": task.config.main,
                 "sources": all_files,
-                "benchmarks": task.benchmarks,
-                "tests": task.tests,
-                "mode": mode.value,
-                "test_timeout": task.test_timeout,
-                "benchmark_timeout": task.benchmark_timeout,
-                "ranked_timeout": task.ranked_timeout,
+                **common
             }
         else:
             sources = {}
@@ -289,17 +295,9 @@ def build_task_config(
                     headers[f] = all_files[f]
 
             return {
-                "lang": task.lang.value,
-                "arch": arch,
                 "sources": sources,
                 "headers": headers,
-                "tests": task.tests,
-                "benchmarks": task.benchmarks,
                 "include_dirs": task.config.include_dirs,
-                "mode": mode.value,
-                "test_timeout": task.test_timeout,
-                "benchmark_timeout": task.benchmark_timeout,
-                "ranked_timeout": task.ranked_timeout,
             }
 
 

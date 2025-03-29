@@ -217,13 +217,14 @@ def compile_cuda_script(  # # noqa: C901
     )
 
 
-def run_program(args: list[str], seed: int, timeout: int) -> RunResult:
+def run_program(args: list[str], seed: Optional[int], timeout: int) -> RunResult:
     print("[Running]")
     # set up a pipe so the tester can communicate its verdict with us
     env = os.environ.copy()
     pipe_read, pipe_write = os.pipe()
     env["POPCORN_FD"] = str(pipe_write)
-    env["POPCORN_SEED"] = str(seed)
+    if seed is not None:
+        env["POPCORN_SEED"] = str(seed)
 
     execution_start_time = time.perf_counter()
     try:
@@ -283,7 +284,7 @@ def run_single_evaluation(
     test_timeout: int = Timeout.TEST,
     benchmark_timeout: int = Timeout.BENCHMARK,
     ranked_timeout: int = Timeout.RANKED,
-    seed: Optional[int] = 42,
+    seed: Optional[int] = None,
 ) -> RunResult:
     """
     A single runner run, either in the context of test files, or in the
@@ -542,7 +543,7 @@ def run_config(config: dict):
     common_args = {
         "tests": build_test_string(config.get("tests", [])),
         "benchmarks": build_test_string(config.get("benchmarks", [])),
-        "seed": 42,
+        "seed": config.get("seed", None),
     }
     if config["lang"] == "py":
         runner = functools.partial(

@@ -1,4 +1,5 @@
 import asyncio
+import copy
 from datetime import datetime, timedelta
 from io import StringIO
 from typing import TYPE_CHECKING, Callable, List, Optional
@@ -46,12 +47,20 @@ class LeaderboardSubmitCog(app_commands.Group):
         script: discord.Attachment,
         command: Callable,
         task: LeaderboardTask,
+        seed: Optional[int],
         reporter: RunProgressReporter,
         gpu: app_commands.Choice[str],
         runner_name: str,
         mode: SubmissionMode,
         submission_id: int,
     ):
+        if seed is not None:
+            # careful, we've got a reference here
+            # that is shared with the other run
+            # invocations.
+            task = copy.copy(task)
+            task.seed = seed
+
         result: FullResult = await command(
             interaction,
             script,
@@ -152,8 +161,8 @@ class LeaderboardSubmitCog(app_commands.Group):
                 return None, None
 
             gpus = db.get_leaderboard_gpu_types(leaderboard_name)
-            task = leaderboard_item["task"]
-        return task, gpus
+            task: LeaderboardTask = leaderboard_item["task"]
+        return task, gpus, leaderboard_item['secret_seed']
 
     def _get_run_command(self, gpu) -> Optional[Callable]:
         runner_cog = self.bot.get_cog(f"{gpu.runner}Cog")
@@ -230,7 +239,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             )
             return -1
 
-        task, task_gpus = await self.before_submit_hook(
+        task, task_gpus, secret_seed = await self.before_submit_hook(
             interaction,
             leaderboard_name,
         )
@@ -297,6 +306,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     script,
                     command,
                     task,
+                    None,
                     reporter.add_run(f"{gpu.name} on {gpu.runner}"),
                     app_commands.Choice(name=gpu.name, value=gpu.value),
                     gpu.runner,
@@ -315,6 +325,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                         script,
                         command,
                         task,
+                        secret_seed,
                         reporter.add_run(f"{gpu.name} on {gpu.runner} (secret)"),
                         app_commands.Choice(name=gpu.name, value=gpu.value),
                         gpu.runner,
