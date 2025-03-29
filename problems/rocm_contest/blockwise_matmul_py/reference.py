@@ -16,14 +16,20 @@ def generate_input(m: int, n: int, k: int, seed: int) -> input_t:
     a = (torch.randn((m, k), dtype=torch.float16, generator=gen)/10).to(torch.float8_e4m3fnuz)
     b = (torch.randn((n, k), dtype=torch.float16, generator=gen)/10).to(torch.float8_e4m3fnuz)
 
-    # Generate scaling factors
+    # Generate scaling factors with FP32
     a_scale = torch.randn([m, scale_k], dtype=torch.float32, generator=gen)
     b_scale = torch.randn([scale_n, scale_k], dtype=torch.float32, generator=gen)
 
+    return (a, b, a_scale, b_scale)
+
+
+def ref_kernel(data: input_t) -> output_t:
+    a, b, a_scale, b_scale = data
+    block_shape_n, block_shape_k = block_shape
+    scale_n, scale_k = b_scale.shape
     # Apply scaling to input 'a'
     a = a.to(a_scale.dtype).view(m, k//block_shape_k, block_shape_k) * a_scale.unsqueeze(-1)
-    a = a.view(m, k)
-
+    a = a.view(m, k)    
     # Apply scaling to input 'b'
     b_scale = (
         b_scale.view(-1, 1)
@@ -33,14 +39,8 @@ def generate_input(m: int, n: int, k: int, seed: int) -> input_t:
         .reshape(scale_n * block_shape_n, scale_k * block_shape_k)
     )
     b_scale = b_scale[:n, :k]
-    b = b.to(b_scale.dtype) * b_scale
-    return (a, b)
-
-
-def ref_kernel(data: input_t) -> output_t:
-    a, b, = data
+    b = b.to(b_scale.dtype) * b_scale    
     return a @ b
-
 
 check_implementation = make_match_reference(ref_kernel)
 
