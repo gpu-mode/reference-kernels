@@ -1,0 +1,36 @@
+# name: blockwise-matmul-py
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a custom blockwise matmul function that matches the reference implementation.
+  The function should handle a tuple of input tensors and apply matmul
+  The shapes of all outer and inner dimensions of tensors are from DeepSeek-R1
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"B": 1, "S": 2048, "H_Q": 16, "H_KV": 16, "D": 576, "D_V": 512, "seed":}
+  - {"B": 4, "S": 2048, "H_Q": 16, "H_KV": 1, "D": 64, "D_V": 64, "seed":}
+  - {"B": 2, "S": 128, "H_Q": 16, "H_KV": 16, "D": 64, "D_V": 64, "seed":}
+  - {"B": 2, "S": 256, "H_Q": 16, "H_KV": 1, "D": 64, "D_V": 64, "seed":}
+  - {"B": 8, "S": 1024, "H_Q": 16, "H_KV": 1, "D": 576, "D_V": 512, "seed":}
+
+benchmarks:
+  - {"B": 1, "S": 2048, "H_Q": 16, "H_KV": 16, "D": 576, "D_V": 512, "seed":}
+  - {"B": 4, "S": 2048, "H_Q": 16, "H_KV": 1, "D": 64, "D_V": 64, "seed":}
+  - {"B": 2, "S": 128, "H_Q": 16, "H_KV": 16, "D": 64, "D_V": 64, "seed":}
+  - {"B": 2, "S": 256, "H_Q": 16, "H_KV": 1, "D": 64, "D_V": 64, "seed":}
+  - {"B": 8, "S": 1024, "H_Q": 16, "H_KV": 1, "D": 576, "D_V": 512, "seed":}
+  
