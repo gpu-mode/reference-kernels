@@ -5,7 +5,7 @@ import os
 import sys
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import torch.cuda
 
@@ -45,7 +45,18 @@ class TestCase:
     spec: str
 
 
-def get_test_cases(file_name: str) -> list[TestCase]:
+def _combine(a: int, b: int) -> int:
+    # combine two integers into one:
+    # we need this to generate a secret seed based on the test-level seed and
+    # the global secret seed.
+    # the test-level seeds are public knowledge, and typically relatively small numbers,
+    # so we need to make sure they don't provide any useful info for the full seed.
+    # This Cantor construction ensures that if the secret seed is a large number,
+    # then so is the overall seed.
+    return int(a + (a+b)*(a+b+1)//2)
+
+
+def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
     try:
         content = Path(file_name).read_text()
     except Exception as E:
@@ -72,6 +83,11 @@ def get_test_cases(file_name: str) -> list[TestCase]:
 
             case[key] = val
         tests.append(TestCase(spec=line, args=case))
+
+    if seed is not None:
+        for test in tests:
+            if "seed" in test.args:
+                test.args["seed"] = _combine(test.args["seed"], seed)
 
     return tests
 
@@ -236,13 +252,12 @@ def main():
         return 2
 
     mode = sys.argv[1]
-    tests = get_test_cases(sys.argv[2])
+    seed = os.getenv("POPCORN_SEED")
+    seed = int(seed) if seed else None
+    set_seed(seed or 42)
+    tests = get_test_cases(sys.argv[2], seed)
 
     with PopcornOutput(int(fd)) as logger:
-        seed = os.getenv("POPCORN_SEED")
-        seed = int(seed) if seed else 42
-        set_seed(seed)
-
         if mode == "test":
             return run_testing(logger, tests)
 
