@@ -1,3 +1,4 @@
+import copy
 from typing import TYPE_CHECKING, Optional
 
 from launchers import Launcher
@@ -24,11 +25,11 @@ class SubmitCog(commands.Cog):
     Actual submission logic is handled by the launcher object.
     """
 
-    def __init__(self, bot, launcher: Launcher):
+    def __init__(self, bot):
         self.bot: ClusterBot = bot
-        self.launcher = launcher
-        self.name = launcher.name
+        self.launcher_map = {}
 
+    def register_launcher(self, launcher: Launcher):
         choices = [app_commands.Choice(name=c.name, value=c.value) for c in launcher.gpus]
 
         run_fn = self.run_script
@@ -36,9 +37,9 @@ class SubmitCog(commands.Cog):
         # note: these helpers want to set custom attributes on the function, but `method`
         # does not allow setting any attributes, so we define this wrapper
         async def run(
-            interaction: discord.Interaction,
-            script: discord.Attachment,
-            gpu_type: app_commands.Choice[str],
+                interaction: discord.Interaction,
+                script: discord.Attachment,
+                gpu_type: app_commands.Choice[str],
         ):
             return await run_fn(interaction, script, gpu_type)
 
@@ -50,22 +51,34 @@ class SubmitCog(commands.Cog):
 
         # For now, direct (non-leaderboard) submissions are debug-only.
         if self.bot.debug_mode:
-            self.run_script = bot.run_group.command(
-                name=self.name.lower(), description=f"Run a script using {self.name}"
+            self.bot.run_group.command(
+                name=launcher.name.lower(), description=f"Run a script using {launcher.name}"
             )(run)
+
+        for gpu in launcher.gpus:
+            self.launcher_map[gpu.value] = launcher
 
     async def submit_leaderboard(
         self,
         interaction: discord.Interaction,
+        submission_id: int,
         script: discord.Attachment,
         gpu_type: GPU,
         reporter: RunProgressReporter,
         task: LeaderboardTask,
         mode: SubmissionMode,
+        seed: Optional[int]
     ) -> Optional[FullResult]:
         """
         Function invoked by `leaderboard_cog` to handle a leaderboard run.
         """
+        if seed is not None:
+            # careful, we've got a reference here
+            # that is shared with the other run
+            # invocations.
+            task = copy.copy(task)
+            task.seed = seed
+
         result = await self._handle_submission(
             interaction,
             gpu_type,
@@ -74,6 +87,33 @@ class SubmitCog(commands.Cog):
             task=task,
             mode=mode,
         )
+
+        if result.success:
+            score = None
+            if "leaderboard" in result.runs and result.runs["leaderboard"].run.success:
+                score = 0.0
+                num_benchmarks = int(result.runs["leaderboard"].run.result["benchmark-count"])
+                for i in range(num_benchmarks):
+                    score += (
+                            float(result.runs["leaderboard"].run.result[f"benchmark.{i}.mean"])
+                            / 1e9
+                    )
+                score /= num_benchmarks
+
+            with self.bot.leaderboard_db as db:
+                for key, value in result.runs.items():
+                    db.create_submission_run(
+                        submission_id,
+                        value.start,
+                        value.end,
+                        mode=key,
+                        runner=gpu_type.name,
+                        score=None if key != "leaderboard" else score,
+                        secret=mode == SubmissionMode.PRIVATE,
+                        compilation=value.compilation,
+                        result=value.run,
+                        system=result.system,
+                    )
 
         return result
 
@@ -119,10 +159,12 @@ class SubmitCog(commands.Cog):
         if script_content is None:
             return None
 
+        launcher = self.launcher_map[gpu_type.value]
+
         # TODO figure out the correct way to handle messaging here
         if mode != SubmissionMode.PRIVATE:
             thread = await interaction.channel.create_thread(
-                name=f"{script.filename} on {gpu_type.name} ({self.name})",
+                name=f"{script.filename} on {gpu_type.name} ({launcher.name})",
                 type=discord.ChannelType.private_thread,
                 auto_archive_duration=1440,
             )
@@ -131,9 +173,9 @@ class SubmitCog(commands.Cog):
             task=task, submission_content=script_content, arch=self._get_arch(gpu_type), mode=mode
         )
 
-        logger.info("submitting task to runner %s", self.name)
+        logger.info("submitting task to runner %s", launcher.name)
 
-        result = await self.launcher.run_submission(config, gpu_type, reporter)
+        result = await launcher.run_submission(config, gpu_type, reporter)
 
         if not result.success:
             await reporter.update_title(reporter.title + " ❌ failure")

@@ -1,22 +1,18 @@
 import asyncio
-import copy
 from datetime import datetime, timedelta
 from io import StringIO
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import discord
 from consts import (
-    GPU,
     SubmissionMode,
     get_gpu_by_name,
 )
 from discord import app_commands
 from discord.ext import commands, tasks
-from leaderboard_db import LeaderboardDB, leaderboard_name_autocomplete
-from report import MultiProgressReporter, RunProgressReporter
-from run_eval import FullResult
+from leaderboard_db import leaderboard_name_autocomplete
+from report import MultiProgressReporter
 from submission import SubmissionRequest, prepare_submission
-from task import LeaderboardTask
 from ui.misc import GPUSelectionView
 from ui.table import create_table
 from utils import (
@@ -42,77 +38,6 @@ class LeaderboardSubmitCog(app_commands.Group):
         super().__init__(name="submit", description="Submit to leaderboard")
         self.bot = bot
 
-    async def async_submit_cog_job(
-        self,
-        interaction: discord.Interaction,
-        leaderboard_name: str,
-        script: discord.Attachment,
-        task: LeaderboardTask,
-        seed: Optional[int],
-        reporter: RunProgressReporter,
-        gpu: GPU,
-        mode: SubmissionMode,
-        submission_id: int,
-    ):
-        if seed is not None:
-            # careful, we've got a reference here
-            # that is shared with the other run
-            # invocations.
-            task = copy.copy(task)
-            task.seed = seed
-
-        command = self._get_run_command(gpu.runner, gpu.name)
-        if command is None:
-            await send_discord_message(interaction, "❌ Required runner not found!")
-            return -1
-
-        result: FullResult = await command(
-            interaction,
-            script,
-            gpu,
-            reporter,
-            task=task,
-            mode=mode,
-        )
-
-        try:
-            if result.success:
-                score = None
-                if "leaderboard" in result.runs and result.runs["leaderboard"].run.success:
-                    score = 0.0
-                    num_benchmarks = int(result.runs["leaderboard"].run.result["benchmark-count"])
-                    for i in range(num_benchmarks):
-                        score += (
-                            float(result.runs["leaderboard"].run.result[f"benchmark.{i}.mean"])
-                            / 1e9
-                        )
-                    score /= num_benchmarks
-
-                with self.bot.leaderboard_db as db:
-                    db: LeaderboardDB
-                    for key, value in result.runs.items():
-                        db.create_submission_run(
-                            submission_id,
-                            value.start,
-                            value.end,
-                            mode=key,
-                            runner=gpu.name,
-                            score=None if key != "leaderboard" else score,
-                            secret=mode == SubmissionMode.PRIVATE,
-                            compilation=value.compilation,
-                            result=value.run,
-                            system=result.system,
-                        )
-        except Exception as e:
-            logger.error("Error in recording leaderboard submission", exc_info=e)
-            await send_discord_message(
-                interaction,
-                "## Result:\n"
-                + f"Leaderboard submission to '{leaderboard_name}' on {gpu.name} "
-                + f"using {gpu.runner} could not be recorded in the database!\n",
-                ephemeral=True,
-            )
-
     async def select_gpu_view(
         self,
         interaction: discord.Interaction,
@@ -133,14 +58,6 @@ class LeaderboardSubmitCog(app_commands.Group):
 
         await view.wait()
         return view
-
-    def _get_run_command(self, runner, name) -> Optional[Callable]:
-        runner_cog = self.bot.get_cog(f"{runner}Cog")
-
-        if not all([runner_cog]):
-            logger.error("Cog for runner %s for gpu %s not found!", f"{runner}Cog", name)
-            return None
-        return runner_cog.submit_leaderboard
 
     async def on_submit_hook(  # noqa: C901
         self,
@@ -186,6 +103,8 @@ class LeaderboardSubmitCog(app_commands.Group):
 
         selected_gpus = [get_gpu_by_name(gpu) for gpu in selected_gpus]
 
+        command = self.bot.get_cog("SubmitCog").submit_leaderboard
+
         user_name = interaction.user.global_name or interaction.user.name
         # Create a submission entry in the database
         with self.bot.leaderboard_db as db:
@@ -202,16 +121,15 @@ class LeaderboardSubmitCog(app_commands.Group):
         reporter = MultiProgressReporter(run_msg)
         try:
             tasks = [
-                self.async_submit_cog_job(
+                command(
                     interaction,
-                    leaderboard_name,
-                    script,
-                    req.task,
-                    None,
-                    reporter.add_run(f"{gpu.name} on {gpu.runner}"),
-                    gpu,
-                    mode,
                     sub_id,
+                    script,
+                    gpu,
+                    reporter.add_run(f"{gpu.name} on {gpu.runner}"),
+                    req.task,
+                    mode,
+                    None,
                 )
                 for gpu in selected_gpus
             ]
@@ -219,16 +137,15 @@ class LeaderboardSubmitCog(app_commands.Group):
             # also schedule secret run
             if mode == SubmissionMode.LEADERBOARD:
                 tasks += [
-                    self.async_submit_cog_job(
+                    command(
                         interaction,
-                        leaderboard_name,
-                        script,
-                        req.task,
-                        req.secret_seed,
-                        reporter.add_run(f"{gpu.name} on {gpu.runner} (secret)"),
-                        gpu,
-                        SubmissionMode.PRIVATE,
                         sub_id,
+                        script,
+                        gpu,
+                        reporter.add_run(f"{gpu.name} on {gpu.runner} (secret)"),
+                        req.task,
+                        SubmissionMode.PRIVATE,
+                        req.secret_seed,
                     )
                     for gpu in selected_gpus
                 ]

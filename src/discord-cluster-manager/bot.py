@@ -32,23 +32,6 @@ from utils import setup_logging
 logger = setup_logging()
 
 
-###############################################################################
-# Temporary: Cannot create multiple instances of the same cog, so we define
-# dummy classes here
-###############################################################################
-class ModalCog(SubmitCog):
-    def __init__(self, bot):
-        super().__init__(bot, ModalLauncher(consts.MODAL_CUDA_INCLUDE_DIRS))
-
-
-class GitHubCog(SubmitCog):
-    def __init__(self, bot):
-        super().__init__(bot, GitHubLauncher())
-
-
-###############################################################################
-
-
 class ClusterBot(commands.Bot):
     def __init__(self, debug_mode=False):
         intents = discord.Intents.default()
@@ -93,8 +76,10 @@ class ClusterBot(commands.Bot):
         logger.info(f"Syncing commands for staging guild {DISCORD_CLUSTER_STAGING_ID}")
         try:
             # Load cogs
-            await self.add_cog(ModalCog(self))
-            await self.add_cog(GitHubCog(self))
+            submit_cog = SubmitCog(self)
+            submit_cog.register_launcher(ModalLauncher(consts.MODAL_CUDA_INCLUDE_DIRS))
+            submit_cog.register_launcher(GitHubLauncher())
+            await self.add_cog(submit_cog)
             await self.add_cog(BotManagerCog(self))
             await self.add_cog(LeaderboardCog(self))
             await self.add_cog(VerifyRunCog(self))
