@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Type
 
-from consts import GPUType
+from consts import GPU
 from report import RunProgressReporter
 
 
@@ -10,5 +10,5 @@ class Launcher:
         self.name = name
         self.gpus = gpus
 
-    async def run_submission(self, config: dict, gpu_type: GPUType, status: RunProgressReporter):
+    async def run_submission(self, config: dict, gpu_type: GPU, status: RunProgressReporter):
         raise NotImplementedError()

@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from bot import ClusterBot
 
 import discord
-from consts import GPU_TO_SM, SubmissionMode
+from consts import GPU, GPU_TO_SM, SubmissionMode, get_gpu_by_name
 from discord import app_commands
 from discord.ext import commands
 from report import MultiProgressReporter, RunProgressReporter, generate_report, make_short_report
@@ -58,7 +58,7 @@ class SubmitCog(commands.Cog):
         self,
         interaction: discord.Interaction,
         script: discord.Attachment,
-        gpu_type: app_commands.Choice[str],
+        gpu_type: GPU,
         reporter: RunProgressReporter,
         task: LeaderboardTask,
         mode: SubmissionMode,
@@ -90,6 +90,7 @@ class SubmitCog(commands.Cog):
         reporter = MultiProgressReporter("Script run")
         rep = reporter.add_run(f"{gpu_type.name}")
         await reporter.show(interaction)
+        gpu_type = get_gpu_by_name(gpu_type.name)
         await self._handle_submission(
             interaction, gpu_type, rep, script=script, task=None, mode=SubmissionMode.SCRIPT
         )
@@ -97,7 +98,7 @@ class SubmitCog(commands.Cog):
     async def _handle_submission(
         self,
         interaction: discord.Interaction,
-        gpu_type: app_commands.Choice[str],
+        gpu_type: GPU,
         reporter: RunProgressReporter,
         script: discord.Attachment,
         task: Optional[LeaderboardTask],
@@ -171,5 +172,5 @@ class SubmitCog(commands.Cog):
             )
             return None
 
-    def _get_arch(self, gpu_type: app_commands.Choice[str]):
+    def _get_arch(self, gpu_type: GPU):
         return GPU_TO_SM[gpu_type.name]

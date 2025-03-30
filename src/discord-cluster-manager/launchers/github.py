@@ -1,7 +1,7 @@
 import datetime
 import json
 
-from consts import AMD_REQUIREMENTS, NVIDIA_REQUIREMENTS, GitHubGPU, GPUType
+from consts import AMD_REQUIREMENTS, GPU, NVIDIA_REQUIREMENTS, GitHubGPU, GPUType
 from github_runner import GitHubRun
 from report import RunProgressReporter
 from run_eval import CompileResult, EvalResult, FullResult, RunResult, SystemInfo
@@ -17,7 +17,7 @@ class GitHubLauncher(Launcher):
         super().__init__(name="GitHub", gpus=GitHubGPU)
 
     async def run_submission(
-        self, config: dict, gpu_type: GPUType, status: RunProgressReporter
+        self, config: dict, gpu_type: GPU, status: RunProgressReporter
     ) -> FullResult:
         selected_gpu = GPUType.AMD if gpu_type.value == "amd" else GPUType.NVIDIA
 

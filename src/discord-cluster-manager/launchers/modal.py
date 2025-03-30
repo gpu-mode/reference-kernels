@@ -1,8 +1,7 @@
 import asyncio
-from enum import Enum
 
 import modal
-from consts import ModalGPU
+from consts import GPU, ModalGPU
 from report import RunProgressReporter
 from run_eval import FullResult
 from utils import setup_logging
@@ -18,7 +17,7 @@ class ModalLauncher(Launcher):
         self.additional_include_dirs = add_include_dirs
 
     async def run_submission(
-        self, config: dict, gpu_type: Enum, status: RunProgressReporter
+        self, config: dict, gpu_type: GPU, status: RunProgressReporter
     ) -> FullResult:
         loop = asyncio.get_event_loop()
         if config["lang"] == "cu":

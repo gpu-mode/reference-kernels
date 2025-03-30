@@ -55,7 +55,7 @@ def _make_gpu_lookup(runner_map: dict[str, Type[Enum]]):
 _GPU_LOOKUP = _make_gpu_lookup({"Modal": ModalGPU, "GitHub": GitHubGPU})
 
 
-def get_gpu_by_name(name: str):
+def get_gpu_by_name(name: str) -> GPU:
     name = name.lower()
     return _GPU_LOOKUP.get(name, None)
 

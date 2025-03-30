@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Callable, List, Optional
 
 import discord
 from consts import (
+    GPU,
     SubmissionMode,
     get_gpu_by_name,
 )
@@ -49,8 +50,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         task: LeaderboardTask,
         seed: Optional[int],
         reporter: RunProgressReporter,
-        gpu: app_commands.Choice[str],
-        runner_name: str,
+        gpu: GPU,
         mode: SubmissionMode,
         submission_id: int,
     ):
@@ -61,7 +61,7 @@ class LeaderboardSubmitCog(app_commands.Group):
             task = copy.copy(task)
             task.seed = seed
 
-        command = self._get_run_command(runner_name, gpu.name)
+        command = self._get_run_command(gpu.runner, gpu.name)
         if command is None:
             await send_discord_message(interaction, "❌ Required runner not found!")
             return -1
@@ -109,7 +109,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 interaction,
                 "## Result:\n"
                 + f"Leaderboard submission to '{leaderboard_name}' on {gpu.name} "
-                + f"using {runner_name} could not be recorded in the database!\n",
+                + f"using {gpu.runner} could not be recorded in the database!\n",
                 ephemeral=True,
             )
 
@@ -209,8 +209,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     req.task,
                     None,
                     reporter.add_run(f"{gpu.name} on {gpu.runner}"),
-                    app_commands.Choice(name=gpu.name, value=gpu.value),
-                    gpu.runner,
+                    gpu,
                     mode,
                     sub_id,
                 )
@@ -227,8 +226,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                         req.task,
                         req.secret_seed,
                         reporter.add_run(f"{gpu.name} on {gpu.runner} (secret)"),
-                        app_commands.Choice(name=gpu.name, value=gpu.value),
-                        gpu.runner,
+                        gpu,
                         SubmissionMode.PRIVATE,
                         sub_id,
                     )
