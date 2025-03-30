@@ -14,6 +14,7 @@ from discord.ext import commands, tasks
 from leaderboard_db import LeaderboardDB, leaderboard_name_autocomplete
 from report import MultiProgressReporter, RunProgressReporter
 from run_eval import FullResult
+from submission import SubmissionRequest, prepare_submission
 from task import LeaderboardTask
 from ui.misc import GPUSelectionView
 from ui.table import create_table
@@ -129,41 +130,6 @@ class LeaderboardSubmitCog(app_commands.Group):
         await view.wait()
         return view
 
-    async def before_submit_hook(
-        self,
-        interaction: discord.Interaction,
-        leaderboard_name: str,
-    ):
-        """
-        Main logic to handle at the beginning of a user submission to a runner, to make
-        sure reference code, deadlines, etc. are all correct.
-        """
-        # Read and convert reference code
-        with self.bot.leaderboard_db as db:
-            leaderboard_item = db.get_leaderboard(leaderboard_name)
-            if not leaderboard_item:
-                await send_discord_message(
-                    interaction,
-                    f"Leaderboard {leaderboard_name} not found.",
-                    ephemeral=True,
-                )
-                return None, None
-
-            now = datetime.now()
-            deadline = leaderboard_item["deadline"]
-
-            if now.date() > deadline.date():
-                await send_discord_message(
-                    interaction,
-                    f"The deadline to submit to {leaderboard_name} has passed.\n"
-                    + f"It was {deadline.date()} and today is {now.date()}.",
-                )
-                return None, None
-
-            gpus = db.get_leaderboard_gpu_types(leaderboard_name)
-            task: LeaderboardTask = leaderboard_item["task"]
-        return task, gpus, leaderboard_item['secret_seed']
-
     def _get_run_command(self, gpu) -> Optional[Callable]:
         runner_cog = self.bot.get_cog(f"{gpu.runner}Cog")
 
@@ -171,24 +137,6 @@ class LeaderboardSubmitCog(app_commands.Group):
             logger.error("Cog for runner %s for gpu %s not found!", f"{gpu.runner}Cog", gpu.name)
             return None
         return runner_cog.submit_leaderboard
-
-    @staticmethod
-    def _get_popcorn_directives(submission: str) -> dict:
-        popcorn_info = {"gpus": None, "leaderboard": None}
-        for line in submission.splitlines():
-            # only process the first comment block of the file.
-            # for simplicity, don't care whether these are python or C++ comments here
-            if not (line.startswith("//") or line.startswith("#")):
-                break
-
-            args = line.split()
-            if args[0] in ["//!POPCORN", "#!POPCORN"]:
-                arg = args[1].strip().lower()
-                if arg in ["gpu", "gpus"]:
-                    popcorn_info["gpus"] = args[2:]
-                elif arg == "leaderboard":
-                    popcorn_info["leaderboard"] = args[2]
-        return popcorn_info
 
     async def on_submit_hook(  # noqa: C901
         self,
@@ -212,46 +160,14 @@ class LeaderboardSubmitCog(app_commands.Group):
             )
             return -1
 
-        info = self._get_popcorn_directives(submission_content)
-        # command argument GPUs overwrites popcorn directive
-        if info["gpus"] is not None and cmd_gpus is None:
-            cmd_gpus = info["gpus"]
-
-        if info["leaderboard"] is not None:
-            if leaderboard_name is not None:
-                await send_discord_message(
-                    interaction,
-                    "Leaderboard name specified in the command doesn't match the one "
-                    f"in the submission script header. Submitting to `{leaderboard_name}`",
-                    ephemeral=True,
-                )
-            else:
-                leaderboard_name = info["leaderboard"]
-
-        if leaderboard_name is None:
-            await send_discord_message(
-                interaction,
-                "Missing leaderboard name. "
-                "Either supply one as an argument in the submit command, or "
-                "specify it in your submission script using the "
-                "`{#,//}!POPCORN leaderboard <leaderboard_name>` directive.",
-                ephemeral=True,
-            )
-            return -1
-
-        task, task_gpus, secret_seed = await self.before_submit_hook(
-            interaction,
-            leaderboard_name,
+        req = SubmissionRequest(
+            code=submission_content,
+            file_name=script.filename,
+            user_id=interaction.user.id,
+            gpus=cmd_gpus,
+            leaderboard=leaderboard_name,
         )
-
-        # GPU selection View
-        if len(task_gpus) == 0:
-            await send_discord_message(
-                interaction,
-                "❌ No available GPUs for Leaderboard " + f"`{leaderboard_name}`.",
-                ephemeral=True,
-            )
-            return -1
+        req = prepare_submission(req, self.bot.leaderboard_db)
 
         # if there is more than one candidate GPU, display UI to let user select,
         # otherwise just run on that GPU
@@ -261,10 +177,10 @@ class LeaderboardSubmitCog(app_commands.Group):
         if cmd_gpus is not None:
             selected_gpus = []
             for g in cmd_gpus:
-                if g in task_gpus:
+                if g in req.task_gpus:
                     selected_gpus.append(g)
                 else:
-                    task_gpu_list = "".join([f" * {t}\n" for t in task_gpus])
+                    task_gpu_list = "".join([f" * {t}\n" for t in req.task_gpus])
                     await send_discord_message(
                         interaction,
                         f"GPU {g} not available for `{leaderboard_name}`\n"
@@ -272,10 +188,10 @@ class LeaderboardSubmitCog(app_commands.Group):
                         ephemeral=True,
                     )
                     return -1
-        elif len(task_gpus) == 1:
-            selected_gpus = task_gpus
+        elif len(req.task_gpus) == 1:
+            selected_gpus = req.task_gpus
         else:
-            view = await self.select_gpu_view(interaction, leaderboard_name, task_gpus)
+            view = await self.select_gpu_view(interaction, leaderboard_name, req.task_gpus)
             selected_gpus = view.selected_gpus
 
         selected_gpus = [get_gpu_by_name(gpu) for gpu in selected_gpus]
@@ -288,7 +204,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         # Create a submission entry in the database
         with self.bot.leaderboard_db as db:
             sub_id = db.create_submission(
-                leaderboard=leaderboard_name,
+                leaderboard=req.leaderboard,
                 file_name=script.filename,
                 code=submission_content,
                 user_id=interaction.user.id,
@@ -305,7 +221,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     leaderboard_name,
                     script,
                     command,
-                    task,
+                    req.task,
                     None,
                     reporter.add_run(f"{gpu.name} on {gpu.runner}"),
                     app_commands.Choice(name=gpu.name, value=gpu.value),
@@ -324,8 +240,8 @@ class LeaderboardSubmitCog(app_commands.Group):
                         leaderboard_name,
                         script,
                         command,
-                        task,
-                        secret_seed,
+                        req.task,
+                        req.secret_seed,
                         reporter.add_run(f"{gpu.name} on {gpu.runner} (secret)"),
                         app_commands.Choice(name=gpu.name, value=gpu.value),
                         gpu.runner,
