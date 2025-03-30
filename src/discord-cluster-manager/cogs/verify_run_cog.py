@@ -8,9 +8,8 @@ from unittest.mock import AsyncMock
 import discord
 import env
 from cogs import admin_cog
-from cogs.github_cog import GitHubCog
 from cogs.leaderboard_cog import LeaderboardSubmitCog
-from cogs.modal_cog import ModalCog
+from cogs.submit_cog import SubmitCog
 from consts import SubmissionMode
 from discord import app_commands
 from discord.app_commands import Choice
@@ -46,7 +45,7 @@ class VerifyRunCog(commands.Cog):
 
     async def verify_github_run(
         self,
-        github_cog: GitHubCog,
+        github_cog: SubmitCog,
         choice: app_commands.Choice,
         interaction: discord.Interaction,
         lang: str,
@@ -99,7 +98,7 @@ class VerifyRunCog(commands.Cog):
             return False
 
     async def verify_modal_run(
-        self, modal_cog: ModalCog, interaction: discord.Interaction, lang: str
+        self, modal_cog: SubmitCog, interaction: discord.Interaction, lang: str
     ) -> bool:
         t4 = app_commands.Choice(name="T4", value="t4")
         modal_command = modal_cog.submit_leaderboard

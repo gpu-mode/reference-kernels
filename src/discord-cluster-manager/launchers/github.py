@@ -1,21 +1,22 @@
 import datetime
 import json
 
-from cogs.submit_cog import SubmitCog
 from consts import AMD_REQUIREMENTS, NVIDIA_REQUIREMENTS, GitHubGPU, GPUType
 from github_runner import GitHubRun
 from report import RunProgressReporter
 from run_eval import CompileResult, EvalResult, FullResult, RunResult, SystemInfo
 from utils import setup_logging
 
+from .launcher import Launcher
+
 logger = setup_logging()
 
 
-class GitHubCog(SubmitCog):
-    def __init__(self, bot):
-        super().__init__(bot, name="GitHub", gpus=GitHubGPU)
+class GitHubLauncher(Launcher):
+    def __init__(self):
+        super().__init__(name="GitHub", gpus=GitHubGPU)
 
-    async def _run_submission(
+    async def run_submission(
         self, config: dict, gpu_type: GPUType, status: RunProgressReporter
     ) -> FullResult:
         selected_gpu = GPUType.AMD if gpu_type.value == "amd" else GPUType.NVIDIA

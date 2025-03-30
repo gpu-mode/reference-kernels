@@ -1,11 +1,12 @@
-from enum import Enum
-from typing import TYPE_CHECKING, Optional, Type
+from typing import TYPE_CHECKING, Optional
+
+from launchers import Launcher
 
 if TYPE_CHECKING:
     from bot import ClusterBot
 
 import discord
-from consts import SubmissionMode, GPU_TO_SM
+from consts import GPU_TO_SM, SubmissionMode
 from discord import app_commands
 from discord.ext import commands
 from report import MultiProgressReporter, RunProgressReporter, generate_report, make_short_report
@@ -18,26 +19,17 @@ logger = setup_logging()
 
 class SubmitCog(commands.Cog):
     """
-    Base class for code submission / run schedular cogs.
+    Code submission / run schedular cogs.
 
-    Derived classes need to implement a `_get_arch(self, gpu_type: app_commands.Choice[str])`
-    method to translate the selected GPU to an architecture argument for Cuda,
-    and a
-    ```
-    run_submission(self, config: dict, gpu_type: GPUType,
-        status: ProgressReporter) -> FullResult
-    ```
-    coroutine, which handles the actual submission.
-
-    This base class will register a `run` subcommand with the runner's name, which can be used
-    to run a single (non-leaderboard) script.
+    Actual submission logic is handled by the launcher object.
     """
 
-    def __init__(self, bot, name: str, gpus: Type[Enum]):
+    def __init__(self, bot, launcher: Launcher):
         self.bot: ClusterBot = bot
-        self.name = name
+        self.launcher = launcher
+        self.name = launcher.name
 
-        choices = [app_commands.Choice(name=c.name, value=c.value) for c in gpus]
+        choices = [app_commands.Choice(name=c.name, value=c.value) for c in launcher.gpus]
 
         run_fn = self.run_script
 
@@ -53,7 +45,7 @@ class SubmitCog(commands.Cog):
         run = app_commands.choices(gpu_type=choices)(run)
         run = app_commands.describe(
             script="The Python/CUDA script file to run",
-            gpu_type=f"Choose the GPU type for {name}",
+            gpu_type=f"Choose the GPU type for {launcher.name}",
         )(run)
 
         # For now, direct (non-leaderboard) submissions are debug-only.
@@ -140,7 +132,7 @@ class SubmitCog(commands.Cog):
 
         logger.info("submitting task to runner %s", self.name)
 
-        result = await self._run_submission(config, gpu_type, reporter)
+        result = await self.launcher.run_submission(config, gpu_type, reporter)
 
         if not result.success:
             await reporter.update_title(reporter.title + " ❌ failure")
@@ -178,22 +170,6 @@ class SubmitCog(commands.Cog):
                 ephemeral=True,
             )
             return None
-
-    async def _run_submission(
-        self, config: dict, gpu_type: app_commands.Choice[str], status: RunProgressReporter
-    ) -> FullResult:
-        """
-        Run a submission specified by `config`.
-        To be implemented in derived classes.
-        Args:
-            config: the config object containing all necessary runner information.
-            gpu_type: Which GPU to run for.
-            status: callback object that allows updating the status message in discord
-
-        Returns:
-            Result of running `config`.
-        """
-        raise NotImplementedError()
 
     def _get_arch(self, gpu_type: app_commands.Choice[str]):
         return GPU_TO_SM[gpu_type.name]

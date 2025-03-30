@@ -1,22 +1,24 @@
 import asyncio
+from enum import Enum
 
 import modal
-from cogs.submit_cog import SubmitCog
-from consts import GPUType, ModalGPU
+from consts import ModalGPU
 from report import RunProgressReporter
 from run_eval import FullResult
 from utils import setup_logging
 
-logger = setup_logging()
+from .launcher import Launcher
+
+logger = setup_logging(__name__)
 
 
-class ModalCog(SubmitCog):
-    def __init__(self, bot, add_include_dirs: list):
-        super().__init__(bot, "Modal", gpus=ModalGPU)
+class ModalLauncher(Launcher):
+    def __init__(self, add_include_dirs: list):
+        super().__init__("Modal", gpus=ModalGPU)
         self.additional_include_dirs = add_include_dirs
 
-    async def _run_submission(
-        self, config: dict, gpu_type: GPUType, status: RunProgressReporter
+    async def run_submission(
+        self, config: dict, gpu_type: Enum, status: RunProgressReporter
     ) -> FullResult:
         loop = asyncio.get_event_loop()
         if config["lang"] == "cu":

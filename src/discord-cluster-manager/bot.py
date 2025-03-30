@@ -2,16 +2,14 @@ import argparse
 import asyncio
 import os
 
+import consts
 import discord
 import uvicorn
-
-import consts
 from api.main import app, init_api
 from cogs.admin_cog import AdminCog
-from cogs.github_cog import GitHubCog
 from cogs.leaderboard_cog import LeaderboardCog
 from cogs.misc_cog import BotManagerCog
-from cogs.modal_cog import ModalCog
+from cogs.submit_cog import SubmitCog
 from cogs.verify_run_cog import VerifyRunCog
 from discord import app_commands
 from discord.ext import commands
@@ -27,10 +25,28 @@ from env import (
     POSTGRES_USER,
     init_environment,
 )
+from launchers import GitHubLauncher, ModalLauncher
 from leaderboard_db import LeaderboardDB
 from utils import setup_logging
 
 logger = setup_logging()
+
+
+###############################################################################
+# Temporary: Cannot create multiple instances of the same cog, so we define
+# dummy classes here
+###############################################################################
+class ModalCog(SubmitCog):
+    def __init__(self, bot):
+        super().__init__(bot, ModalLauncher(consts.MODAL_CUDA_INCLUDE_DIRS))
+
+
+class GitHubCog(SubmitCog):
+    def __init__(self, bot):
+        super().__init__(bot, GitHubLauncher())
+
+
+###############################################################################
 
 
 class ClusterBot(commands.Bot):
@@ -77,7 +93,7 @@ class ClusterBot(commands.Bot):
         logger.info(f"Syncing commands for staging guild {DISCORD_CLUSTER_STAGING_ID}")
         try:
             # Load cogs
-            await self.add_cog(ModalCog(self, consts.MODAL_CUDA_INCLUDE_DIRS))
+            await self.add_cog(ModalCog(self))
             await self.add_cog(GitHubCog(self))
             await self.add_cog(BotManagerCog(self))
             await self.add_cog(LeaderboardCog(self))
