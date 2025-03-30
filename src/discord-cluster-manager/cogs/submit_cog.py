@@ -5,7 +5,7 @@ if TYPE_CHECKING:
     from bot import ClusterBot
 
 import discord
-from consts import SubmissionMode
+from consts import SubmissionMode, GPU_TO_SM
 from discord import app_commands
 from discord.ext import commands
 from report import MultiProgressReporter, RunProgressReporter, generate_report, make_short_report
@@ -196,4 +196,4 @@ class SubmitCog(commands.Cog):
         raise NotImplementedError()
 
     def _get_arch(self, gpu_type: app_commands.Choice[str]):
-        raise NotImplementedError()
+        return GPU_TO_SM[gpu_type.name]

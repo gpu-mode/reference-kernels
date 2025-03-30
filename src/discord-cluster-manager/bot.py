@@ -4,6 +4,8 @@ import os
 
 import discord
 import uvicorn
+
+import consts
 from api.main import app, init_api
 from cogs.admin_cog import AdminCog
 from cogs.github_cog import GitHubCog
@@ -75,7 +77,7 @@ class ClusterBot(commands.Bot):
         logger.info(f"Syncing commands for staging guild {DISCORD_CLUSTER_STAGING_ID}")
         try:
             # Load cogs
-            await self.add_cog(ModalCog(self))
+            await self.add_cog(ModalCog(self, consts.MODAL_CUDA_INCLUDE_DIRS))
             await self.add_cog(GitHubCog(self))
             await self.add_cog(BotManagerCog(self))
             await self.add_cog(LeaderboardCog(self))

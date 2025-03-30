@@ -3,7 +3,6 @@ import json
 
 from cogs.submit_cog import SubmitCog
 from consts import AMD_REQUIREMENTS, NVIDIA_REQUIREMENTS, GitHubGPU, GPUType
-from discord import app_commands
 from github_runner import GitHubRun
 from report import RunProgressReporter
 from run_eval import CompileResult, EvalResult, FullResult, RunResult, SystemInfo
@@ -15,9 +14,6 @@ logger = setup_logging()
 class GitHubCog(SubmitCog):
     def __init__(self, bot):
         super().__init__(bot, name="GitHub", gpus=GitHubGPU)
-
-    def _get_arch(self, gpu_type: app_commands.Choice[str]):
-        return None
 
     async def _run_submission(
         self, config: dict, gpu_type: GPUType, status: RunProgressReporter
