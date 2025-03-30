@@ -3,6 +3,7 @@ import dataclasses
 from datetime import datetime
 from typing import Optional, Union
 
+from better_profanity import profanity
 from leaderboard_db import LeaderboardDB
 from task import LeaderboardTask
 from utils import KernelBotError, LeaderboardItem
@@ -26,6 +27,15 @@ class ProcessedSubmissionRequest(SubmissionRequest):
 
 
 def prepare_submission(req: SubmissionRequest, lb_db: LeaderboardDB) -> ProcessedSubmissionRequest:
+    if profanity.contains_profanity(req.file_name):
+        raise KernelBotError("Please provide a non rude filename")
+
+    # check file extension
+    if not req.file_name.endswith((".py", ".cu", ".cuh", ".cpp")):
+        raise KernelBotError(
+            "Please provide a Python (.py) or CUDA (.cu / .cuh / .cpp) file",
+        )
+
     # process file directives
     req = handle_popcorn_directives(req)
     assert req.leaderboard is not None
@@ -50,7 +60,7 @@ def prepare_submission(req: SubmissionRequest, lb_db: LeaderboardDB) -> Processe
         **dataclasses.asdict(req),
         task=leaderboard["task"],
         secret_seed=leaderboard["secret_seed"],
-        task_gpus=task_gpus
+        task_gpus=task_gpus,
     )
 
 
