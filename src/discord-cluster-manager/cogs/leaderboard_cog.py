@@ -46,7 +46,6 @@ class LeaderboardSubmitCog(app_commands.Group):
         interaction: discord.Interaction,
         leaderboard_name: str,
         script: discord.Attachment,
-        command: Callable,
         task: LeaderboardTask,
         seed: Optional[int],
         reporter: RunProgressReporter,
@@ -61,6 +60,11 @@ class LeaderboardSubmitCog(app_commands.Group):
             # invocations.
             task = copy.copy(task)
             task.seed = seed
+
+        command = self._get_run_command(runner_name, gpu.name)
+        if command is None:
+            await send_discord_message(interaction, "❌ Required runner not found!")
+            return -1
 
         result: FullResult = await command(
             interaction,
@@ -130,11 +134,11 @@ class LeaderboardSubmitCog(app_commands.Group):
         await view.wait()
         return view
 
-    def _get_run_command(self, gpu) -> Optional[Callable]:
-        runner_cog = self.bot.get_cog(f"{gpu.runner}Cog")
+    def _get_run_command(self, runner, name) -> Optional[Callable]:
+        runner_cog = self.bot.get_cog(f"{runner}Cog")
 
         if not all([runner_cog]):
-            logger.error("Cog for runner %s for gpu %s not found!", f"{gpu.runner}Cog", gpu.name)
+            logger.error("Cog for runner %s for gpu %s not found!", f"{runner}Cog", name)
             return None
         return runner_cog.submit_leaderboard
 
@@ -181,10 +185,6 @@ class LeaderboardSubmitCog(app_commands.Group):
             selected_gpus = req.gpus
 
         selected_gpus = [get_gpu_by_name(gpu) for gpu in selected_gpus]
-        commands = [self._get_run_command(gpu) for gpu in selected_gpus]
-        if any((c is None for c in commands)):
-            await send_discord_message(interaction, "❌ Required runner not found!")
-            return -1
 
         user_name = interaction.user.global_name or interaction.user.name
         # Create a submission entry in the database
@@ -206,7 +206,6 @@ class LeaderboardSubmitCog(app_commands.Group):
                     interaction,
                     leaderboard_name,
                     script,
-                    command,
                     req.task,
                     None,
                     reporter.add_run(f"{gpu.name} on {gpu.runner}"),
@@ -215,7 +214,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     mode,
                     sub_id,
                 )
-                for gpu, command in zip(selected_gpus, commands, strict=False)
+                for gpu in selected_gpus
             ]
 
             # also schedule secret run
@@ -225,7 +224,6 @@ class LeaderboardSubmitCog(app_commands.Group):
                         interaction,
                         leaderboard_name,
                         script,
-                        command,
                         req.task,
                         req.secret_seed,
                         reporter.add_run(f"{gpu.name} on {gpu.runner} (secret)"),
@@ -234,7 +232,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                         SubmissionMode.PRIVATE,
                         sub_id,
                     )
-                    for gpu, command in zip(selected_gpus, commands, strict=False)
+                    for gpu in selected_gpus
                 ]
             await reporter.show(interaction)
             await asyncio.gather(*tasks)
