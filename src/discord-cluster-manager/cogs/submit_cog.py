@@ -37,9 +37,9 @@ class SubmitCog(commands.Cog):
         # note: these helpers want to set custom attributes on the function, but `method`
         # does not allow setting any attributes, so we define this wrapper
         async def run(
-                interaction: discord.Interaction,
-                script: discord.Attachment,
-                gpu_type: app_commands.Choice[str],
+            interaction: discord.Interaction,
+            script: discord.Attachment,
+            gpu_type: app_commands.Choice[str],
         ):
             return await run_fn(interaction, script, gpu_type)
 
@@ -67,7 +67,7 @@ class SubmitCog(commands.Cog):
         reporter: RunProgressReporter,
         task: LeaderboardTask,
         mode: SubmissionMode,
-        seed: Optional[int]
+        seed: Optional[int],
     ) -> Optional[FullResult]:
         """
         Function invoked by `leaderboard_cog` to handle a leaderboard run.
@@ -95,25 +95,26 @@ class SubmitCog(commands.Cog):
                 num_benchmarks = int(result.runs["leaderboard"].run.result["benchmark-count"])
                 for i in range(num_benchmarks):
                     score += (
-                            float(result.runs["leaderboard"].run.result[f"benchmark.{i}.mean"])
-                            / 1e9
+                        float(result.runs["leaderboard"].run.result[f"benchmark.{i}.mean"]) / 1e9
                     )
                 score /= num_benchmarks
 
-            with self.bot.leaderboard_db as db:
-                for key, value in result.runs.items():
-                    db.create_submission_run(
-                        submission_id,
-                        value.start,
-                        value.end,
-                        mode=key,
-                        runner=gpu_type.name,
-                        score=None if key != "leaderboard" else score,
-                        secret=mode == SubmissionMode.PRIVATE,
-                        compilation=value.compilation,
-                        result=value.run,
-                        system=result.system,
-                    )
+            # verifyruns uses a fake submission id of -1
+            if submission_id != -1:
+                with self.bot.leaderboard_db as db:
+                    for key, value in result.runs.items():
+                        db.create_submission_run(
+                            submission_id,
+                            value.start,
+                            value.end,
+                            mode=key,
+                            runner=gpu_type.name,
+                            score=None if key != "leaderboard" else score,
+                            secret=mode == SubmissionMode.PRIVATE,
+                            compilation=value.compilation,
+                            result=value.run,
+                            system=result.system,
+                        )
 
         return result
 

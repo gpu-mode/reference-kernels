@@ -114,8 +114,8 @@ GPU_TO_SM = {
     "A100": "80",
     "H100": "90a",
     "B200": "100",
-    "nvidia": None,
-    "amd": None,
+    "NVIDIA": None,
+    "AMD": None,
 }
 
 

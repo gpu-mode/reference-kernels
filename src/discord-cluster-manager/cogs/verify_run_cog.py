@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-import re
 import uuid
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -10,10 +9,11 @@ import env
 from cogs import admin_cog
 from cogs.leaderboard_cog import LeaderboardSubmitCog
 from cogs.submit_cog import SubmitCog
-from consts import SubmissionMode
+from consts import GPU, SubmissionMode, get_gpu_by_name
 from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
+from report import MultiProgressReporter
 from task import make_task
 from utils import RunItem, SubmissionItem, send_discord_message, setup_logging, with_error_handling
 
@@ -43,65 +43,9 @@ class VerifyRunCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def verify_github_run(
-        self,
-        github_cog: SubmitCog,
-        choice: app_commands.Choice,
-        interaction: discord.Interaction,
-        lang: str,
-    ) -> bool:
-        # async_submit_cog_job
-        github_command = github_cog.submit_leaderboard
-        if lang == "py":
-            sub_code = create_mock_attachment(
-                "submission.py", Path("examples/softmax_py/submission.py").read_text()
-            )
-            task = make_task("examples/softmax_py")
-        else:
-            sub_code = create_mock_attachment(
-                "test.cu", Path("examples/identity_cuda/submission.cu").read_text()
-            )
-            task = make_task("examples/identity_cuda")
-
-        github_thread, _ = await github_command(
-            interaction, sub_code, choice, task=task, mode=SubmissionMode.TEST
-        )
-
-        message_contents = [msg.content async for msg in github_thread.history(limit=None)]
-
-        required_patterns = ["Running on GitHub...", "Passed 5/5 tests"]
-
-        all_patterns_found = all(
-            any(re.search(pattern, content, re.DOTALL) is not None for content in message_contents)
-            for pattern in required_patterns
-        )
-
-        if all_patterns_found:
-            await send_discord_message(
-                interaction,
-                f"✅ GitHub run ({choice.name}) for {lang} completed successfully - "
-                "all expected messages found!",
-            )
-            return True
-        else:
-            missing_patterns = [
-                pattern
-                for pattern in required_patterns
-                if not any(re.search(pattern, content, re.DOTALL) for content in message_contents)
-            ]
-            await send_discord_message(
-                interaction,
-                f"❌ GitHub run ({choice.name}) for {lang} verification failed. "
-                + "Missing expected messages:\n"
-                + "\n".join(f"- {pattern}" for pattern in missing_patterns),
-            )
-            return False
-
-    async def verify_modal_run(
-        self, modal_cog: SubmitCog, interaction: discord.Interaction, lang: str
-    ) -> bool:
-        t4 = app_commands.Choice(name="T4", value="t4")
-        modal_command = modal_cog.submit_leaderboard
+    async def trigger_run(self, interaction: discord.Interaction, gpu: GPU, reporter, lang: str):
+        submit_cog: SubmitCog = self.bot.get_cog("SubmitCog")
+        submit_leaderboard = submit_cog.submit_leaderboard
 
         if lang == "py":
             sub_code = create_mock_attachment(
@@ -114,37 +58,111 @@ class VerifyRunCog(commands.Cog):
             )
             task = make_task("examples/identity_cuda")
 
-        modal_thread, _ = await modal_command(
-            interaction, sub_code, t4, task=task, mode=SubmissionMode.TEST
+        return await submit_leaderboard(
+            interaction,
+            -1,
+            sub_code,
+            gpu,
+            reporter=reporter,
+            task=task,
+            mode=SubmissionMode.TEST,
+            seed=None,
         )
 
-        message_contents = [msg.content async for msg in modal_thread.history(limit=None)]
+    async def verify_github_run(
+        self,
+        interaction: discord.Interaction,
+        gpu: GPU,
+        reporter,
+        lang: str,
+    ) -> bool:
+        result = await self.trigger_run(interaction, gpu, reporter, lang)
+        return result.success
+        #
+        # message_contents = [msg.content async for msg in github_thread.history(limit=None)]
+        #
+        # required_patterns = ["Running on GitHub...", "Passed 5/5 tests"]
+        #
+        # all_patterns_found = all(
+        #     any(re.search(pattern, content, re.DOTALL) is not None for content in message_contents)
+        #     for pattern in required_patterns
+        # )
+        #
+        # if all_patterns_found:
+        #     await send_discord_message(
+        #         interaction,
+        #         f"✅ GitHub run ({gpu.name}) for {lang} completed successfully - "
+        #         "all expected messages found!",
+        #     )
+        #     return True
+        # else:
+        #     missing_patterns = [
+        #         pattern
+        #         for pattern in required_patterns
+        #         if not any(re.search(pattern, content, re.DOTALL) for content in message_contents)
+        #     ]
+        #     await send_discord_message(
+        #         interaction,
+        #         f"❌ GitHub run ({gu.name}) for {lang} verification failed. "
+        #         + "Missing expected messages:\n"
+        #         + "\n".join(f"- {pattern}" for pattern in missing_patterns),
+        #     )
+        #     return False
 
-        required_patterns = ["Running on Modal...", "Passed 5/5 tests"]
-
-        all_patterns_found = all(
-            any(re.search(pattern, content, re.DOTALL) is not None for content in message_contents)
-            for pattern in required_patterns
-        )
-
-        if all_patterns_found:
-            await send_discord_message(
-                interaction,
-                f"✅ Modal run for {lang} completed successfully - all expected messages found!",
-            )
-            return True
-        else:
-            missing_patterns = [
-                pattern
-                for pattern in required_patterns
-                if not any(re.search(pattern, content, re.DOTALL) for content in message_contents)
-            ]
-            await send_discord_message(
-                interaction,
-                f"❌ Modal run verification for {lang} failed. Missing expected messages:\n"
-                + "\n".join(f"- {pattern}" for pattern in missing_patterns),
-            )
-            return False
+    async def verify_modal_run(
+        self,
+        interaction: discord.Interaction,
+        gpu: GPU,
+        reporter,
+        lang: str,
+    ) -> bool:
+        result = await self.trigger_run(interaction, gpu, reporter, lang)
+        return result.success
+        # t4 = ModalGPU.T4
+        # modal_command = modal_cog.submit_leaderboard
+        #
+        # if lang == "py":
+        #     sub_code = create_mock_attachment(
+        #         "submission.py", Path("examples/identity_py/submission.py").read_text()
+        #     )
+        #     task = make_task("examples/identity_py")
+        # else:
+        #     sub_code = create_mock_attachment(
+        #         "test.cu", Path("examples/identity_cuda/submission.cu").read_text()
+        #     )
+        #     task = make_task("examples/identity_cuda")
+        #
+        # modal_thread, _ = await modal_command(
+        #     interaction, -1, sub_code, t4, reporter=MockReporter(), task=task, mode=SubmissionMode.TEST, seed=None
+        # )
+        #
+        # message_contents = [msg.content async for msg in modal_thread.history(limit=None)]
+        #
+        # required_patterns = ["Running on Modal...", "Passed 5/5 tests"]
+        #
+        # all_patterns_found = all(
+        #     any(re.search(pattern, content, re.DOTALL) is not None for content in message_contents)
+        #     for pattern in required_patterns
+        # )
+        #
+        # if all_patterns_found:
+        #     await send_discord_message(
+        #         interaction,
+        #         f"✅ Modal run for {lang} completed successfully - all expected messages found!",
+        #     )
+        #     return True
+        # else:
+        #     missing_patterns = [
+        #         pattern
+        #         for pattern in required_patterns
+        #         if not any(re.search(pattern, content, re.DOTALL) for content in message_contents)
+        #     ]
+        #     await send_discord_message(
+        #         interaction,
+        #         f"❌ Modal run verification for {lang} failed. Missing expected messages:\n"
+        #         + "\n".join(f"- {pattern}" for pattern in missing_patterns),
+        #     )
+        #     return False
 
     @app_commands.command(name="verify-task")
     @app_commands.autocomplete(task=admin_cog.leaderboard_dir_autocomplete)
@@ -268,22 +286,25 @@ class VerifyRunCog(commands.Cog):
             if not interaction.response.is_done():
                 await interaction.response.defer()
 
-            modal_cog = self.bot.get_cog("ModalCog")
-            github_cog = self.bot.get_cog("GitHubCog")
+            submit_cog = self.bot.get_cog("SubmitCog")
 
-            if not all([modal_cog, github_cog]):
-                await send_discord_message(interaction, "❌ Required cogs not found!")
+            if not submit_cog:
+                await send_discord_message(interaction, "❌ SubmitCog not found!")
                 return
 
-            nvidia = app_commands.Choice(name="NVIDIA", value="nvidia")
-            amd = app_commands.Choice(name="AMD", value="amd")
+            nvidia = get_gpu_by_name("nvidia")
+            amd = get_gpu_by_name("amd")
+            t4 = get_gpu_by_name("T4")
+
+            reporter = MultiProgressReporter("Verifying")
+            await reporter.show(interaction)
 
             results = await asyncio.gather(
-                self.verify_github_run(github_cog, nvidia, interaction, "py"),
-                self.verify_github_run(github_cog, nvidia, interaction, "cu"),
-                self.verify_modal_run(modal_cog, interaction, "py"),
-                self.verify_github_run(github_cog, amd, interaction, "py"),
-                self.verify_modal_run(modal_cog, interaction, "cu"),
+                self.verify_github_run(interaction, nvidia, reporter.add_run("NVIDIA-PY"), "py"),
+                self.verify_github_run(interaction, nvidia, reporter.add_run("NVIDIA-CU"), "cu"),
+                self.verify_modal_run(interaction, t4, reporter.add_run("MODAL-PY"), "py"),
+                self.verify_github_run(interaction, amd, reporter.add_run("AMD-PY"), "py"),
+                self.verify_modal_run(interaction, t4, reporter.add_run("MODAL-CU"), "py"),
             )
 
             if all(results):
