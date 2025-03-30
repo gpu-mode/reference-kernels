@@ -35,6 +35,17 @@ def prepare_submission(req: SubmissionRequest, lb_db: LeaderboardDB) -> Processe
 
     task_gpus = get_avail_gpus(req.leaderboard, lb_db)
 
+    if req.gpus is not None:
+        for g in req.gpus:
+            if g not in task_gpus:
+                task_gpu_list = "".join([f" * {t}\n" for t in task_gpus])
+                raise KernelBotError(
+                    f"GPU {g} not available for `{req.leaderboard}`\n"
+                    f"Choose one of: {task_gpu_list}",
+                )
+    elif len(task_gpus) == 1:
+        req.gpus = task_gpus
+
     return ProcessedSubmissionRequest(
         **dataclasses.asdict(req),
         task=leaderboard["task"],

@@ -174,25 +174,11 @@ class LeaderboardSubmitCog(app_commands.Group):
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True)
 
-        if cmd_gpus is not None:
-            selected_gpus = []
-            for g in cmd_gpus:
-                if g in req.task_gpus:
-                    selected_gpus.append(g)
-                else:
-                    task_gpu_list = "".join([f" * {t}\n" for t in req.task_gpus])
-                    await send_discord_message(
-                        interaction,
-                        f"GPU {g} not available for `{leaderboard_name}`\n"
-                        f"Choose one of: {task_gpu_list}",
-                        ephemeral=True,
-                    )
-                    return -1
-        elif len(req.task_gpus) == 1:
-            selected_gpus = req.task_gpus
-        else:
+        if req.gpus is None:
             view = await self.select_gpu_view(interaction, leaderboard_name, req.task_gpus)
             selected_gpus = view.selected_gpus
+        else:
+            selected_gpus = req.gpus
 
         selected_gpus = [get_gpu_by_name(gpu) for gpu in selected_gpus]
         commands = [self._get_run_command(gpu) for gpu in selected_gpus]
