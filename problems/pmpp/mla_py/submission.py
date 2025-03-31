@@ -3,10 +3,10 @@ from task import input_t, output_t
 
 def custom_kernel(data: input_t) -> output_t:
     """
-    Reference implementation of inclusive prefix sum using PyTorch.
+    Reference implementation of mla fused attention using PyTorch.
     Args:
-        data: Input tensor to compute prefix sum on
+        data: Input tensor q, k_cache, v_cache to mla fused attention decode
     Returns:
-        Tensor containing the inclusive prefix sum
+        Tensor include attention output
     """
     return torch.cumsum(data, dim=0)
