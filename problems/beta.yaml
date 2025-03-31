@@ -42,6 +42,11 @@ problems:
       - A100
       - T4
       - L4
+  - directory: pmpp/mla_py
+    name: mla
+    deadline: "2025-04-30"
+    gpus:
+      - MI300
   - directory: pmpp/prefixsum_py
     name: prefixsum
     deadline: "2025-04-30"
