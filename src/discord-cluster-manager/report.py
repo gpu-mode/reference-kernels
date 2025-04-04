@@ -26,7 +26,8 @@ async def _send_split_log(thread: discord.Thread, partial_message: str, header: 
             if len(partial_message) + len(line) < 1900:
                 partial_message += line + "\n"
             else:
-                chunks.append(partial_message)
+                if partial_message != "":
+                    chunks.append(partial_message)
                 partial_message = line
 
         if partial_message != "":
@@ -255,6 +256,24 @@ async def generate_report(thread: discord.Thread, runs: dict[str, EvalResult]): 
             thread,
             message,
             "Benchmarks",
+            make_benchmark_log(bench_run),
+        )
+
+    if "leaderboard" in runs:
+        bench_run = runs["leaderboard"]
+        if bench_run.compilation is not None and not bench_run.compilation.success:
+            await _generate_compile_report(thread, bench_run.compilation)
+            return
+
+        bench_run = bench_run.run
+        if not bench_run.success:
+            await _generate_crash_report(thread, bench_run)
+            return
+
+        message = await _send_split_log(
+            thread,
+            message,
+            "Ranked Benchmark",
             make_benchmark_log(bench_run),
         )
 
