@@ -9,7 +9,7 @@ from better_profanity import profanity
 from consts import SubmissionMode
 from discord import app_commands
 from discord.ext import commands
-from report import MultiProgressReporter, RunProgressReporter, generate_report, private_run_report
+from report import MultiProgressReporter, RunProgressReporter, generate_report, make_short_report
 from run_eval import FullResult
 from task import LeaderboardTask
 from utils import build_task_config, send_discord_message, setup_logging, with_error_handling
@@ -150,12 +150,11 @@ class SubmitCog(commands.Cog):
         else:
             await reporter.update_title(reporter.title + " ✅ success")
 
-        if mode == SubmissionMode.PRIVATE:
-            await reporter.push(private_run_report(result.runs))
-        else:
-            if mode == SubmissionMode.LEADERBOARD:
-                await reporter.push(private_run_report(result.runs))
-
+        await reporter.push(make_short_report(
+            result.runs,
+            full=mode in [SubmissionMode.PRIVATE, SubmissionMode.LEADERBOARD])
+        )
+        if mode != SubmissionMode.PRIVATE:
             try:
                 await generate_report(thread, result.runs)
                 await reporter.push(f"See results at {thread.jump_url}")
