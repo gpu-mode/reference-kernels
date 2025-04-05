@@ -121,6 +121,22 @@ def calculate_stats(durations: list[int]):
                  worst=float(worst))
 
 
+def _clone_data(data):
+    """
+    Recursively goes through data and clones all tensors.
+    """
+    if isinstance(data, tuple):
+        return tuple(_clone_data(x) for x in data)
+    elif isinstance(data, list):
+        return [_clone_data(x) for x in data]
+    elif isinstance(data, dict):
+        return {k: _clone_data(v) for k, v in data.items()}
+    elif isinstance(data, torch.Tensor):
+        return data.clone()
+    else:
+        return data
+
+
 def _run_single_test(test: TestCase):
     """
     Runs a single test case. Do not call directly
@@ -128,7 +144,7 @@ def _run_single_test(test: TestCase):
     from submission import custom_kernel
     data = generate_input(**test.args)
     torch.cuda.synchronize()
-    submission_output = custom_kernel(data)
+    submission_output = custom_kernel(_clone_data(data))
     torch.cuda.synchronize()
     return check_implementation(data, submission_output)
 
@@ -177,9 +193,10 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
     durations = []
     # generate input data once
     data = generate_input(**test.args)
+    check_copy = _clone_data(data)
     #  first, one obligatory correctness check
     output = custom_kernel(data)
-    error = check_implementation(data, output)
+    error = check_implementation(check_copy, output)
     if error:
         return error
 
@@ -191,6 +208,7 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
     for i in range(max_repeats):
         if recheck:
             data = generate_input(**test.args)
+            check_copy = _clone_data(data)
         torch.cuda.synchronize()
         start = time.perf_counter_ns()
         output = custom_kernel(data)
@@ -198,7 +216,7 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
         end = time.perf_counter_ns()
 
         if recheck:
-            error = check_implementation(data, output)
+            error = check_implementation(check_copy, output)
             if error:
                 return error
 

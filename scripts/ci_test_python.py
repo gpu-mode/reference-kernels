@@ -129,3 +129,9 @@ def test_fd_hacking():
         {**files, "submission.py": Path("examples/identity_py/cheat-fd.py").read_text()})
     assert run.success is False
     assert "Bad file descriptor" in run.stderr
+
+
+def test_overwrite_input():
+    run = run_pytorch_helper(
+        {**files, "submission.py": Path("examples/identity_py/cheat-input.py").read_text()})
+    assert run.result['check'] == 'fail'
