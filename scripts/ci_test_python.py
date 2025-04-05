@@ -122,6 +122,7 @@ def test_randomization():
     assert run.passed is False
     assert run.stdout == ""
     assert run.result['check'] == 'fail'
+    assert "mismatch found!" in run.result['test.0.error']
 
 
 def test_fd_hacking():
@@ -135,3 +136,4 @@ def test_overwrite_input():
     run = run_pytorch_helper(
         {**files, "submission.py": Path("examples/identity_py/cheat-input.py").read_text()})
     assert run.result['check'] == 'fail'
+    assert "mismatch found!" in run.result['test.0.error']

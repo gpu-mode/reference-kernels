@@ -288,6 +288,7 @@ def main():
 
     mode = sys.argv[1]
     seed = os.getenv("POPCORN_SEED")
+    os.unsetenv("POPCORN_SEED")
     seed = int(seed) if seed else None
     set_seed(seed or 42)
     tests = get_test_cases(sys.argv[2], seed)
