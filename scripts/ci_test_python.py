@@ -17,9 +17,13 @@ utils = Path("examples/utils.py").read_text()
 files = {"eval.py": py_eval, "reference.py": ref, "utils.py": utils, "task.py": task}
 
 
-def run_pytorch_helper(sources: dict, **kwargs):
+def run_pytorch_helper(sources: dict, tests=None, **kwargs):
     result = run_pytorch_script(
-        sources, "eval.py", mode=SubmissionMode.TEST.value, tests="size: 256; seed: 42\n", **kwargs
+        sources,
+        "eval.py",
+        mode=SubmissionMode.TEST.value,
+        tests=tests or "size: 256; seed: 42\n",
+        **kwargs,
     )
     return result.run
 
@@ -107,3 +111,21 @@ def custom_kernel(data: input_t) -> output_t:
     assert run.stdout == ""
     assert run.exit_code == ExitCode.TIMEOUT_EXPIRED
     assert len(run.result) == 0
+
+
+def test_randomization():
+    run = run_pytorch_helper(
+        {**files, "submission.py": Path("examples/identity_py/cheat-rng.py").read_text()},
+        seed=5232,
+        tests="size: 65536; seed: 125432\n",
+    )
+    assert run.passed is False
+    assert run.stdout == ""
+    assert run.result['check'] == 'fail'
+
+
+def test_fd_hacking():
+    run = run_pytorch_helper(
+        {**files, "submission.py": Path("examples/identity_py/cheat-fd.py").read_text()})
+    assert run.success is False
+    assert "Bad file descriptor" in run.stderr
