@@ -207,6 +207,10 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
 
     for i in range(max_repeats):
         if recheck:
+            # ensure we use a different seed for every benchmark
+            if "seed" in test.args:
+                test.args["seed"] += 13
+
             data = generate_input(**test.args)
             check_copy = _clone_data(data)
         torch.cuda.synchronize()
