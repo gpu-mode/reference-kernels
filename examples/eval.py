@@ -1,4 +1,5 @@
 import dataclasses
+import multiprocessing
 import re
 import time
 import os
@@ -15,16 +16,13 @@ try:
 except ImportError:
     TestSpec = dict
 
-from submission import custom_kernel
 from reference import check_implementation, generate_input
-
-WARMUP_RUNS = 10
-TIMED_RUNS = 100
 
 
 class PopcornOutput:
     def __init__(self, fd: int):
         self.file = os.fdopen(fd, 'w')
+        os.set_inheritable(fd, False)
     
     def __enter__(self):
         return self
@@ -92,14 +90,6 @@ def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
     return tests
 
 
-def warm_up(test: TestCase):
-    data = generate_input(**test.args)
-    start = time.perf_counter()
-    while time.perf_counter() - start < 0.2:
-        custom_kernel(data)
-        torch.cuda.synchronize()
-
-
 @dataclasses.dataclass
 class Stats:
     runs: int
@@ -131,7 +121,26 @@ def calculate_stats(durations: list[int]):
                  worst=float(worst))
 
 
-def run_testing(logger: PopcornOutput, tests: list[TestCase]):
+def _run_single_test(test: TestCase):
+    """
+    Runs a single test case. Do not call directly
+    """
+    from submission import custom_kernel
+    data = generate_input(**test.args)
+    torch.cuda.synchronize()
+    submission_output = custom_kernel(data)
+    torch.cuda.synchronize()
+    return check_implementation(data, submission_output)
+
+
+def run_single_test(pool: multiprocessing.Pool, test: TestCase):
+    """
+    Runs a single test in another process.
+    """
+    return pool.apply(_run_single_test, (test,))
+
+
+def run_testing(logger: PopcornOutput, pool: multiprocessing.Pool, tests: list[TestCase]):
     """
     Executes the actual test case code and checks for correctness.
 
@@ -143,12 +152,7 @@ def run_testing(logger: PopcornOutput, tests: list[TestCase]):
     logger.log("test-count", len(tests))
     for idx, test in enumerate(tests):
         logger.log(f"test.{idx}.spec", test.spec)
-
-        data = generate_input(**test.args)
-        torch.cuda.synchronize()
-        submission_output = custom_kernel(data)
-        torch.cuda.synchronize()
-        error = check_implementation(data, submission_output)
+        error = run_single_test(pool, test)
         if error:
             logger.log(f"test.{idx}.status", "fail")
             logger.log(f"test.{idx}.error", error)
@@ -164,16 +168,12 @@ def run_testing(logger: PopcornOutput, tests: list[TestCase]):
         return 112
 
 
-def benchmark(test: TestCase, recheck: bool, max_repeats: int, max_time_ns: float) -> Stats | Any:
+def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_time_ns: float) -> Stats | Any:
     """
-    For a particular test case, check correctness (if applicable) and grab runtime results.
+    Runs one benchmark. Do not call directly.
+    """
+    from submission import custom_kernel
 
-    @param test: TestCase object.
-    @param recheck: Flag for whether to explicitly check functional correctness.
-    @param max_repeats: Number of trials to repeat.
-    @param max_time_ns: Timeout time in nanoseconds.
-    @return: A Stats object for this particular benchmark case or an error if the test fails.
-    """
     durations = []
     # generate input data once
     data = generate_input(**test.args)
@@ -213,20 +213,37 @@ def benchmark(test: TestCase, recheck: bool, max_repeats: int, max_time_ns: floa
     return calculate_stats(durations)
 
 
-def run_benchmarking(logger: PopcornOutput, tests: list[TestCase]):
+def run_single_benchmark(pool: multiprocessing.Pool, test: TestCase, recheck: bool, max_repeats: int, max_time_ns: float):
+    """
+    For a particular test case, check correctness (if applicable) and grab runtime results.
+
+    @param pool: Process on which the benchmark will be launched.
+    @param test: TestCase object.
+    @param recheck: Flag for whether to explicitly check functional correctness.
+    @param max_repeats: Number of trials to repeat.
+    @param max_time_ns: Timeout time in nanoseconds.
+    @return: A Stats object for this particular benchmark case or an error if the test fails.
+    """
+    return pool.apply(_run_single_benchmark, (test, recheck, max_repeats, max_time_ns))
+
+
+def run_benchmarking(logger: PopcornOutput, pool: multiprocessing.Pool, tests: list[TestCase]):
     """
     Executes benchmarking code for a CUDA Kernel and logs runtimes.
 
     @param logger: A PopcornOutput object used for logging benchmark results.
+    @param pool: Process on which the benchmarks will be launched.
     @param tests: A list of TestCase objects representing the test cases to be benchmarked.
     @return: An integer representing the exit status: 0 if all benchmarks pass, otherwise 112.
     """
-    warm_up(tests[0])
+    # warm up
+    run_single_benchmark(pool, tests[0], False, 100, 10e7)
+
     passed = True
     logger.log("benchmark-count", len(tests))
     for idx, test in enumerate(tests):
         logger.log(f"benchmark.{idx}.spec", test.spec)
-        result = benchmark(test, False, 100, 10e9)
+        result = run_single_benchmark(pool, test, False, 100, 10e9)
         if isinstance(result, Stats):
             for field in dataclasses.fields(Stats):
                 logger.log(f"benchmark.{idx}.{field.name}", getattr(result, field.name))
@@ -258,31 +275,33 @@ def main():
     tests = get_test_cases(sys.argv[2], seed)
 
     with PopcornOutput(int(fd)) as logger:
-        if mode == "test":
-            return run_testing(logger, tests)
+        import multiprocessing
+        mp_context = multiprocessing.get_context('spawn')
+        with mp_context.Pool(1) as pool:
+            if mode == "test":
+                return run_testing(logger, pool, tests)
+            if mode == "benchmark":
+                return run_benchmarking(logger, pool, tests)
 
-        if mode == "benchmark":
-            return run_benchmarking(logger, tests)
-        
-        if mode == "leaderboard":
-            warm_up(tests[0])
-            result = benchmark(tests[-1], True, 100, 30e9)
-            if isinstance(result, Stats):
-                logger.log("benchmark-count", 1)
-                logger.log(f"benchmark.0.spec", tests[-1].spec)
-                logger.log(f"benchmark.0.runs", result.runs)
-                logger.log(f"benchmark.0.mean", result.mean)
-                logger.log(f"benchmark.0.std", result.std)
-                logger.log(f"benchmark.0.err", result.err)
-                logger.log("check", "pass")
+            if mode == "leaderboard":
+                run_single_benchmark(pool, tests[0], True, 100, 1e7)
+                result = run_single_benchmark(pool, tests[0], True, 100, 30e9)
+                if isinstance(result, Stats):
+                    logger.log("benchmark-count", 1)
+                    logger.log(f"benchmark.0.spec", tests[-1].spec)
+                    logger.log(f"benchmark.0.runs", result.runs)
+                    logger.log(f"benchmark.0.mean", result.mean)
+                    logger.log(f"benchmark.0.std", result.std)
+                    logger.log(f"benchmark.0.err", result.err)
+                    logger.log("check", "pass")
+                else:
+                    logger.log("test-count", 1)
+                    logger.log("test.0.status", "fail")
+                    logger.log("test.0.error", str(result)) #TODO: Make sure result implements __str__?
+
             else:
-                logger.log("test-count", 1)
-                logger.log("test.0.status", "fail")
-                logger.log("test.0.error", str(result)) #TODO: Make sure result implements __str__?
-        
-        else:
-            # TODO: Implement script and profile mode
-            return 2
+                # TODO: Implement script and profile mode
+                return 2
 
 
 if __name__ == "__main__":
