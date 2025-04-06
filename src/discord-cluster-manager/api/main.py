@@ -1,10 +1,14 @@
 import asyncio
+import base64
+import os
 import time
 from dataclasses import asdict
 
+import requests
 from cogs.submit_cog import SubmitCog
 from consts import _GPU_LOOKUP, SubmissionMode, get_gpu_by_name
 from discord import app_commands
+from env import CLI_DISCORD_CLIENT_ID, CLI_DISCORD_CLIENT_SECRET, CLI_TOKEN_URL
 from fastapi import FastAPI, HTTPException, UploadFile
 from utils import LeaderboardItem, build_task_config
 
@@ -51,6 +55,80 @@ class MockProgressReporter:
 
     async def update(self, message: str):
         pass
+
+
+@app.get("/auth/cli")
+async def cli_auth(code: str, state: str = None):
+    """
+    Handle Discord OAuth redirect. This endpoint receives the authorization code
+    and state parameter from Discord's OAuth flow.
+
+    Args:
+        code (str): Authorization code from Discord OAuth
+        state (str): Base64 encoded client ID from CLI
+    """
+
+    if not code or not state:
+        raise HTTPException(status_code=400, detail="Missing authorization code or state")
+
+    client_id = CLI_DISCORD_CLIENT_ID
+    client_secret = CLI_DISCORD_CLIENT_SECRET
+    redirect_uri = os.environ.get("HEROKU_APP_DEFAULT_DOMAIN_NAME") or os.getenv("POPCORN_API_URL")
+    token_url = CLI_TOKEN_URL
+
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=500, detail="Discord client ID or secret not configured.")
+
+    if not token_url:
+        raise HTTPException(status_code=500, detail="Discord token URL not configured.")
+
+    if not redirect_uri:
+        raise HTTPException(
+            status_code=500,
+            detail="Redirect URI not configured. "
+            "If running locally, set env variable `POPCORN_API_URL` to your local API URL.",
+        )
+
+    token_data = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": redirect_uri + "/auth/cli",
+    }
+
+    token_response = requests.post(token_url, data=token_data)
+    if token_response.status_code != 200:
+        raise HTTPException(
+            status_code=401, detail=f"Failed to authenticate with Discord: {token_response.text}"
+        )
+
+    token_json = token_response.json()
+    access_token = token_json.get("access_token")
+
+    user_url = "https://discord.com/api/users/@me"
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    user_response = requests.get(user_url, headers=headers)
+    if user_response.status_code != 200:
+        raise HTTPException(status_code=401, detail="Failed to retrieve user information")
+
+    user_json = user_response.json()
+    user_id = user_json.get("id")
+    user_name = user_json.get("username")
+
+    try:
+        cli_id = base64.b64decode(state).decode("utf-8")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid state parameter") from None
+
+    with bot_instance.leaderboard_db as db:
+        try:
+            db.create_user_from_cli(user_id, user_name, cli_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Failed to create user") from None
+
+    return {"status": "success", "user_id": user_id, "cli_id": cli_id, "user_name": user_name}
 
 
 @app.post("/{leaderboard_name}/{gpu_type}/{submission_mode}")

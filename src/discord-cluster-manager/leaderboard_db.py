@@ -744,6 +744,26 @@ class LeaderboardDB:
         self.cursor.execute(query, args)
         return self.cursor.fetchone()[0]
 
+    def create_user_from_cli(self, user_id: str, user_name: str, cli_id: str):
+        """
+        Method to create a user from the CLI. Shouldn't be used for Discord.
+        """
+        try:
+            self.cursor.execute(
+                """
+                INSERT INTO leaderboard.user_info (id, user_name, cli_id)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (id) DO UPDATE
+                SET user_name = %s, cli_id = %s
+                """,
+                (user_id, user_name, cli_id, user_name, cli_id),
+            )
+            self.connection.commit()
+        except psycopg2.Error as e:
+            self.connection.rollback()
+            logger.exception("Could not create/update user %s from CLI.", user_id, exc_info=e)
+            raise e
+
 
 if __name__ == "__main__":
     print(
