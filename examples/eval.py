@@ -308,7 +308,7 @@ def main():
 
             if mode == "leaderboard":
                 run_single_benchmark(pool, tests[0], True, 100, 1e7)
-                result = run_single_benchmark(pool, tests[0], True, 100, 30e9)
+                result = run_single_benchmark(pool, tests[-1], True, 100, 30e9)
                 if isinstance(result, Stats):
                     logger.log("benchmark-count", 1)
                     logger.log(f"benchmark.0.spec", tests[-1].spec)
