@@ -51,8 +51,6 @@ add_cpp_source = """
 torch::Tensor add_cuda(torch::Tensor A, torch::Tensor B);
 """
 
-
-
 add_module = load_inline(
     name='add_cuda',
     cpp_sources=add_cpp_source,
@@ -68,11 +66,11 @@ def add(A, B):
 
 def custom_kernel(data: input_t) -> output_t:
     """
-    Custom implementation of vector addition using CUDA inline function.
+    Custom implementation of vector addition using CUDA.
     Args:
         inputs: List of pairs of tensors [A, B] to be added.
     Returns:
-        List of tensors containing element-wise sums.
+        Tensor containing element-wise sum.
     """
     A, B = data
 
@@ -80,43 +78,6 @@ def custom_kernel(data: input_t) -> output_t:
     assert A.shape == B.shape, "Input tensors must have the same shape"
     assert A.dtype == torch.float16 and B.dtype == torch.float16, "Input tensors must be float16"
     
-    M, N = A.shape
-    C = torch.empty_like(A)
-    
-    n_threads = 256
-    n_blocks = (M * N + n_threads - 1) // n_threads
-    
-    cuda_source = """
-    extern "C" __global__ void add_kernel(
-        const half* __restrict__ A,
-        const half* __restrict__ B,
-        half* __restrict__ C,
-        const int n_elements
-    ) {
-        const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-        if (idx < n_elements) {
-            C[idx] = __hadd(A[idx], B[idx]);
-        }
-    }
-    """
-    
-    module = torch.utils.cpp_extension.load_inline(
-        name=f"add_kernel_{M}_{N}",
-        cpp_sources="",
-        cuda_sources=cuda_source,
-        functions=["add_kernel"],
-        with_cuda=True,
-        extra_cuda_cflags=["-arch=sm_70"],  # Adjust based on your GPU architecture
-    )
-    
-    module.add_kernel(
-        cuda_stream=torch.cuda.current_stream(),
-        args=[
-            A.reshape(-1), B.reshape(-1), C.reshape(-1),
-            M * N,
-        ],
-        blocks=n_blocks,
-        threads=n_threads,
-    )
-    
-    return C
+    # Simply reuse the existing add function we already defined
+    # This avoids the compilation issues with the inline kernel
+    return add(A, B)
