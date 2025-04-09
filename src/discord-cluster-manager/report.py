@@ -143,7 +143,7 @@ def make_short_report(runs: dict[str, EvalResult], full=True) -> list[str]:  # n
 
     if "benchmark" in runs:
         bench_run = runs["benchmark"].run
-        if bench_run.success:
+        if not bench_run.success:
             result.append("❌ Running benchmarks failed")
             return result
         elif not bench_run.passed:
