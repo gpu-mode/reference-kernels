@@ -124,7 +124,8 @@ class LeaderboardSubmitCog(app_commands.Group):
                 command(
                     interaction,
                     sub_id,
-                    script,
+                    submission_content,
+                    script.filename,
                     gpu,
                     reporter.add_run(f"{gpu.name} on {gpu.runner}"),
                     req.task,
