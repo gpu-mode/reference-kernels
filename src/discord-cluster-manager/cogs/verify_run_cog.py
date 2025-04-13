@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 import asyncio
 import datetime
 import uuid

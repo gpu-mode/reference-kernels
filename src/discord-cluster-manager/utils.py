@@ -283,7 +283,7 @@ def build_task_config(
             return {
                 "main": task.config.main,
                 "sources": all_files,
-                **common
+                **common,
             }
         else:
             sources = {}
