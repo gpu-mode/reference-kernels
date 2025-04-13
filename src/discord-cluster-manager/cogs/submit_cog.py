@@ -10,7 +10,7 @@ import discord
 from consts import GPU, GPU_TO_SM, SubmissionMode, get_gpu_by_name
 from discord import app_commands
 from discord.ext import commands
-from report import MultiProgressReporter, RunProgressReporter, generate_report, make_short_report
+from report import MultiProgressReporter, RunProgressReporter, make_short_report
 from run_eval import FullResult
 from task import LeaderboardTask
 from utils import build_task_config, send_discord_message, setup_logging, with_error_handling
@@ -60,7 +60,6 @@ class SubmitCog(commands.Cog):
 
     async def submit_leaderboard(
         self,
-        interaction: discord.Interaction,
         submission_id: int,
         code: str,
         name: str,
@@ -81,7 +80,6 @@ class SubmitCog(commands.Cog):
             task.seed = seed
 
         result = await self._handle_submission(
-            interaction,
             gpu_type,
             reporter,
             code=code,
@@ -130,21 +128,25 @@ class SubmitCog(commands.Cog):
         """
         Function invoked by the `run` command to run a single script.
         """
-        reporter = MultiProgressReporter("Script run")
+        reporter = MultiProgressReporter(interaction, "Script run")
         rep = reporter.add_run(f"{gpu_type.name}")
-        await reporter.show(interaction)
+        await reporter.show()
         gpu_type = get_gpu_by_name(gpu_type.name)
         script_content = await self._validate_input_file(interaction, script)
         if script_content is None:
             return
 
         await self._handle_submission(
-            interaction, gpu_type, rep, code=script_content, name=script.filename, task=None, mode=SubmissionMode.SCRIPT
+            gpu_type,
+            rep,
+            code=script_content,
+            name=script.filename,
+            task=None,
+            mode=SubmissionMode.SCRIPT,
         )
 
     async def _handle_submission(
         self,
-        interaction: discord.Interaction,
         gpu_type: GPU,
         reporter: RunProgressReporter,
         code: str,
@@ -165,15 +167,6 @@ class SubmitCog(commands.Cog):
             if successful, returns the result of the run.
         """
         launcher = self.launcher_map[gpu_type.value]
-
-        # TODO figure out the correct way to handle messaging here
-        if mode != SubmissionMode.PRIVATE:
-            thread = await interaction.channel.create_thread(
-                name=f"{name} on {gpu_type.name} ({launcher.name})",
-                type=discord.ChannelType.private_thread,
-                auto_archive_duration=1440,
-            )
-            await thread.add_user(interaction.user)
         config = build_task_config(
             task=task, submission_content=code, arch=self._get_arch(gpu_type), mode=mode
         )
@@ -196,8 +189,9 @@ class SubmitCog(commands.Cog):
         )
         if mode != SubmissionMode.PRIVATE:
             try:
-                await generate_report(thread, result.runs)
-                await reporter.push(f"See results at {thread.jump_url}")
+                await reporter.generate_report(
+                    f"{name} on {gpu_type.name} ({launcher.name})", result.runs
+                )
             except Exception as E:
                 logger.error("Error generating report. Result: %s", result, exc_info=E)
                 raise

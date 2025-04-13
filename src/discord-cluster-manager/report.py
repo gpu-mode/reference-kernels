@@ -318,18 +318,16 @@ async def generate_report(thread: discord.Thread, runs: dict[str, EvalResult]): 
 
 
 class MultiProgressReporter:
-    def __init__(self, header: str):
+    def __init__(self, interaction: discord.Interaction, header: str):
         self.header = header
         self.runs = []
-        self.interaction = None
-
-    async def show(self, interaction: discord.Interaction):
-        assert self.interaction is None
         self.interaction = interaction
+
+    async def show(self):
         await self._update_message()
 
     def add_run(self, title: str) -> "RunProgressReporter":
-        rpr = RunProgressReporter(self, title)
+        rpr = RunProgressReporterDiscord(self, self.interaction, title)
         self.runs.append(rpr)
         return rpr
 
@@ -348,10 +346,30 @@ class MultiProgressReporter:
 
 
 class RunProgressReporter:
-    def __init__(self, root: MultiProgressReporter, title: str):
+    async def push(self, content: str | list[str]):
+        raise NotImplementedError()
+
+    async def update(self, new_content: str):
+        raise NotImplementedError()
+
+    async def update_title(self, new_title):
+        raise NotImplementedError()
+
+    async def generate_report(self, title: str, runs: dict[str, EvalResult]):
+        raise NotImplementedError()
+
+
+class RunProgressReporterDiscord(RunProgressReporter):
+    def __init__(
+        self,
+        root: MultiProgressReporter,
+        interaction: discord.Interaction,
+        title: str,
+    ):
         self.title = title
         self.lines = []
         self.root = root
+        self.interaction = interaction
 
     async def push(self, content: str | list[str]):
         if isinstance(content, str):
@@ -374,3 +392,13 @@ class RunProgressReporter:
 
     def get_message(self):
         return str.join("\n", [f"**{self.title}**"] + self.lines)
+
+    async def generate_report(self, title: str, runs: dict[str, EvalResult]):
+        thread = await self.interaction.channel.create_thread(
+            name=title,
+            type=discord.ChannelType.private_thread,
+            auto_archive_duration=1440,
+        )
+        await thread.add_user(self.interaction.user)
+        await generate_report(thread, runs)
+        await self.push(f"See results at {thread.jump_url}")

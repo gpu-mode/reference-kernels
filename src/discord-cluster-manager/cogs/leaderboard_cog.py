@@ -118,11 +118,10 @@ class LeaderboardSubmitCog(app_commands.Group):
             )
 
         run_msg = f"Submission **{sub_id}**: `{script.filename}` for `{leaderboard_name}`"
-        reporter = MultiProgressReporter(run_msg)
+        reporter = MultiProgressReporter(interaction, run_msg)
         try:
             tasks = [
                 command(
-                    interaction,
                     sub_id,
                     submission_content,
                     script.filename,
@@ -139,9 +138,9 @@ class LeaderboardSubmitCog(app_commands.Group):
             if mode == SubmissionMode.LEADERBOARD:
                 tasks += [
                     command(
-                        interaction,
                         sub_id,
-                        script,
+                        submission_content,
+                        script.filename,
                         gpu,
                         reporter.add_run(f"{gpu.name} on {gpu.runner} (secret)"),
                         req.task,
@@ -150,7 +149,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                     )
                     for gpu in selected_gpus
                 ]
-            await reporter.show(interaction)
+            await reporter.show()
             await asyncio.gather(*tasks)
         finally:
             with self.bot.leaderboard_db as db:
