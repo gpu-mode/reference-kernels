@@ -326,6 +326,10 @@ Display all personal scores (runtime) from a specific leaderboard.
 /leaderboard show-personal {name: str}
 ```
 
+### Submitting via a CLI
+
+Moving forward we also allow submissions without logging in to Discord via a CLI tool we wrote in Rust https://github.com/gpu-mode/popcorn-cli
+
 #### GPU Kernel-specific Commands
 
 We plan to add support for the PyTorch profiler and CUDA NSight Compute CLI to allow users to
