@@ -34,6 +34,12 @@ def with_error_handling(f: callable):
     async def wrap(self, interaction: discord.Interaction, *args, **kwargs):
         try:
             await f(self, interaction, *args, **kwargs)
+        except KernelBotError as e:
+            await send_discord_message(
+                interaction,
+                str(e),
+                ephemeral=True,
+            )
         except Exception as e:
             logging.exception("Unhandled exception %s", e, exc_info=e)
             await send_discord_message(
