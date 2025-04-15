@@ -106,7 +106,7 @@ async def _handle_github_oauth(code: str, redirect_uri: str) -> tuple[str, str]:
         "client_id": client_id,
         "client_secret": client_secret,
         "code": code,
-        "redirect_uri": redirect_uri,
+        # "redirect_uri": redirect_uri,
     }
     headers = {"Accept": "application/json"}  # Request JSON response for token
 
