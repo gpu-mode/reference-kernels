@@ -18,7 +18,8 @@ async def _send_split_log(thread: discord.Thread, partial_message: str, header: 
         return partial_message
     else:
         # send previous chunk
-        await thread.send(partial_message)
+        if len(partial_message) > 0:
+            await thread.send(partial_message)
         lines = log.splitlines()
         chunks = []
         partial_message = ""
