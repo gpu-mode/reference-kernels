@@ -160,7 +160,7 @@ async def cli_auth(auth_provider: str, code: str, state: str):  # noqa: C901
             "Set HEROKU_APP_DEFAULT_DOMAIN_NAME or POPCORN_API_URL.",
         )
     redirect_uri_base = api_base_url.rstrip("/")
-    redirect_uri = f"{redirect_uri_base}/auth/cli/{auth_provider}"
+    redirect_uri = f"https://{redirect_uri_base}/auth/cli/{auth_provider}"
 
     user_id = None
     user_name = None
