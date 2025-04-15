@@ -56,9 +56,11 @@ class BotManagerCog(commands.Cog):
                 interaction,
                 "No `HEROKU_APP_DEFAULT_DOMAIN_NAME` present,"
                 " are you sure you aren't running locally?",
+                ephemeral=True,
             )
         else:
             await send_discord_message(
                 interaction,
-                f"API URL: https://{os.environ['HEROKU_APP_DEFAULT_DOMAIN_NAME']}",
+                f"API URL: `https://{os.environ['HEROKU_APP_DEFAULT_DOMAIN_NAME'].rstrip('/')}`",
+                ephemeral=True,
             )
