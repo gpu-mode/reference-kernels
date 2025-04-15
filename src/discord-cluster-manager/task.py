@@ -125,7 +125,7 @@ def make_task(yaml_file: str | Path) -> LeaderboardTask:
     # load template files
     templates = {}
     for lang, source in raw.get("templates", {}).items():
-        assert lang in ["CUDA", "Python", "Triton"]
+        assert lang in ["CUDA", "Python", "Triton", "HIP"]
         templates[lang] = (root / source).read_text()
     raw["templates"] = templates
 
