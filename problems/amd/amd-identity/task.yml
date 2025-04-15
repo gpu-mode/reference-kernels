@@ -12,10 +12,10 @@ lang: "py"
 description: |
   This task is purely for testing the submission system. There will be *no* points.
 
-  Input: (input_tensor, output_tensor)
-    - input_tensor: Input data
-    - output_tensor: Pre-allocated empty tensor of the same shape as `input_tensor`
-  Output: Should return `output_tensor` after it has been filled with the values from `input_tensor`.
+  > Input: (input_tensor, output_tensor)
+  >  - input_tensor: Input data
+  >  - output_tensor: Pre-allocated empty tensor of the same shape as `input_tensor`
+  > Output: Should return `output_tensor` after it has been filled with the values from `input_tensor`.`
 
 config:
   main: "eval.py"
