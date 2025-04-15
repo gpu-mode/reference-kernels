@@ -867,7 +867,7 @@ class LeaderboardDB:
             self.cursor.execute(
                 """
                 UPDATE leaderboard.user_info
-                SET cli_id = %s, cli_auth_provider = %s
+                SET cli_id = %s, cli_auth_provider = %s, cli_valid = TRUE
                 WHERE id = %s
                 """,
                 (cli_id, auth_provider, user_id),
