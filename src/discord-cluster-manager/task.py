@@ -104,7 +104,7 @@ def make_task(yaml_file: str | Path) -> LeaderboardTask:
             raw = yaml.safe_load(f)
     except yaml.parser.ParserError as E:
         logging.exception("Error loading task.yml", exc_info=E)
-        raise KernelBotError(f"Error loading task.yml: {E}")
+        raise KernelBotError(f"Error loading task.yml: {E}") from E
 
     root = Path(yaml_file).parent
 
