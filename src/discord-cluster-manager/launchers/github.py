@@ -23,6 +23,7 @@ class GitHubLauncher(Launcher):
         super().__init__(name="GitHub", gpus=GitHubGPU)
         self.repo = repo
         self.token = token
+        self.trigger_limit = asyncio.Semaphore(1)
 
     async def run_submission(
         self, config: dict, gpu_type: GPU, status: RunProgressReporter
@@ -60,8 +61,11 @@ class GitHubLauncher(Launcher):
             if gpu_vendor == "AMD":
                 inputs["runner"] = runner_name
 
-        if not await run.trigger(inputs):
-            raise RuntimeError("Failed to trigger GitHub Action. Please check the configuration.")
+        async with self.trigger_limit:
+            if not await run.trigger(inputs):
+                raise RuntimeError(
+                    "Failed to trigger GitHub Action. Please check the configuration."
+                )
 
         await status.push("⏳ Waiting for workflow to start...")
         await run.wait_for_completion(lambda x: self.wait_callback(x, status))
