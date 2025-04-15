@@ -1,12 +1,12 @@
-name: PMPP Practice Problems
+name: AMD Developer Challenge 2025
 # when does this end (individual problems might close earlier)
 deadline: "2025-05-27"
 # A description for this particular competition
 description: "AMD Developer Challenge 2025: Inference Sprint"
 # the list of problems
 problems:
-  - directory: amd/identity
-    name: identity
+  - directory: amd/amd-identity
+    name: amd-identity
     deadline: "2025-06-08"
     gpus:
       - MI300
