@@ -10,3 +10,9 @@ problems:
     deadline: "2025-06-08"
     gpus:
       - MI300
+
+  - directory: amd/amd-fp8-mm
+    name: amd-identity
+    deadline: "2025-05-27"
+    gpus:
+      - MI300
