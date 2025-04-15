@@ -28,18 +28,20 @@ RUN sudo groupadd -g 109 render
 
 RUN sudo apt update -y \
     && sudo apt install -y "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)" \
+    && sudo apt install python3-setuptools python3-wheel libpython3.10 \
     && sudo usermod -a -G render,video runner \
-    && wget https://repo.radeon.com/amdgpu-install/6.2.2/ubuntu/jammy/amdgpu-install_6.2.60202-1_all.deb \
-    && sudo apt install -y ./amdgpu-install_6.2.60202-1_all.deb \
+    && wget https://repo.radeon.com/amdgpu-install/6.3.1/ubuntu/jammy/amdgpu-install_6.3.60301-1_all.deb \
+    && sudo apt install -y ./amdgpu-install_6.3.60301-1_all.deb \
     && sudo apt update -y \
     && sudo apt install -y rocm-dev
 
-RUN pip install torch --index-url https://download.pytorch.org/whl/rocm6.2.4
+RUN pip install --upgrade pip
+
+RUN pip install --no-cache-dir pytorch-triton-rocm torch --index-url https://download.pytorch.org/whl/nightly/rocm6.3
 
 RUN pip install \
     ninja \
     numpy \
     packaging \
     wheel \
-    triton \
     tinygrad
