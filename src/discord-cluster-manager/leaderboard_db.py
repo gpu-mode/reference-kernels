@@ -907,7 +907,7 @@ class LeaderboardDB:
             self.cursor.execute(
                 """
                 SELECT id, user_name FROM leaderboard.user_info
-                WHERE cli_id = %s AND cli_valid = TRUE
+                WHERE cli_id = %s
                 """,
                 (cli_id,),
             )
