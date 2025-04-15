@@ -117,7 +117,7 @@ class LeaderboardSubmitCog(app_commands.Group):
                 user_name=user_name,
             )
 
-        run_msg = f"Submission **{sub_id}**: `{script.filename}` for `{leaderboard_name}`"
+        run_msg = f"Submission **{sub_id}**: `{script.filename}` for `{req.leaderboard}`"
         reporter = MultiProgressReporter(interaction, run_msg)
         try:
             tasks = [
