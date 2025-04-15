@@ -329,7 +329,7 @@ def add_header_to_template(lang: str, lb: LeaderboardItem):
     comment_char = {"CUDA": "//", "Python": "#", "Triton": "#"}[lang]
 
     description_comment = [
-        f"{comment_char} > {line}\n" for line in lb["task"].description.splitlines()
+        f"{comment_char} > {line}" for line in lb["task"].description.splitlines()
     ]
     header = f"""
 {comment_char}!POPCORN leaderboard {lb["name"]}
