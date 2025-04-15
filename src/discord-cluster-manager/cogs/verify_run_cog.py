@@ -294,7 +294,7 @@ class VerifyRunCog(commands.Cog):
                 return
 
             nvidia = get_gpu_by_name("nvidia")
-            amd = get_gpu_by_name("amd")
+            amd = get_gpu_by_name("mi300")
             t4 = get_gpu_by_name("T4")
 
             reporter = MultiProgressReporter("Verifying")

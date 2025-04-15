@@ -11,11 +11,6 @@ class Timeout(IntEnum):
     SCRIPT = 120
 
 
-class GPUType(Enum):
-    NVIDIA = "nvidia_workflow.yml"
-    AMD = "amd_workflow.yml"
-
-
 class SchedulerType(Enum):
     GITHUB = "github"
     MODAL = "modal"
@@ -23,8 +18,9 @@ class SchedulerType(Enum):
 
 
 class GitHubGPU(Enum):
-    NVIDIA = "nvidia"
-    AMD = "amd"
+    NVIDIA = "NVIDIA"
+    MI300 = "MI300"
+    MI250 = "MI250"
 
 
 class ModalGPU(Enum):
@@ -121,7 +117,8 @@ GPU_TO_SM = {
     "H100": "90a",
     "B200": "100",
     "NVIDIA": None,
-    "AMD": None,
+    "MI300": None,
+    "MI250": None,
 }
 
 

@@ -7,7 +7,7 @@ import zipfile
 from typing import Awaitable, Callable, Optional
 
 import requests
-from consts import AMD_REQUIREMENTS, GPU, NVIDIA_REQUIREMENTS, GitHubGPU, GPUType
+from consts import AMD_REQUIREMENTS, GPU, NVIDIA_REQUIREMENTS, GitHubGPU
 from github import Github, UnknownObjectException, WorkflowRun
 from report import RunProgressReporter
 from run_eval import CompileResult, EvalResult, FullResult, RunResult, SystemInfo
@@ -27,35 +27,39 @@ class GitHubLauncher(Launcher):
     async def run_submission(
         self, config: dict, gpu_type: GPU, status: RunProgressReporter
     ) -> FullResult:
-        selected_gpu = GPUType.AMD if gpu_type.value == "amd" else GPUType.NVIDIA
+        gpu_vendor = None
+        if gpu_type.value in ["MI300", "MI250"]:
+            selected_workflow = "amd_workflow.yml"
+            runner_name = {"MI300": "amdgpu-mi300-x86-64", "MI250": "amdgpu-mi250-x86-64"}[
+                gpu_type.value
+            ]
+            gpu_vendor = "AMD"
+            requirements = AMD_REQUIREMENTS
+        elif gpu_type.value == "NVIDIA":
+            selected_workflow = "nvidia_workflow.yml"
+            gpu_vendor = "NVIDIA"
+            requirements = NVIDIA_REQUIREMENTS
+        else:
+            raise ValueError(f"Invalid GPU type: {gpu_type.value}")
 
         lang = config["lang"]
-        if lang == "cu" and selected_gpu == GPUType.AMD:
+        if lang == "cu" and gpu_vendor == "AMD":
             # TODO implement HIP
             raise NotImplementedError("Cannot use CUDA runs with AMD GPUs")
 
         lang_name = {"py": "Python", "cu": "CUDA"}[lang]
 
-        if selected_gpu == GPUType.AMD:
-            gpu_name = config.get("gpu", "mi300")
-            runner_name = {"mi250": "amdgpu-mi250-x86-64", "mi300": "amdgpu-mi300-x86-64"}[gpu_name]
-
-        logger.info(f"Attempting to trigger GitHub action for {lang_name} on {selected_gpu.name}")
-        if selected_gpu == GPUType.AMD:
-            logger.info(f"Running on {gpu_name} amd gpu")
-
-        workflow_file = selected_gpu.value
-        run = GitHubRun(self.repo, self.token, workflow_file)
+        logger.info(f"Attempting to trigger GitHub action for {lang_name} on {selected_workflow}")
+        run = GitHubRun(self.repo, self.token, selected_workflow)
 
         payload = json.dumps(config)
 
         inputs = {"payload": payload}
         if lang == "py":
-            if selected_gpu == GPUType.NVIDIA:
-                inputs["requirements"] = NVIDIA_REQUIREMENTS
-            else:
-                inputs["requirements"] = AMD_REQUIREMENTS
+            inputs["requirements"] = requirements
+            if gpu_vendor == "AMD":
                 inputs["runner"] = runner_name
+
         if not await run.trigger(inputs):
             raise RuntimeError("Failed to trigger GitHub Action. Please check the configuration.")
 
