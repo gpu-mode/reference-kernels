@@ -49,6 +49,7 @@ def prepare_submission(req: SubmissionRequest, lb_db: LeaderboardDB) -> Processe
         for g in req.gpus:
             if g not in task_gpus:
                 task_gpu_list = "".join([f" * {t}\n" for t in task_gpus])
+
                 raise KernelBotError(
                     f"GPU {g} not available for `{req.leaderboard}`\n"
                     f"Choose one of: {task_gpu_list}",

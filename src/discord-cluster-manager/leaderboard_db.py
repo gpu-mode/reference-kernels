@@ -437,6 +437,7 @@ class LeaderboardDB:
                 creator_id=res[4],
                 forum_id=res[5],
                 secret_seed=res[6],
+                gpu_types=self.get_leaderboard_gpu_types(res[1]),
             )
         else:
             return None
@@ -629,6 +630,18 @@ class LeaderboardDB:
 
         return result
 
+    def get_user_from_id(self, id: str) -> Optional[str]:
+        try:
+            self.cursor.execute(
+                """
+                SELECT user_name FROM leaderboard.user_info WHERE id = %s
+                """,
+                (id,),
+            )
+            return self.cursor.fetchone()[0]
+        except Exception:
+            return None
+
     def delete_submission(self, submission_id: int):
         try:
             # first, the runs
@@ -744,25 +757,166 @@ class LeaderboardDB:
         self.cursor.execute(query, args)
         return self.cursor.fetchone()[0]
 
-    def create_user_from_cli(self, user_id: str, user_name: str, cli_id: str):
+    def init_user_from_cli(self, cli_id: str, auth_provider: str):
+        """
+        Initialize a user from CLI authentication flow.
+        Checks if cli_id already exists, and if so returns an error.
+        Creates a temporary user entry with the auth provider and cli_id.
+
+        Args:
+            cli_id (str): The unique identifier from the CLI
+            auth_provider (str): The authentication provider ('discord' or 'github')
+
+        Raises:
+            KernelBotError: If auth provider is invalid or cli_id already exists
+        """
+        if auth_provider not in ["discord", "github"]:
+            raise Exception("Invalid auth provider")
+
+        try:
+            # Check if cli_id already exists
+            self.cursor.execute(
+                """
+                SELECT 1 FROM leaderboard.user_info WHERE cli_id = %s
+                """,
+                (cli_id,),
+            )
+
+            if self.cursor.fetchone():
+                raise Exception("CLI ID already exists")
+
+            self.cursor.execute(
+                """
+                INSERT INTO leaderboard.user_info (id, user_name,
+                cli_id, cli_auth_provider, cli_valid)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (f"temp_{cli_id}", f"temp_user_{cli_id}", cli_id, auth_provider, False),
+            )
+
+            self.connection.commit()
+        except psycopg2.Error as e:
+            self.connection.rollback()
+            logger.exception("Error initializing user from CLI with ID %s", cli_id, exc_info=e)
+            raise KernelBotError("Error initializing user from CLI") from e
+
+    def create_user_from_cli(self, user_id: str, user_name: str, cli_id: str, auth_provider: str):
         """
         Method to create a user from the CLI. Shouldn't be used for Discord.
+        Validates that the user doesn't already have a valid row and that the user_id/user_name
+        are temporary values that need to be updated.
         """
         try:
             self.cursor.execute(
                 """
-                INSERT INTO leaderboard.user_info (id, user_name, cli_id)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (id) DO UPDATE
-                SET user_name = %s, cli_id = %s
+                SELECT 1 FROM leaderboard.user_info WHERE id = %s
                 """,
-                (user_id, user_name, cli_id, user_name, cli_id),
+                (user_id,),
             )
+            if self.cursor.fetchone():
+                raise Exception(
+                    "User already has a valid account with this User ID."
+                    "Please use the re-register command to re-authenticate."
+                )
+
+            self.cursor.execute(
+                """
+                SELECT cli_valid FROM leaderboard.user_info
+                WHERE cli_id = %s AND cli_valid = TRUE AND cli_auth_provider = %s
+                """,
+                (cli_id, auth_provider),
+            )
+
+            if self.cursor.fetchone():
+                raise Exception(
+                    "User already has a valid account with this CLI ID."
+                    "Please use the re-register command to re-authenticate."
+                )
+
+            self.cursor.execute(
+                """
+                UPDATE leaderboard.user_info
+                SET id = %s, user_name = %s, cli_valid = TRUE, cli_auth_provider = %s
+                WHERE cli_id = %s AND cli_valid = FALSE
+                """,
+                (user_id, user_name, auth_provider, cli_id),
+            )
+
+            if self.cursor.rowcount == 0:
+                raise Exception("No temporary user found with this CLI ID. No effect.")
+
             self.connection.commit()
         except psycopg2.Error as e:
             self.connection.rollback()
             logger.exception("Could not create/update user %s from CLI.", user_id, exc_info=e)
-            raise e
+            raise KernelBotError("Database error while creating/updating user from CLI") from e
+
+    def reset_user_from_cli(self, user_id: str, cli_id: str, auth_provider: str):
+        try:
+            self.cursor.execute(
+                """
+                SELECT 1 FROM leaderboard.user_info WHERE id = %s
+                """,
+                (user_id,),
+            )
+            if not self.cursor.fetchone():
+                raise Exception(
+                    "User not found. Please use the register command to create an account."
+                )
+
+            self.cursor.execute(
+                """
+                UPDATE leaderboard.user_info
+                SET cli_id = %s, cli_auth_provider = %s
+                WHERE id = %s
+                """,
+                (cli_id, auth_provider, user_id),
+            )
+
+            self.connection.commit()
+        except psycopg2.Error as e:
+            self.connection.rollback()
+            logger.exception("Could not reset user %s from CLI.", user_id, exc_info=e)
+            raise KernelBotError("Database error while resetting user from CLI") from e
+
+    def cleanup_temp_users(self):
+        try:
+            self.cursor.execute(
+                """
+                DELETE FROM leaderboard.user_info WHERE cli_valid = FALSE and created_at <
+                NOW() - INTERVAL '10 minutes' AND id LIKE 'temp_%' AND user_name LIKE 'temp_%'
+                """
+            )
+            self.connection.commit()
+        except psycopg2.Error as e:
+            self.connection.rollback()
+            logger.exception("Could not cleanup temp users", exc_info=e)
+            raise KernelBotError("Database error while cleaning up temp users") from e
+
+    def validate_cli_id(self, cli_id: str) -> Optional[dict[str, str]]:
+        """
+        Validates a CLI ID and returns the associated user ID if valid.
+
+        Args:
+            cli_id (str): The CLI ID to validate.
+
+        Returns:
+            Optional[str]: The user ID if the CLI ID is valid, otherwise None.
+        """
+        try:
+            self.cursor.execute(
+                """
+                SELECT id, user_name FROM leaderboard.user_info
+                WHERE cli_id = %s AND cli_valid = TRUE
+                """,
+                (cli_id,),
+            )
+            result = self.cursor.fetchone()
+            return {"user_id": result[0], "user_name": result[1]} if result else None
+        except psycopg2.Error as e:
+            self.connection.rollback()
+            logger.exception("Error validating CLI ID %s", cli_id, exc_info=e)
+            raise KernelBotError("Error validating CLI ID") from e
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ import env
 import yaml
 from consts import GitHubGPU, ModalGPU
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 from leaderboard_db import leaderboard_name_autocomplete
 from task import LeaderboardTask, make_task
 from ui.misc import ConfirmationView, DeleteConfirmationModal, GPUSelectionView
@@ -119,6 +119,8 @@ class AdminCog(commands.Cog):
         self.set_forum_ids = bot.admin_group.command(
             name="set-forum-ids", description="Sets forum IDs"
         )(self.set_forum_ids)
+
+        self._scheduled_cleanup_temp_users.start()
 
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
@@ -822,6 +824,12 @@ class AdminCog(commands.Cog):
         )
 
         return msg, [file, run_results]
+
+    @tasks.loop(minutes=10)
+    async def _scheduled_cleanup_temp_users(self):
+        with self.bot.leaderboard_db as db:
+            db.cleanup_temp_users()
+        logger.info("Temporary users cleanup completed")
 
     ####################################################################################################################
     #            MIGRATION COMMANDS --- TO BE DELETED LATER

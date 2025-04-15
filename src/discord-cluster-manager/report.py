@@ -402,3 +402,21 @@ class RunProgressReporterDiscord(RunProgressReporter):
         await thread.add_user(self.interaction.user)
         await generate_report(thread, runs)
         await self.push(f"See results at {thread.jump_url}")
+
+
+class RunProgressReporterAPI(RunProgressReporter):
+    def __init__(self):
+        self.title = ""
+        self.lines = []
+
+    async def push(self, content: str | list[str]):
+        pass
+
+    async def update(self, new_content: str):
+        pass
+
+    async def update_title(self, new_title):
+        pass
+
+    async def generate_report(self, title: str, runs: dict[str, EvalResult]):
+        pass

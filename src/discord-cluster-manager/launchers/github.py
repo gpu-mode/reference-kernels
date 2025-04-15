@@ -146,23 +146,30 @@ class GitHubRun:
         """
         trigger_time = datetime.datetime.now(datetime.timezone.utc)
         try:
-            workflow = self.repo.get_workflow(self.workflow_file)
+            workflow = await asyncio.to_thread(self.repo.get_workflow, self.workflow_file)
         except UnknownObjectException as e:
             logger.error(f"Could not find workflow {self.workflow_file}", exc_info=e)
             raise ValueError(f"Could not find workflow {self.workflow_file}") from e
 
+        branch_name = get_github_branch_name()
         logger.debug(
             "Dispatching workflow %s on branch %s with inputs %s",
             self.workflow_file,
-            get_github_branch_name(),
+            branch_name,
             pprint.pformat(inputs),
         )
-        success = workflow.create_dispatch(get_github_branch_name(), inputs=inputs)
+        success = await asyncio.to_thread(workflow.create_dispatch, branch_name, inputs=inputs)
+
         if success:
             await asyncio.sleep(2)
-            runs = list(workflow.get_runs())
 
-            for run in runs:
+            def get_runs_sync():
+                paginated_list = workflow.get_runs()
+                return list(paginated_list)
+
+            runs_list = await asyncio.to_thread(get_runs_sync)
+
+            for run in runs_list:
                 if run.created_at.replace(tzinfo=datetime.timezone.utc) > trigger_time:
                     self.run = run
                     return True
@@ -179,8 +186,8 @@ class GitHubRun:
 
         while True:
             try:
-                # update run status
-                self.run = run = self.repo.get_workflow_run(self.run_id)
+                run_update = await asyncio.to_thread(self.repo.get_workflow_run, self.run_id)
+                self.run = run = run_update
 
                 if self.elapsed_time > timeout:
                     try:
@@ -208,12 +215,12 @@ class GitHubRun:
                     return
 
                 await callback(self)
-                await asyncio.sleep(3)
+                await asyncio.sleep(10)  # Yield control while waiting
             except TimeoutError:
-                raise
+                raise  # Re-raise the specific TimeoutError from the timeout block
             except Exception as e:
                 logger.error(f"Error waiting for GitHub run {self.run_id}: {e}", exc_info=e)
-                raise
+                raise  # Re-raise other exceptions
 
     async def download_artifacts(self) -> dict:
         logger.info("Attempting to download artifacts for run %s", self.run_id)

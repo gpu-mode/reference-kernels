@@ -51,12 +51,6 @@ class BotManagerCog(commands.Cog):
 
     @app_commands.command(name="get-api-url")
     async def get_api_url(self, interaction: discord.Interaction):
-        if not self.bot.debug_mode:
-            await send_discord_message(
-                interaction, "Submission through the API are coming soon! Stay tuned... 👀"
-            )
-            return
-
         if not os.environ.get("HEROKU_APP_DEFAULT_DOMAIN_NAME"):
             await send_discord_message(
                 interaction,
