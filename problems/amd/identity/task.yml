@@ -1,4 +1,4 @@
-# name: "amd-identity"
+# name: "identity"
 
 files:
   - {"name": "submission.py", "source": "@SUBMISSION@"}

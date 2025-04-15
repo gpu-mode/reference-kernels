@@ -5,14 +5,13 @@ deadline: "2025-05-27"
 description: "AMD Developer Challenge 2025: Inference Sprint"
 # the list of problems
 problems:
-  - directory: amd/amd-identity
+  - directory: amd/identity
     name: amd-identity
     deadline: "2025-06-08"
     gpus:
       - MI300
-
-  - directory: amd/amd-fp8-mm
-    name: amd-identity
+  - directory: amd/fp8-mm
+    name: amd-fp8-mm
     deadline: "2025-05-27"
     gpus:
       - MI300

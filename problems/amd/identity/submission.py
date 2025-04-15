@@ -1,4 +1,4 @@
-#!POPCORN leaderboard amd-identity
+#!POPCORN leaderboard identity
 from task import input_t, output_t
 import torch
 
