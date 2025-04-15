@@ -1,0 +1,78 @@
+# name: fp8-matmul
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  You will implement a custom fp8-blockwise matmul kernel optimized for MI300.
+  You will be given single-precision scaling factors for your matrices.
+  The shapes of all outer and inner dimensions of tensors are from DeepSeek-R1.
+  To be explicit, you will be given a tuple of tensors:
+  ```
+  (a, b, a_scale, b_scale, c)
+  ```
+  where `a` and `b` are the input matrices, `a_scale` and `b_scale` are the scaling factors for `a` and `b` respectively,
+  and `c` is the output matrix.
+  `a` is M x K in column-major order, and `b` is N x K in column-major order.
+  `a_scale` is M x K in column-major order, and `b_scale` is N x K in column-major order.
+  `c` is M x N in ROW-major order.
+
+  The ranking criteria is the geometric mean of the benchmark results.
+
+  For the grand price, your kernel will be evaluated against the speed of light analysis
+  and the solution closest to the speed of light will be awarded the grand price.
+
+  The speed of light analysis is:
+   M       N       K        time[us]
+  1024    1536    7168      8.6331019
+  1024    4608    7168     25.8936898
+  6144    1536    7168     51.7775517
+  6144    4608    7168    155.2989590
+  1024    7168     256      3.1671426
+  6144    7168     256     17.2712935
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"m": 64, "n": 1536, "k": 7168, "seed": 42}
+  - {"m": 64, "n": 3072, "k": 1536, "seed": 42}
+  - {"m": 64, "n": 576, "k": 7168, "seed": 42}
+  - {"m": 96, "n": 7168, "k": 256, "seed": 42}
+  - {"m": 96, "n": 7168, "k": 2048, "seed": 42}
+  - {"m": 96, "n": 4608, "k": 7168, "seed": 42}
+  - {"m": 128, "n": 7168, "k": 2304, "seed": 42}
+  - {"m": 128, "n": 512, "k": 7168, "seed": 42}
+  - {"m": 512, "n": 4096, "k": 512, "seed": 42}
+  - {"m": 512, "n": 1536, "k": 7168, "seed": 42}
+
+benchmarks:
+  - {"m": 1024, "n": 1536, "k": 7168, "seed": 42}
+  - {"m": 1024, "n": 3072, "k": 1536, "seed": 42}
+  - {"m": 1024, "n": 576, "k": 7168, "seed": 42}
+  - {"m": 1024, "n": 7168, "k": 256, "seed": 42}
+  - {"m": 1024, "n": 7168, "k": 2048, "seed": 42}
+  - {"m": 1024, "n": 4608, "k": 7168, "seed": 42}
+  - {"m": 1024, "n": 7168, "k": 2304, "seed": 42}
+  - {"m": 1024, "n": 512, "k": 7168, "seed": 42}
+  - {"m": 1024, "n": 4096, "k": 512, "seed": 42}
+  - {"m": 6144, "n": 1536, "k": 7168, "seed": 42}
+  - {"m": 6144, "n": 3072, "k": 1536, "seed": 42}
+  - {"m": 6144, "n": 576, "k": 7168, "seed": 42}
+  - {"m": 6144, "n": 7168, "k": 256, "seed": 42}
+  - {"m": 6144, "n": 7168, "k": 2048, "seed": 42}
+  - {"m": 6144, "n": 4608, "k": 7168, "seed": 42}
+  - {"m": 6144, "n": 7168, "k": 2304, "seed": 42}
+  - {"m": 6144, "n": 512, "k": 7168, "seed": 42}
+  - {"m": 6144, "n": 4096, "k": 512, "seed": 42}
+
+ranking_by: "geom"
