@@ -120,7 +120,7 @@ class AdminCog(commands.Cog):
             name="set-forum-ids", description="Sets forum IDs"
         )(self.set_forum_ids)
 
-        # self._scheduled_cleanup_temp_users.start()
+        self._scheduled_cleanup_temp_users.start()
 
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
