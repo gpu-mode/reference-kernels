@@ -284,6 +284,7 @@ def run_single_evaluation(
     test_timeout: int = Timeout.TEST,
     benchmark_timeout: int = Timeout.BENCHMARK,
     ranked_timeout: int = Timeout.RANKED,
+    ranking_by: str = "last",
     seed: Optional[int] = None,
 ) -> RunResult:
     """
@@ -298,7 +299,10 @@ def run_single_evaluation(
     elif mode in ["benchmark", "profile", "leaderboard"]:
         timeout = ranked_timeout if mode == "leaderboard" else benchmark_timeout
         with tempfile.NamedTemporaryFile("w") as bench_file:
-            bench_file.write(benchmarks)
+            if ranking_by == "last":
+                bench_file.write(benchmarks.splitlines(keepends=True)[-1])
+            else:
+                bench_file.write(benchmarks)
             bench_file.flush()
             return run_program(call + [mode, bench_file.name], seed=seed, timeout=timeout)
     else:
@@ -544,6 +548,7 @@ def run_config(config: dict):
         "tests": build_test_string(config.get("tests", [])),
         "benchmarks": build_test_string(config.get("benchmarks", [])),
         "seed": config.get("seed", None),
+        "ranking_by": config.get("ranking_by", "last"),
     }
     if config["lang"] == "py":
         runner = functools.partial(

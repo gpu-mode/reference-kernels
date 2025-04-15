@@ -307,21 +307,23 @@ def main():
                 return run_benchmarking(logger, pool, tests)
 
             if mode == "leaderboard":
-                run_single_benchmark(pool, tests[0], True, 100, 1e7)
-                result = run_single_benchmark(pool, tests[-1], True, 100, 30e9)
-                if isinstance(result, Stats):
-                    logger.log("benchmark-count", 1)
-                    logger.log(f"benchmark.0.spec", tests[-1].spec)
-                    logger.log(f"benchmark.0.runs", result.runs)
-                    logger.log(f"benchmark.0.mean", result.mean)
-                    logger.log(f"benchmark.0.std", result.std)
-                    logger.log(f"benchmark.0.err", result.err)
-                    logger.log("check", "pass")
-                else:
-                    logger.log("test-count", 1)
-                    logger.log("test.0.status", "fail")
-                    logger.log("test.0.error", str(result)) #TODO: Make sure result implements __str__?
+                # warmup
+                run_single_benchmark(pool, tests[0], False, 100, 1e7)
+                logger.log("benchmark-count", len(tests))
+                passed = True
+                for i in range(len(tests)):
+                    result = run_single_benchmark(pool, tests[i], True, 100, 30e9)
+                    logger.log(f"benchmark.{i}.spec", tests[i].spec)
+                    if isinstance(result, Stats):
+                        for field in dataclasses.fields(Stats):
+                            logger.log(f"benchmark.{i}.{field.name}", getattr(result, field.name))
+                    else:
+                        passed = False
+                        logger.log(f"benchmark.{i}.status", "fail")
+                        logger.log(f"benchmark.{i}.error", str(result)) #TODO: Make sure result implements __str__?
+                        break
 
+                logger.log("check", "pass" if passed else "fail")
             else:
                 # TODO: Implement script and profile mode
                 return 2

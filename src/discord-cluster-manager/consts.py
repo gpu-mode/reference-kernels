@@ -108,6 +108,12 @@ class Language(Enum):
     CUDA = "cu"
 
 
+class RankCriterion(Enum):
+    LAST = "last"  # only last benchmark counts
+    MEAN = "mean"  # arithmetic mean of all benchmarks
+    GEOM = "geom"  # geometric mean of all benchmarks
+
+
 GPU_TO_SM = {
     "T4": "75",
     "L4": "80",

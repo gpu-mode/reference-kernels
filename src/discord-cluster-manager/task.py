@@ -1,10 +1,12 @@
 import copy
 import dataclasses
 import json
+import logging
 from pathlib import Path
 from typing import Dict, Optional, Union
 
-from consts import Language
+from consts import Language, RankCriterion
+from utils import KernelBotError
 
 
 @dataclasses.dataclass
@@ -59,6 +61,7 @@ class LeaderboardTask:
     benchmarks: list[TestCaseType] = dataclasses.field(default_factory=list)
     benchmark_timeout: int = 60
     ranked_timeout: int = 90
+    ranking_by: RankCriterion = RankCriterion.LAST
     templates: dict[str, str] = dataclasses.field(default_factory=dict)
     seed: Optional[int] = None
 
@@ -66,7 +69,9 @@ class LeaderboardTask:
     def from_dict(data: dict):
         data_ = copy.copy(data)
         lang = Language(data["lang"])
+        criterion = RankCriterion(data.get("ranking_by", RankCriterion.LAST))
         data_["lang"] = lang
+        data_["ranking_by"] = criterion
         if lang == Language.Python:
             data_["config"] = PythonTaskData(**data["config"])
         else:
@@ -77,6 +82,7 @@ class LeaderboardTask:
     def to_dict(self) -> dict:
         raw = dataclasses.asdict(self)
         raw["lang"] = raw["lang"].value
+        raw["ranking_by"] = raw["ranking_by"].value
         return raw
 
     def to_str(self):
@@ -93,11 +99,14 @@ def make_task(yaml_file: str | Path) -> LeaderboardTask:
     if Path(yaml_file).is_dir():
         yaml_file = Path(yaml_file) / "task.yml"
 
-    with open(yaml_file) as f:
-        raw = yaml.safe_load(f)
+    try:
+        with open(yaml_file) as f:
+            raw = yaml.safe_load(f)
+    except yaml.parser.ParserError as E:
+        logging.exception("Error loading task.yml", exc_info=E)
+        raise KernelBotError(f"Error loading task.yml: {E}")
 
     root = Path(yaml_file).parent
-    user_file_name = raw.get("user_file_name", None)
 
     # now, build file dict
     file_dict = {}
@@ -107,7 +116,6 @@ def make_task(yaml_file: str | Path) -> LeaderboardTask:
 
         # handle special files
         if source == "@SUBMISSION@":
-            assert user_file_name is None
             file_dict[name] = "@SUBMISSION@"
         else:
             file_dict[name] = (root / source).read_text()

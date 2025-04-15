@@ -1,4 +1,5 @@
 import copy
+import math
 from typing import TYPE_CHECKING, Optional
 
 from launchers import Launcher
@@ -7,13 +8,19 @@ if TYPE_CHECKING:
     from bot import ClusterBot
 
 import discord
-from consts import GPU, GPU_TO_SM, SubmissionMode, get_gpu_by_name
+from consts import GPU, GPU_TO_SM, RankCriterion, SubmissionMode, get_gpu_by_name
 from discord import app_commands
 from discord.ext import commands
 from report import MultiProgressReporter, RunProgressReporter, make_short_report
 from run_eval import FullResult
 from task import LeaderboardTask
-from utils import build_task_config, send_discord_message, setup_logging, with_error_handling
+from utils import (
+    KernelBotError,
+    build_task_config,
+    send_discord_message,
+    setup_logging,
+    with_error_handling,
+)
 
 logger = setup_logging()
 
@@ -58,7 +65,7 @@ class SubmitCog(commands.Cog):
         for gpu in launcher.gpus:
             self.launcher_map[gpu.value] = launcher
 
-    async def submit_leaderboard(
+    async def submit_leaderboard(  # noqa: C901
         self,
         submission_id: int,
         code: str,
@@ -93,11 +100,30 @@ class SubmitCog(commands.Cog):
             if "leaderboard" in result.runs and result.runs["leaderboard"].run.success:
                 score = 0.0
                 num_benchmarks = int(result.runs["leaderboard"].run.result["benchmark-count"])
-                for i in range(num_benchmarks):
-                    score += (
-                        float(result.runs["leaderboard"].run.result[f"benchmark.{i}.mean"]) / 1e9
-                    )
-                score /= num_benchmarks
+                if task.ranking_by == RankCriterion.LAST:
+                    if num_benchmarks != 1:
+                        logger.error(
+                            "Ranked submission error for submission %d ranking_by is `last`, "
+                            "but got %d benchmarks",
+                            submission_id,
+                            num_benchmarks,
+                        )
+                        raise KernelBotError(
+                            f"Expected submission to have exactly one benchmark,"
+                            f"got {num_benchmarks}."
+                        )
+                    score = float(result.runs["leaderboard"].run.result["benchmark.0.mean"]) / 1e9
+                else:
+                    scores = []
+                    for i in range(num_benchmarks):
+                        scores.append(
+                            float(result.runs["leaderboard"].run.result[f"benchmark.{i}.mean"])
+                            / 1e9
+                        )
+                    if task.ranking_by == RankCriterion.MEAN:
+                        score = sum(scores) / len(scores)
+                    elif task.ranking_by == RankCriterion.GEOM:
+                        score = math.pow(math.prod(scores), 1.0 / num_benchmarks)
 
             # verifyruns uses a fake submission id of -1
             if submission_id != -1:

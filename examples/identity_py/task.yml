@@ -34,3 +34,5 @@ benchmarks:
   - {"size": 16384, "seed": 6252}
   - {"size": 32768, "seed": 52624}
   - {"size": 65536, "seed": 125432}
+
+ranking_by: "geom"
