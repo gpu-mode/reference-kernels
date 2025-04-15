@@ -10,6 +10,7 @@ files:
 lang: "py"
 
 description: |
+  
   You will implement a custom fp8-blockwise matmul kernel optimized for MI300.
   You will be given single-precision scaling factors for your matrices.
   The shapes of all outer and inner dimensions of tensors are from DeepSeek-R1.
@@ -18,24 +19,27 @@ description: |
   (a, b, a_scale, b_scale, c)
   ```
   where `a` and `b` are the input matrices, `a_scale` and `b_scale` are the scaling factors for `a` and `b` respectively,
-  and `c` is the output matrix.
-  `a` is M x K in column-major order, and `b` is N x K in column-major order.
-  `a_scale` is M x K in column-major order, and `b_scale` is N x K in column-major order.
-  `c` is M x N in ROW-major order.
+  and `c` is the output matrix:
+  * `a` is M x K in column-major order in e4m3fnuz
+  * `b` is N x K in column-major order in e4m3fnuz
+  * `a_scale` is M x K in column-major order in fp32
+  * `b_scale` is N x K in column-major order in fp32
+  * `c` is M x N in ROW-major order in bf16
 
   The ranking criteria is the geometric mean of the benchmark results.
 
   For the grand price, your kernel will be evaluated against the speed of light analysis
   and the solution closest to the speed of light will be awarded the grand price.
-
+  ```
   The speed of light analysis is:
-   M       N       K        time[us]
-  1024    1536    7168      8.6331019
-  1024    4608    7168     25.8936898
-  6144    1536    7168     51.7775517
-  6144    4608    7168    155.2989590
-  1024    7168     256      3.1671426
-  6144    7168     256     17.2712935
+   M       N       K     time[us]
+  1024    1536    7168      8.63
+  1024    4608    7168     25.89
+  6144    1536    7168     51.78
+  6144    4608    7168    155.30
+  1024    7168     256      3.17
+  6144    7168     256     17.27
+  ```
 
 config:
   main: "eval.py"
