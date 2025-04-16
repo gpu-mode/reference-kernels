@@ -158,6 +158,7 @@ class LeaderboardDB:
                 """,
                 (deadline, task.to_str(), name),
             )
+            self.connection.commit()
         except psycopg2.Error as e:
             self.connection.rollback()
             logger.exception("Error during leaderboard update", exc_info=e)
