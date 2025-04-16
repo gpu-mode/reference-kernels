@@ -688,7 +688,7 @@ class LeaderboardCog(commands.Cog):
                 return
 
             template = add_header_to_template(lang, leaderboard_item)
-            ext = {"CUDA": "cu", "Python": "py", "Triton": "py"}
+            ext = {"CUDA": "cu", "Python": "py", "Triton": "py", "HIP": "py"}
             file_name = f"{leaderboard_name}.{ext[lang]}"
             file = discord.File(fp=StringIO(template), filename=file_name)
             message = f"**Starter code for leaderboard `{leaderboard_name}`**\n"
