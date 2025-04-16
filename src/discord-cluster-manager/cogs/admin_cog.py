@@ -744,7 +744,7 @@ class AdminCog(commands.Cog):
                 forum_id = new_lb["forum_id"]
                 try:
                     forum_thread = await self.bot.fetch_channel(forum_id)
-                    if forum_thread:
+                    if forum_thread and forum_thread.starter_message:
                         await forum_thread.starter_message.edit(
                             content=self._leaderboard_opening_message(
                                 entry["name"], new_lb["deadline"], task.description
