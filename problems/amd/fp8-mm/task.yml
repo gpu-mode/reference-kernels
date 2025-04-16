@@ -25,6 +25,8 @@ description: |
   * `a_scale` is M x K in column-major order in fp32
   * `b_scale` is N x K in column-major order in fp32
   * `c` is M x N in ROW-major order in bf16
+  
+  Matrix sizes `m` and `n` are divisible by 64, `k` is divisible by 128.
 
   The ranking criteria is the geometric mean of the benchmark results.
 
