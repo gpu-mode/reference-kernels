@@ -97,7 +97,11 @@ class SubmitCog(commands.Cog):
 
         if result.success:
             score = None
-            if "leaderboard" in result.runs and result.runs["leaderboard"].run.success:
+            if (
+                "leaderboard" in result.runs
+                and result.runs["leaderboard"].run.success
+                and result.runs["leaderboard"].run.passed
+            ):
                 score = 0.0
                 num_benchmarks = int(result.runs["leaderboard"].run.result["benchmark-count"])
                 if task.ranking_by == RankCriterion.LAST:
