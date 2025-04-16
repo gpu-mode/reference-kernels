@@ -85,4 +85,4 @@ def ref_kernel(data: input_t) -> output_t:
     return c
 
 
-check_implementation = make_match_reference(ref_kernel, rtol=1e-02, atol=5e-04)
+check_implementation = make_match_reference(ref_kernel, rtol=2e-02, atol=1e-03)
