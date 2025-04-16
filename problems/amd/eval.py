@@ -137,6 +137,17 @@ def _clone_data(data):
         return data
 
 
+def wrap_check_implementation(data, submission_output):
+    # Old version returned just a single string, new version
+    # returns (bool, str); this function ensures compatibility with old
+    # problem definitions.
+    result = check_implementation(data, submission_output)
+    if isinstance(result, tuple):
+        return result
+    else:
+        return not bool(result), result
+
+
 def _run_single_test(test: TestCase):
     """
     Runs a single test case. Do not call directly
@@ -146,7 +157,7 @@ def _run_single_test(test: TestCase):
     torch.cuda.synchronize()
     submission_output = custom_kernel(_clone_data(data))
     torch.cuda.synchronize()
-    return check_implementation(data, submission_output)
+    return wrap_check_implementation(data, submission_output)
 
 
 def run_single_test(pool: multiprocessing.Pool, test: TestCase):
@@ -168,13 +179,15 @@ def run_testing(logger: PopcornOutput, pool: multiprocessing.Pool, tests: list[T
     logger.log("test-count", len(tests))
     for idx, test in enumerate(tests):
         logger.log(f"test.{idx}.spec", test.spec)
-        error = run_single_test(pool, test)
-        if error:
+        good, message = run_single_test(pool, test)
+        if not good:
             logger.log(f"test.{idx}.status", "fail")
-            logger.log(f"test.{idx}.error", error)
+            logger.log(f"test.{idx}.error", message)
             passed = False
         else:
             logger.log(f"test.{idx}.status", "pass")
+            if message:
+                logger.log(f"test.{idx}.message", message)
 
     if passed:
         logger.log("check", "pass")
@@ -196,9 +209,9 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
     check_copy = _clone_data(data)
     #  first, one obligatory correctness check
     output = custom_kernel(data)
-    error = check_implementation(check_copy, output)
-    if error:
-        return error
+    good, message = wrap_check_implementation(check_copy, output)
+    if not good:
+        return False, message
 
     # now, do multiple timing runs without further correctness testing
     # there is an upper bound of 100 runs, and a lower bound of 3 runs;
@@ -220,9 +233,9 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
         end = time.perf_counter_ns()
 
         if recheck:
-            error = check_implementation(check_copy, output)
-            if error:
-                return error
+            good, message = check_implementation(check_copy, output)
+            if not good:
+                return False, message
 
         del output
         durations.append(end-start)
