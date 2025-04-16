@@ -1,5 +1,7 @@
 FROM ghcr.io/actions/actions-runner:latest
 
+ENV CXX=clang++
+
 RUN sudo apt-get update -y \
     && sudo apt-get install -y software-properties-common \
     && sudo add-apt-repository -y ppa:git-core/ppa \
@@ -33,7 +35,7 @@ RUN sudo apt update -y \
     && wget https://repo.radeon.com/amdgpu-install/6.3.1/ubuntu/jammy/amdgpu-install_6.3.60301-1_all.deb \
     && sudo apt install -y ./amdgpu-install_6.3.60301-1_all.deb \
     && sudo apt update -y \
-    && sudo apt install -y rocm-dev
+    && sudo apt install -y rocm
 
 RUN pip install --upgrade pip
 
