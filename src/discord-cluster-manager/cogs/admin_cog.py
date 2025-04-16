@@ -724,13 +724,19 @@ class AdminCog(commands.Cog):
                     new_lb: LeaderboardItem = db.get_leaderboard(entry["name"])
 
                 forum_id = new_lb["forum_id"]
-                forum_thread = await self.bot.fetch_channel(forum_id)
-                if forum_thread:
-                    await forum_thread.starter_message.edit(
-                        content=self._leaderboard_opening_message(
-                            entry["name"], new_lb["deadline"], task.description
+                try:
+                    forum_thread = await self.bot.fetch_channel(forum_id)
+                    if forum_thread:
+                        await forum_thread.starter_message.edit(
+                            content=self._leaderboard_opening_message(
+                                entry["name"], new_lb["deadline"], task.description
+                            )
                         )
+                except discord.errors.NotFound:
+                    logger.warning(
+                        "Could not find forum thread %s for lb %s", forum_id, entry["name"]
                     )
+                    pass
 
             header += " DONE"
             await interaction.edit_original_response(content=f"{header}\n\n{plan}\n\n{steps}")
