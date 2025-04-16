@@ -48,6 +48,7 @@ config:
 
 templates:
   Python: "template.py"
+  HIP: "template-hip.py"
 
 tests:
   - {"m": 64, "n": 64, "k": 128, "seed": 6635}
