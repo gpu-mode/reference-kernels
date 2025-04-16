@@ -177,11 +177,14 @@ def make_test_log(run: RunResult) -> str:
             break
         if status == "pass":
             test_log.append(f"✅ {spec}")
+            msg = run.result.get(f"test.{i}.message", None)
+            if msg:
+                test_log.append(f"> {msg.replace('\\n', '\n')}")
         elif status == "fail":
             test_log.append(f"❌ {spec}")
             error = run.result.get(f"test.{i}.error", "No error information available")
             if error:
-                test_log.append(f"> {error}")
+                test_log.append(f"> {error.replace('\\n', '\n')}")
     if len(test_log) > 0:
         return str.join("\n", test_log)
     else:
@@ -241,16 +244,12 @@ async def generate_report(thread: discord.Thread, runs: dict[str, EvalResult]): 
             return
         else:
             num_tests = int(test_run.result.get("test-count", 0))
-            for i in range(num_tests):
-                status = test_run.result.get(f"test.{i}.status", None)
-                if status is None:
-                    break
 
             message = await _send_split_log(
                 thread,
                 message,
-                "Tests",
                 f"✅ Passed {num_tests}/{num_tests} tests",
+                make_test_log(test_run),
             )
 
     if "benchmark" in runs:
