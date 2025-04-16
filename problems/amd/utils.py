@@ -50,7 +50,7 @@ def verbose_allclose(
         return False, ["SIZE MISMATCH"]
 
     # Calculate the difference between the tensors
-    diff = torch.abs(received - expected)
+    diff = torch.abs(received.to(torch.float32) - expected.to(torch.float32))
 
     # Determine the tolerance
     tolerance = atol + rtol * torch.abs(expected)
