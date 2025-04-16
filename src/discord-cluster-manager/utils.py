@@ -296,6 +296,10 @@ def build_task_config(
 
 
 def format_time(value: float | str, err: Optional[float | str] = None, scale=None):  # noqa: C901
+    if value is None:
+        logging.warning("Expected a number, got None", stack_info=True)
+        return "–"
+
     # really ugly, but works for now
     value = float(value)
 
