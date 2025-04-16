@@ -25,6 +25,8 @@ description: |
   * `a_scale` is M x K in column-major order in fp32
   * `b_scale` is N x K in column-major order in fp32
   * `c` is M x N in ROW-major order in bf16
+  
+  Matrix sizes `m` and `n` are divisible by 64, `k` is divisible by 128.
 
   The ranking criteria is the geometric mean of the benchmark results.
 
@@ -46,8 +48,10 @@ config:
 
 templates:
   Python: "template.py"
+  HIP: "template-hip.py"
 
 tests:
+  - {"m": 64, "n": 64, "k": 128, "seed": 6635}
   - {"m": 64, "n": 1536, "k": 7168, "seed": 6635}
   - {"m": 64, "n": 3072, "k": 1536, "seed": 1236}
   - {"m": 64, "n": 576, "k": 7168, "seed": 542}
