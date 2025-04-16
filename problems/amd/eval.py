@@ -211,7 +211,7 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
     output = custom_kernel(data)
     good, message = wrap_check_implementation(check_copy, output)
     if not good:
-        return False, message
+        return message
 
     # now, do multiple timing runs without further correctness testing
     # there is an upper bound of 100 runs, and a lower bound of 3 runs;
@@ -235,14 +235,14 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
         if recheck:
             good, message = check_implementation(check_copy, output)
             if not good:
-                return False, message
+                return message
 
         del output
         durations.append(end-start)
 
         if i > 1:
             stats = calculate_stats(durations)
-            if stats.err / stats.mean < 0.01 or stats.mean * stats.runs > max_time_ns:
+            if stats.err / stats.mean < 0.001 or stats.mean * stats.runs > max_time_ns:
                 break
 
     return calculate_stats(durations)
