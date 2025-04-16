@@ -326,7 +326,7 @@ async def lang_autocomplete(
 def add_header_to_template(lang: str, lb: LeaderboardItem):
     template_file = lb["task"].templates[lang]
 
-    comment_char = {"CUDA": "//", "Python": "#", "Triton": "#"}[lang]
+    comment_char = {"CUDA": "//", "Python": "#", "Triton": "#", "HIP": "#"}[lang]
 
     description_comment = [
         f"{comment_char} > {line}" for line in lb["task"].description.splitlines()
