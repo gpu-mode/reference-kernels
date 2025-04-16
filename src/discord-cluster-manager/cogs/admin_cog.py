@@ -518,6 +518,7 @@ class AdminCog(commands.Cog):
         repository_name: Optional[str] = None,
         problem_set: Optional[str] = None,
         branch: Optional[str] = "main",
+        force: bool = False,
     ):
         is_admin = await self.admin_check(interaction)
         if not is_admin:
@@ -565,6 +566,13 @@ class AdminCog(commands.Cog):
             # OK, we have the problems. Go over them one-by-one
             problem_dir = Path(temp_dir) / folder_name / "problems"
             if problem_set is None:
+                if force:
+                    await send_discord_message(
+                        interaction,
+                        "Cannot use force without specifying problem set",
+                        ephemeral=True,
+                    )
+                    return
                 for competition in problem_dir.glob("*.yaml"):
                     await self.update_competition(interaction, competition)
             else:
@@ -579,10 +587,14 @@ class AdminCog(commands.Cog):
                         ephemeral=True,
                     )
                     return
-                await self.update_competition(interaction, problem_set)
+                await self.update_competition(interaction, problem_set, force)
 
     async def _create_update_plan(  # noqa: C901
-        self, interaction: discord.Interaction, competition: CompetitionData, root: Path
+        self,
+        interaction: discord.Interaction,
+        competition: CompetitionData,
+        root: Path,
+        force: bool,
     ):
         update_list = []
         create_list = []
@@ -622,6 +634,10 @@ class AdminCog(commands.Cog):
                     continue
                 elif old["task"] != new_task:
                     ot = old["task"]
+                    # TODO improve this! force should require confirmation.
+                    if force:
+                        update_list.append(problem)
+                        continue
                     # now look what precisely has changed. For the moment, disallow anything
                     # that would require us to do more careful task versioning;
                     # we can only change things that have no bearing on existing
@@ -676,7 +692,9 @@ class AdminCog(commands.Cog):
 
         return update_list, create_list
 
-    async def update_competition(self, interaction: discord.Interaction, spec_file: Path):
+    async def update_competition(
+        self, interaction: discord.Interaction, spec_file: Path, force: bool = False
+    ):
         try:
             root = spec_file.parent
             with open(spec_file) as f:
@@ -686,7 +704,7 @@ class AdminCog(commands.Cog):
             await send_discord_message(interaction, header)
 
             update_list, create_list = await self._create_update_plan(
-                interaction, competition, root
+                interaction, competition, root, force
             )
 
             # OK, now we know what we want to do
