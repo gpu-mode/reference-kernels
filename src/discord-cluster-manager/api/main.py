@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import datetime
 import json
 import os
 import time
@@ -8,12 +9,20 @@ from typing import Annotated, Optional
 
 from consts import SubmissionMode
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from submission import SubmissionRequest
 from utils import LeaderboardRankedEntry
 
 from .utils import _handle_discord_oauth, _handle_github_oauth, _run_submission
 
 app = FastAPI()
+
+
+def json_serializer(obj):
+    """JSON serializer for objects not serializable by default json code"""
+    if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
 
 
 bot_instance = None
@@ -213,15 +222,75 @@ async def cli_auth(auth_provider: str, code: str, state: str):  # noqa: C901
     }
 
 
+async def _stream_submission_response(
+    submission_request, user_info, submission_mode_enum, bot_instance
+):
+    start_time = time.time()
+    task: asyncio.Task | None = None
+    try:
+        task = asyncio.create_task(
+            _run_submission(
+                submission_request,
+                user_info,
+                submission_mode_enum,
+                bot_instance,
+            )
+        )
+
+        while not task.done():
+            elapsed_time = time.time() - start_time
+            yield f"event: status\ndata: {json.dumps({'status': 'processing',
+                                                      'elapsed_time': round(elapsed_time, 2)}
+                                                      ,default=json_serializer)}\n\n"
+
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=15.0)
+            except asyncio.TimeoutError:
+                continue
+            except asyncio.CancelledError:
+                yield f"event: error\ndata: {json.dumps(
+                    {'status': 'error', 'detail': 'Submission cancelled'},
+                    default=json_serializer)}\n\n"
+                return
+
+        result = await task
+        result_data = {"status": "success", "results": [asdict(r) for r in result]}
+        yield f"event: result\ndata: {json.dumps(result_data, default=json_serializer)}\n\n"
+
+    except HTTPException as http_exc:
+        error_data = {
+            "status": "error",
+            "detail": http_exc.detail,
+            "status_code": http_exc.status_code,
+        }
+        yield f"event: error\ndata: {json.dumps(error_data, default=json_serializer)}\n\n"
+    except Exception as e:
+        error_type = type(e).__name__
+        error_data = {
+            "status": "error",
+            "detail": f"An unexpected error occurred: {error_type}",
+            "raw_error": str(e),
+        }
+        yield f"event: error\ndata: {json.dumps(error_data, default=json_serializer)}\n\n"
+    finally:
+        if task and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+
 @app.post("/{leaderboard_name}/{gpu_type}/{submission_mode}")
 async def run_submission(  # noqa: C901
     leaderboard_name: str,
     gpu_type: str,
     submission_mode: str,
     file: UploadFile,
-    user_info: Annotated[dict, Depends(validate_cli_header)],  # Apply dependency
-) -> dict:
+    user_info: Annotated[dict, Depends(validate_cli_header)],
+) -> StreamingResponse:
     """An endpoint that runs a submission on a given leaderboard, runner, and GPU type.
+    Streams status updates and the final result via Server-Sent Events (SSE).
 
     Requires a valid X-Popcorn-Cli-Id header.
 
@@ -236,64 +305,118 @@ async def run_submission(  # noqa: C901
         HTTPException: If the bot is not initialized, or header/input is invalid.
 
     Returns:
-        dict: A dictionary containing the status of the submission and the result.
-        See class `FullResult` for more details.
+        StreamingResponse: A streaming response containing the status and results of the submission.
     """
     await simple_rate_limit()
     user_name = user_info["user_name"]
     user_id = user_info["user_id"]
 
-    submission_mode_enum: SubmissionMode = SubmissionMode(submission_mode.lower())
-    if submission_mode_enum in [SubmissionMode.PROFILE]:
-        raise HTTPException(status_code=400, detail="Profile submissions are not supported yet")
+    try:
+        submission_mode_enum: SubmissionMode = SubmissionMode(submission_mode.lower())
+    except ValueError:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid submission mode value: '{submission_mode}'"
+        ) from None
 
-    if submission_mode_enum not in [
+    if submission_mode_enum in [SubmissionMode.PROFILE]:
+        raise HTTPException(
+            status_code=400, detail="Profile submissions are not currently supported via API"
+        )
+
+    allowed_modes = [
         SubmissionMode.TEST,
         SubmissionMode.BENCHMARK,
         SubmissionMode.SCRIPT,
         SubmissionMode.LEADERBOARD,
-    ]:
-        raise HTTPException(status_code=400, detail="Invalid submission mode")
+    ]
+    if submission_mode_enum not in allowed_modes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Submission mode '{submission_mode}' is not supported for this endpoint",
+        )
 
     if not bot_instance:
-        raise HTTPException(status_code=500, detail="Bot not initialized")
+        raise HTTPException(
+            status_code=503, detail="Service temporarily unavailable: Bot not initialized"
+        )
 
     try:
         with bot_instance.leaderboard_db as db:
             if db is None:
-                raise HTTPException(status_code=500, detail="Database connection failed")
-            if not (leaderboard_item := db.get_leaderboard(leaderboard_name)):
-                raise HTTPException(status_code=400, detail="Invalid leaderboard name")
-
-            gpus = leaderboard_item["gpu_types"]
-            if gpu_type not in gpus:
                 raise HTTPException(
-                    status_code=400, detail="This GPU is not supported for this leaderboard"
+                    status_code=503,
+                    detail="Service temporarily unavailable: Database connection failed",
                 )
+            leaderboard_item = db.get_leaderboard(leaderboard_name)
+            if not leaderboard_item:
+                all_leaderboards = [lb["name"] for lb in db.get_leaderboards()]
+                if leaderboard_name not in all_leaderboards:
+                    raise HTTPException(
+                        status_code=404, detail=f"Leaderboard '{leaderboard_name}' not found."
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Error retrieving details for leaderboard '{leaderboard_name}'.",
+                    )
+
+            gpus = leaderboard_item.get("gpu_types", [])
+            if gpu_type not in gpus:
+                supported_gpus = ", ".join(gpus) if gpus else "None"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"GPU type '{gpu_type}' is not supported for "
+                    f"leaderboard '{leaderboard_name}'. Supported GPUs: {supported_gpus}",
+                )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching leaderboard data: {e}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Internal server error while validating leaderboard/GPU: {e}"
+        ) from e
 
     try:
         submission_content = await file.read()
+        if not submission_content:
+            raise HTTPException(
+                status_code=400, detail="Empty file submitted. Please provide a file with code."
+            )
+        if len(submission_content) > 1_000_000:
+            raise HTTPException(
+                status_code=413, detail="Submission file is too large (limit: 1MB)."
+            )
+
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error building task config: {e}") from e
+        raise HTTPException(status_code=400, detail=f"Error reading submission file: {e}") from e
 
-    submission_request = SubmissionRequest(
-        code=submission_content.decode("utf-8"),
-        file_name=file.filename,
-        user_id=user_id,
-        gpus=[gpu_type],
-        leaderboard=leaderboard_name,
+    try:
+        submission_code = submission_content.decode("utf-8")
+        submission_request = SubmissionRequest(
+            code=submission_code,
+            file_name=file.filename or "submission.py",
+            user_id=user_id,
+            gpus=[gpu_type],
+            leaderboard=leaderboard_name,
+        )
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=400, detail="Failed to decode submission file content as UTF-8."
+        ) from None
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Internal server error creating submission request: {e}"
+        ) from e
+
+    generator = _stream_submission_response(
+        submission_request=submission_request,
+        user_info={"user_id": user_id, "user_name": user_name},
+        submission_mode_enum=submission_mode_enum,
+        bot_instance=bot_instance,
     )
 
-    result = await _run_submission(
-        submission_request,
-        {"user_id": user_id, "user_name": user_name},
-        submission_mode_enum,
-        bot_instance,
-    )
-
-    return {"status": "success", "results": [asdict(r) for r in result]}
+    return StreamingResponse(generator, media_type="text/event-stream")
 
 
 @app.get("/leaderboards")
