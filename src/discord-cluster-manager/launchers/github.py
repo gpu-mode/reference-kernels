@@ -165,7 +165,7 @@ class GitHubRun:
             raise ValueError(f"Could not find workflow {self.workflow_file}") from e
 
         branch_name = get_github_branch_name()
-        logger.debug(
+        logger.info(
             "Dispatching workflow %s on branch %s with inputs %s",
             self.workflow_file,
             branch_name,
@@ -174,6 +174,7 @@ class GitHubRun:
         success = await asyncio.to_thread(workflow.create_dispatch, branch_name, inputs=inputs)
 
         if success:
+            logger.info("Waiting for workflow to start...")
             await asyncio.sleep(2)
 
             def get_runs_sync():
