@@ -165,7 +165,7 @@ class GitHubRun:
             raise ValueError(f"Could not find workflow {self.workflow_file}") from e
 
         branch_name = get_github_branch_name()
-        logger.info(
+        logger.debug(
             "Dispatching workflow %s on branch %s with inputs %s",
             self.workflow_file,
             branch_name,
@@ -174,20 +174,56 @@ class GitHubRun:
         success = await asyncio.to_thread(workflow.create_dispatch, branch_name, inputs=inputs)
 
         if success:
-            logger.info("Waiting for workflow to start...")
-            await asyncio.sleep(2)
+            wait_seconds = 5
+            logger.info(
+                f"Workflow dispatch successful. Waiting {wait_seconds}s for the run to appear..."
+            )
+            await asyncio.sleep(wait_seconds)
+            recent_runs_paginated = await asyncio.to_thread(
+                workflow.get_runs, event="workflow_dispatch"
+            )
 
-            def get_runs_sync():
-                paginated_list = workflow.get_runs()
-                return list(paginated_list)
+            logger.info(
+                f"Checking recent workflow_dispatch runs after {trigger_time.isoformat()}..."
+            )
+            found_run = None
+            runs_checked = 0
+            try:
+                run_iterator = recent_runs_paginated.__iter__()
+                while runs_checked < 50:
+                    try:
+                        run = next(run_iterator)
+                        runs_checked += 1
+                        logger.debug(
+                            f"Checking run {run.id} created at {run.created_at.isoformat()}"
+                        )
+                        if run.created_at.replace(tzinfo=datetime.timezone.utc) > trigger_time:
+                            found_run = run
+                            logger.info(f"Found matching workflow run: ID {found_run.id}")
+                            break
+                        else:
+                            logger.info(f"Run {run.id} is older than trigger time, stopping check.")
+                            break
+                    except StopIteration:
+                        logger.debug("Reached end of recent runs list.")
+                        break
+            except Exception as e:
+                logger.error(f"Error iterating through recent runs: {e}", exc_info=True)
+                return False
 
-            runs_list = await asyncio.to_thread(get_runs_sync)
-
-            for run in runs_list:
-                if run.created_at.replace(tzinfo=datetime.timezone.utc) > trigger_time:
-                    self.run = run
-                    return True
-        return False
+            if found_run:
+                self.run = found_run
+                return True
+            else:
+                logger.warning(
+                    f"Could not find a workflow run created after {trigger_time.isoformat()}."
+                )
+                return False
+        else:
+            logger.error(
+                f"Failed to dispatch workflow {self.workflow_file} on branch {branch_name}."
+            )
+            return False
 
     async def wait_for_completion(
         self, callback: Callable[["GitHubRun"], Awaitable[None]], timeout_minutes: int = 5
