@@ -52,6 +52,7 @@ class GitHubLauncher(Launcher):
 
         logger.info(f"Attempting to trigger GitHub action for {lang_name} on {selected_workflow}")
         run = GitHubRun(self.repo, self.token, selected_workflow)
+        logger.info(f"Successfully created GitHub run: {run.run_id}")
 
         payload = json.dumps(config)
 
@@ -68,9 +69,12 @@ class GitHubLauncher(Launcher):
                 )
 
         await status.push("⏳ Waiting for workflow to start...")
+        logger.info("Waiting for workflow to start...")
         await run.wait_for_completion(lambda x: self.wait_callback(x, status))
         await status.update(f"Workflow [{run.run_id}]({run.html_url}) completed")
+        logger.info(f"Workflow [{run.run_id}]({run.html_url}) completed")
         await status.push("Downloading artifacts...")
+        logger.info("Downloading artifacts...")
 
         artifacts = await run.download_artifacts()
         if "run-result" not in artifacts:
@@ -83,6 +87,7 @@ class GitHubLauncher(Launcher):
         logs = artifacts["run-result"]["result.json"].decode("utf-8")
 
         await status.update("Downloading artifacts... done")
+        logger.info("Downloading artifacts... done")
 
         data = json.loads(logs)
         runs = {}
@@ -223,7 +228,7 @@ class GitHubRun:
                     return
 
                 await callback(self)
-                await asyncio.sleep(10)  # Yield control while waiting
+                await asyncio.sleep(20)  # Yield control while waiting
             except TimeoutError:
                 raise  # Re-raise the specific TimeoutError from the timeout block
             except Exception as e:
