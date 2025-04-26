@@ -93,6 +93,7 @@ class SubmitCog(commands.Cog):
             name=name,
             task=task,
             mode=mode,
+            submission_id=submission_id,
         )
 
         if result.success:
@@ -183,6 +184,7 @@ class SubmitCog(commands.Cog):
         name: str,
         task: Optional[LeaderboardTask],
         mode: SubmissionMode,
+        submission_id: int = -1,
     ) -> Optional[FullResult]:
         """
         Generic function to handle code submissions.
@@ -192,6 +194,7 @@ class SubmitCog(commands.Cog):
             code: Submitted code
             name: File name of the submission; used to infer code's language
             task: Task specification, of provided
+            submission_id: ID of the submission, only used for display purposes
 
         Returns:
             if successful, returns the result of the run.
@@ -212,15 +215,17 @@ class SubmitCog(commands.Cog):
         else:
             await reporter.update_title(reporter.title + " ✅ success")
 
-        await reporter.push(
-            make_short_report(
-                result.runs, full=mode in [SubmissionMode.PRIVATE, SubmissionMode.LEADERBOARD]
-            )
+        short_report = make_short_report(
+            result.runs, full=mode in [SubmissionMode.PRIVATE, SubmissionMode.LEADERBOARD]
         )
+        await reporter.push(short_report)
         if mode != SubmissionMode.PRIVATE:
             try:
+                # does the last message of the short report start with ✅ or ❌?
+                verdict = short_report[-1][0]
+                id_str = f"{verdict}" if submission_id == -1 else f"{verdict} #{submission_id}"
                 await reporter.generate_report(
-                    f"{name} on {gpu_type.name} ({launcher.name})", result.runs
+                    f"{id_str} {name} on {gpu_type.name} ({launcher.name})", result.runs
                 )
             except Exception as E:
                 logger.error("Error generating report. Result: %s", result, exc_info=E)
