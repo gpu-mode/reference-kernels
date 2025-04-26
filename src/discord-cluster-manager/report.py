@@ -346,30 +346,9 @@ class MultiProgressReporter:
 
 
 class RunProgressReporter:
-    async def push(self, content: str | list[str]):
-        raise NotImplementedError()
-
-    async def update(self, new_content: str):
-        raise NotImplementedError()
-
-    async def update_title(self, new_title):
-        raise NotImplementedError()
-
-    async def generate_report(self, title: str, runs: dict[str, EvalResult]):
-        raise NotImplementedError()
-
-
-class RunProgressReporterDiscord(RunProgressReporter):
-    def __init__(
-        self,
-        root: MultiProgressReporter,
-        interaction: discord.Interaction,
-        title: str,
-    ):
+    def __init__(self, title: str):
         self.title = title
         self.lines = []
-        self.root = root
-        self.interaction = interaction
 
     async def push(self, content: str | list[str]):
         if isinstance(content, str):
@@ -387,11 +366,29 @@ class RunProgressReporterDiscord(RunProgressReporter):
         self.title = new_title
         await self._update_message()
 
-    async def _update_message(self):
-        await self.root._update_message()
-
     def get_message(self):
         return str.join("\n", [f"**{self.title}**"] + self.lines)
+
+    async def generate_report(self, title: str, runs: dict[str, EvalResult]):
+        raise NotImplementedError()
+
+    async def _update_message(self):
+        raise NotImplementedError()
+
+
+class RunProgressReporterDiscord(RunProgressReporter):
+    def __init__(
+        self,
+        root: MultiProgressReporter,
+        interaction: discord.Interaction,
+        title: str,
+    ):
+        super().__init__(title=title)
+        self.root = root
+        self.interaction = interaction
+
+    async def _update_message(self):
+        await self.root._update_message()
 
     async def generate_report(self, title: str, runs: dict[str, EvalResult]):
         thread = await self.interaction.channel.create_thread(
@@ -405,17 +402,10 @@ class RunProgressReporterDiscord(RunProgressReporter):
 
 
 class RunProgressReporterAPI(RunProgressReporter):
-    def __init__(self):
-        self.title = ""
-        self.lines = []
+    def __init__(self, title: str):
+        super().__init__(title=title)
 
-    async def push(self, content: str | list[str]):
-        pass
-
-    async def update(self, new_content: str):
-        pass
-
-    async def update_title(self, new_title):
+    async def _update_message(self):
         pass
 
     async def generate_report(self, title: str, runs: dict[str, EvalResult]):
