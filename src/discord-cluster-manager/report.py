@@ -113,6 +113,20 @@ async def _generate_test_report(thread: discord.Thread, run: RunResult):
     return
 
 
+def _short_fail_reason(run: RunResult):
+    """
+    Translate the exit code of `run` into a short error identifier.
+    """
+    if run.exit_code == consts.ExitCode.TIMEOUT_EXPIRED:
+        return " (timeout)"
+    elif run.exit_code == consts.ExitCode.CUDA_FAIL:
+        return " (cuda api error)"
+    elif run.exit_code != consts.ExitCode.VALIDATE_FAIL:
+        return f" (internal error {run.exit_code})"
+    else:
+        return ""
+
+
 def make_short_report(runs: dict[str, EvalResult], full=True) -> list[str]:  # noqa: C901
     """
     Creates a minimalistic report for `runs`,
@@ -132,7 +146,7 @@ def make_short_report(runs: dict[str, EvalResult], full=True) -> list[str]:  # n
     if "test" in runs:
         test_run = runs["test"].run
         if not test_run.success:
-            result.append("❌ Running tests failed")
+            result.append("❌ Running tests failed" + _short_fail_reason(test_run))
             return result
         elif not test_run.passed:
             result.append("❌ Testing failed")
@@ -145,7 +159,7 @@ def make_short_report(runs: dict[str, EvalResult], full=True) -> list[str]:  # n
     if "benchmark" in runs:
         bench_run = runs["benchmark"].run
         if not bench_run.success:
-            result.append("❌ Running benchmarks failed")
+            result.append("❌ Running benchmarks failed" + _short_fail_reason(bench_run))
             return result
         elif not bench_run.passed:
             result.append("❌ Benchmarking failed")
@@ -158,7 +172,7 @@ def make_short_report(runs: dict[str, EvalResult], full=True) -> list[str]:  # n
     if "leaderboard" in runs:
         lb_run = runs["leaderboard"].run
         if not lb_run.success:
-            result.append("❌ Running leaderboard failed")
+            result.append("❌ Running leaderboard failed" + _short_fail_reason(lb_run))
         elif not lb_run.passed:
             result.append("❌ Leaderboard run failed")
         else:
