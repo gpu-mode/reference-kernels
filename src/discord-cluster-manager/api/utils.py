@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime
+from typing import List
 
 import requests
 from consts import SubmissionMode, get_gpu_by_name
@@ -179,6 +180,13 @@ async def _run_submission(
 
     gpu = selected_gpus[0]
 
+    reporters: List[RunProgressReporterAPI] = []
+
+    def add_reporter(title: str):
+        rep = RunProgressReporterAPI(title)
+        reporters.append(rep)
+        return rep
+
     try:
         tasks = [
             command(
@@ -186,7 +194,7 @@ async def _run_submission(
                 submission.code,
                 submission.file_name,
                 gpu,
-                RunProgressReporterAPI(f"{gpu.name} on {gpu.runner}"),
+                add_reporter(f"{gpu.name} on {gpu.runner}"),
                 req.task,
                 mode,
                 None,
@@ -200,7 +208,7 @@ async def _run_submission(
                     submission.code,
                     submission.file_name,
                     gpu,
-                    RunProgressReporterAPI(f"{gpu.name} on {gpu.runner} (secret)"),
+                    add_reporter(f"{gpu.name} on {gpu.runner} (secret)"),
                     req.task,
                     SubmissionMode.PRIVATE,
                     req.secret_seed,
@@ -212,4 +220,4 @@ async def _run_submission(
         with bot.leaderboard_db as db:
             db.mark_submission_done(sub_id)
 
-    return results
+    return results, [rep.get_message() + "\n" + rep.long_report for rep in reporters]

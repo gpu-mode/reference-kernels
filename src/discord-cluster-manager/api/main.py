@@ -253,8 +253,12 @@ async def _stream_submission_response(
                     default=json_serializer)}\n\n"
                 return
 
-        result = await task
-        result_data = {"status": "success", "results": [asdict(r) for r in result]}
+        result, reports = await task
+        result_data = {
+            "status": "success",
+            "results": [asdict(r) for r in result],
+            "reports": reports,
+        }
         yield f"event: result\ndata: {json.dumps(result_data, default=json_serializer)}\n\n"
 
     except HTTPException as http_exc:
