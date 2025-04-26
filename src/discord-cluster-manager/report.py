@@ -1,3 +1,6 @@
+import dataclasses
+from typing import List
+
 import consts
 import discord
 from run_eval import CompileResult, EvalResult, RunResult
@@ -43,13 +46,35 @@ async def _send_split_log(thread: discord.Thread, partial_message: str, header: 
         return ""
 
 
-async def _generate_compile_report(thread: discord.Thread, comp: CompileResult):
+@dataclasses.dataclass
+class Text:
+    text: str
+
+
+@dataclasses.dataclass
+class Log:
+    header: str
+    content: str
+
+
+class RunResultReport:
+    def __init__(self):
+        self.data: List[Text | Log] = []
+
+    def add_text(self, section: str):
+        self.data.append(Text(section))
+
+    def add_log(self, header: str, log: str):
+        self.data.append(Log(header, log))
+
+
+def _generate_compile_report(reporter: "RunResultReport", comp: CompileResult):
     message = ""
     if not comp.nvcc_found:
         message += "# Compilation failed\nNVCC could not be found.\n"
         message += "This indicates a bug in the runner configuration, _not in your code_.\n"
         message += "Please notify the server admins of this problem"
-        await thread.send(message)
+        reporter.add_text(message)
         return
 
     # ok, we found nvcc
@@ -57,17 +82,15 @@ async def _generate_compile_report(thread: discord.Thread, comp: CompileResult):
     message += "Command "
     message += f"```bash\n>{_limit_length(comp.command, 1000)}```\n"
     message += f"exited with code **{comp.exit_code}**."
+    reporter.add_text(message)
 
-    message = await _send_split_log(thread, message, "Compiler stderr", comp.stderr.strip())
+    reporter.add_log("Compiler stderr", comp.stderr.strip())
 
     if len(comp.stdout.strip()) > 0:
-        message = await _send_split_log(thread, message, "Compiler stdout", comp.stdout.strip())
-
-    if len(message) != 0:
-        await thread.send(message)
+        reporter.add_log("Compiler stdout", comp.stdout.strip())
 
 
-async def _generate_crash_report(thread: discord.Thread, run: RunResult):
+def _generate_crash_report(reporter: "RunResultReport", run: RunResult):
     message = "# Running failed\n"
     message += "Command "
     message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
@@ -77,40 +100,30 @@ async def _generate_crash_report(thread: discord.Thread, run: RunResult):
         message += (
             f"exited with error code **{run.exit_code}** after {float(run.duration):.2f} seconds."
         )
+    reporter.add_text(message)
 
     if len(run.stderr.strip()) > 0:
-        message = await _send_split_log(thread, message, "Program stderr", run.stderr.strip())
+        reporter.add_log("Program stderr", run.stderr.strip())
 
     if len(run.stdout.strip()) > 0:
-        message = await _send_split_log(thread, message, "Program stdout", run.stdout.strip())
-
-    if len(message) != 0:
-        await thread.send(message)
+        reporter.add_log("Program stdout", run.stdout.strip())
 
 
-async def _generate_test_report(thread: discord.Thread, run: RunResult):
+def _generate_test_report(reporter: "RunResultReport", run: RunResult):
     message = "# Testing failed\n"
     message += "Command "
     message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
     message += f"ran successfully in {run.duration:.2f} seconds, but did not pass all tests.\n"
+    reporter.add_text(message)
 
     # Generate a test
-    message = await _send_split_log(
-        thread,
-        message,
-        "Test log",
-        make_test_log(run),
-    )
+    reporter.add_log("Test log", make_test_log(run))
 
     if len(run.stderr.strip()) > 0:
-        message = await _send_split_log(thread, message, "Program stderr", run.stderr.strip())
+        reporter.add_log("Program stderr", run.stderr.strip())
 
     if len(run.stdout.strip()) > 0:
-        message = await _send_split_log(thread, message, "Program stdout", run.stdout.strip())
-
-    if len(message) != 0:
-        await thread.send(message)
-    return
+        reporter.add_log("Program stdout", run.stdout.strip())
 
 
 def _short_fail_reason(run: RunResult):
@@ -237,49 +250,39 @@ def make_benchmark_log(run: RunResult) -> str:
         return "❗ Could not find any benchmarks"
 
 
-async def generate_report(thread: discord.Thread, runs: dict[str, EvalResult]):  # noqa: C901
-    message = ""
-
+def generate_report(reporter: "RunResultReport", runs: dict[str, EvalResult]):  # noqa: C901
     if "test" in runs:
         test_run = runs["test"]
 
         if test_run.compilation is not None and not test_run.compilation.success:
-            await _generate_compile_report(thread, test_run.compilation)
+            _generate_compile_report(reporter, test_run.compilation)
             return
 
         test_run = test_run.run
 
         if not test_run.success:
-            await _generate_crash_report(thread, test_run)
+            _generate_crash_report(reporter, test_run)
             return
 
         if not test_run.passed:
-            await _generate_test_report(thread, test_run)
+            _generate_test_report(reporter, test_run)
             return
         else:
             num_tests = int(test_run.result.get("test-count", 0))
-
-            message = await _send_split_log(
-                thread,
-                message,
-                f"✅ Passed {num_tests}/{num_tests} tests",
-                make_test_log(test_run),
-            )
+            reporter.add_log(f"✅ Passed {num_tests}/{num_tests} tests", make_test_log(test_run))
 
     if "benchmark" in runs:
         bench_run = runs["benchmark"]
         if bench_run.compilation is not None and not bench_run.compilation.success:
-            await _generate_compile_report(thread, bench_run.compilation)
+            _generate_compile_report(reporter, bench_run.compilation)
             return
 
         bench_run = bench_run.run
         if not bench_run.success:
-            await _generate_crash_report(thread, bench_run)
+            _generate_crash_report(reporter, bench_run)
             return
 
-        message = await _send_split_log(
-            thread,
-            message,
+        reporter.add_log(
             "Benchmarks",
             make_benchmark_log(bench_run),
         )
@@ -287,17 +290,15 @@ async def generate_report(thread: discord.Thread, runs: dict[str, EvalResult]): 
     if "leaderboard" in runs:
         bench_run = runs["leaderboard"]
         if bench_run.compilation is not None and not bench_run.compilation.success:
-            await _generate_compile_report(thread, bench_run.compilation)
+            _generate_compile_report(reporter, bench_run.compilation)
             return
 
         bench_run = bench_run.run
         if not bench_run.success:
-            await _generate_crash_report(thread, bench_run)
+            _generate_crash_report(reporter, bench_run)
             return
 
-        message = await _send_split_log(
-            thread,
-            message,
+        reporter.add_log(
             "Ranked Benchmark",
             make_benchmark_log(bench_run),
         )
@@ -305,30 +306,24 @@ async def generate_report(thread: discord.Thread, runs: dict[str, EvalResult]): 
     if "script" in runs:
         run = runs["script"]
         if run.compilation is not None and not run.compilation.success:
-            await _generate_compile_report(thread, run.compilation)
+            _generate_compile_report(reporter, run.compilation)
             return
 
         run = run.run
         # OK, we were successful
-        message += "# Success!\n"
+        message = "# Success!\n"
         message += "Command "
         message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
         message += f"ran successfully in {run.duration:.2} seconds.\n"
+        reporter.add_text(message)
 
     if len(runs) == 1:
         run = next(iter(runs.values()))
         if len(run.run.stderr.strip()) > 0:
-            message = await _send_split_log(
-                thread, message, "Program stderr", run.run.stderr.strip()
-            )
+            reporter.add_log("Program stderr", run.run.stderr.strip())
 
         if len(run.run.stdout.strip()) > 0:
-            message = await _send_split_log(
-                thread, message, "Program stdout", run.run.stdout.strip()
-            )
-
-    if len(message) != 0:
-        await thread.send(message)
+            reporter.add_log("Program stdout", run.run.stdout.strip())
 
 
 class MultiProgressReporter:
@@ -361,6 +356,7 @@ class MultiProgressReporter:
 
 class RunProgressReporter:
     def __init__(self, title: str):
+        # short report
         self.title = title
         self.lines = []
 
@@ -411,7 +407,21 @@ class RunProgressReporterDiscord(RunProgressReporter):
             auto_archive_duration=1440,
         )
         await thread.add_user(self.interaction.user)
-        await generate_report(thread, runs)
+        report = RunResultReport()
+        generate_report(report, runs)
+        message = ""
+        for part in report.data:
+            if isinstance(part, Text):
+                if len(message) + len(part.text) > 1900:
+                    await thread.send(message)
+                    message = ""
+                message += part.text
+            elif isinstance(part, Log):
+                message = await _send_split_log(thread, message, part.header, part.content)
+
+        if len(message) > 0:
+            await thread.send(message)
+
         await self.push(f"See results at {thread.jump_url}")
 
 
