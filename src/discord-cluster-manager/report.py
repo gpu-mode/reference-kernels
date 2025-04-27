@@ -339,7 +339,7 @@ def generate_report(result: FullResult) -> RunResultReport:  # noqa: C901
         message = "# Success!\n"
         message += "Command "
         message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
-        message += f"ran successfully in {run.duration:.2} seconds.\n"
+        message += f"ran successfully in {run.duration:.2f} seconds.\n"
         report.add_text(message)
 
     if len(runs) == 1:
