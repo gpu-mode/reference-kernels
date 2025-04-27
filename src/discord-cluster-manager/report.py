@@ -48,11 +48,22 @@ async def _send_split_log(thread: discord.Thread, partial_message: str, header: 
 
 @dataclasses.dataclass
 class Text:
+    """
+    Text represents markdown-formatted text to be added to the report.
+    """
     text: str
 
 
 @dataclasses.dataclass
 class Log:
+    """
+    Log represents a potentially extensive log of some operation, such as
+    stdout/stderr of the compiler or tester script.
+    Logs will be automatically wrapped in code blocks, and prefixed with
+    the given header. If `content` is too long to fit into a single discord
+    message, it can be broken up automatically (and reasonably) into multiple
+    smaller messages.
+    """
     header: str
     content: str
 
