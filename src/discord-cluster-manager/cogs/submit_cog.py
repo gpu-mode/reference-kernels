@@ -225,7 +225,7 @@ class SubmitCog(commands.Cog):
                 verdict = short_report[-1][0]
                 id_str = f"{verdict}" if submission_id == -1 else f"{verdict} #{submission_id}"
                 await reporter.generate_report(
-                    f"{id_str} {name} on {gpu_type.name} ({launcher.name})", result.runs
+                    f"{id_str} {name} on {gpu_type.name} ({launcher.name})", result
                 )
             except Exception as E:
                 logger.error("Error generating report. Result: %s", result, exc_info=E)

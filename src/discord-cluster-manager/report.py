@@ -3,7 +3,7 @@ from typing import List
 
 import consts
 import discord
-from run_eval import CompileResult, EvalResult, RunResult
+from run_eval import CompileResult, EvalResult, FullResult, RunResult, SystemInfo
 from utils import format_time
 
 
@@ -250,6 +250,16 @@ def make_benchmark_log(run: RunResult) -> str:
         return "❗ Could not find any benchmarks"
 
 
+def generate_system_info(system: SystemInfo):
+    return f"""
+Running on:
+* GPU: `{system.gpu}`
+* CPU: `{system.cpu}`
+* Platform: `{system.platform}`
+* Torch: `{system.torch}`
+"""
+
+
 def generate_report(reporter: "RunResultReport", runs: dict[str, EvalResult]):  # noqa: C901
     if "test" in runs:
         test_run = runs["test"]
@@ -379,7 +389,7 @@ class RunProgressReporter:
     def get_message(self):
         return str.join("\n", [f"**{self.title}**"] + self.lines)
 
-    async def generate_report(self, title: str, runs: dict[str, EvalResult]):
+    async def generate_report(self, title: str, result: FullResult):
         raise NotImplementedError()
 
     async def _update_message(self):
@@ -400,7 +410,7 @@ class RunProgressReporterDiscord(RunProgressReporter):
     async def _update_message(self):
         await self.root._update_message()
 
-    async def generate_report(self, title: str, runs: dict[str, EvalResult]):
+    async def generate_report(self, title: str, result: FullResult):
         thread = await self.interaction.channel.create_thread(
             name=title,
             type=discord.ChannelType.private_thread,
@@ -408,7 +418,8 @@ class RunProgressReporterDiscord(RunProgressReporter):
         )
         await thread.add_user(self.interaction.user)
         report = RunResultReport()
-        generate_report(report, runs)
+        report.add_text(generate_system_info(result.system))
+        generate_report(report, result.runs)
         message = ""
         for part in report.data:
             if isinstance(part, Text):
