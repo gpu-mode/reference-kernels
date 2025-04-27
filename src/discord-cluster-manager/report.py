@@ -260,39 +260,43 @@ Running on:
 """
 
 
-def generate_report(reporter: "RunResultReport", runs: dict[str, EvalResult]):  # noqa: C901
+def generate_report(result: FullResult) -> RunResultReport:  # noqa: C901
+    runs = result.runs
+    report = RunResultReport()
+    report.add_text(generate_system_info(result.system))
+
     if "test" in runs:
         test_run = runs["test"]
 
         if test_run.compilation is not None and not test_run.compilation.success:
-            _generate_compile_report(reporter, test_run.compilation)
-            return
+            _generate_compile_report(report, test_run.compilation)
+            return report
 
         test_run = test_run.run
 
         if not test_run.success:
-            _generate_crash_report(reporter, test_run)
-            return
+            _generate_crash_report(report, test_run)
+            return report
 
         if not test_run.passed:
-            _generate_test_report(reporter, test_run)
-            return
+            _generate_test_report(report, test_run)
+            return report
         else:
             num_tests = int(test_run.result.get("test-count", 0))
-            reporter.add_log(f"✅ Passed {num_tests}/{num_tests} tests", make_test_log(test_run))
+            report.add_log(f"✅ Passed {num_tests}/{num_tests} tests", make_test_log(test_run))
 
     if "benchmark" in runs:
         bench_run = runs["benchmark"]
         if bench_run.compilation is not None and not bench_run.compilation.success:
-            _generate_compile_report(reporter, bench_run.compilation)
-            return
+            _generate_compile_report(report, bench_run.compilation)
+            return report
 
         bench_run = bench_run.run
         if not bench_run.success:
-            _generate_crash_report(reporter, bench_run)
-            return
+            _generate_crash_report(report, bench_run)
+            return report
 
-        reporter.add_log(
+        report.add_log(
             "Benchmarks",
             make_benchmark_log(bench_run),
         )
@@ -300,15 +304,15 @@ def generate_report(reporter: "RunResultReport", runs: dict[str, EvalResult]):  
     if "leaderboard" in runs:
         bench_run = runs["leaderboard"]
         if bench_run.compilation is not None and not bench_run.compilation.success:
-            _generate_compile_report(reporter, bench_run.compilation)
-            return
+            _generate_compile_report(report, bench_run.compilation)
+            return report
 
         bench_run = bench_run.run
         if not bench_run.success:
-            _generate_crash_report(reporter, bench_run)
-            return
+            _generate_crash_report(report, bench_run)
+            return report
 
-        reporter.add_log(
+        report.add_log(
             "Ranked Benchmark",
             make_benchmark_log(bench_run),
         )
@@ -316,8 +320,8 @@ def generate_report(reporter: "RunResultReport", runs: dict[str, EvalResult]):  
     if "script" in runs:
         run = runs["script"]
         if run.compilation is not None and not run.compilation.success:
-            _generate_compile_report(reporter, run.compilation)
-            return
+            _generate_compile_report(report, run.compilation)
+            return report
 
         run = run.run
         # OK, we were successful
@@ -325,15 +329,17 @@ def generate_report(reporter: "RunResultReport", runs: dict[str, EvalResult]):  
         message += "Command "
         message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
         message += f"ran successfully in {run.duration:.2} seconds.\n"
-        reporter.add_text(message)
+        report.add_text(message)
 
     if len(runs) == 1:
         run = next(iter(runs.values()))
         if len(run.run.stderr.strip()) > 0:
-            reporter.add_log("Program stderr", run.run.stderr.strip())
+            report.add_log("Program stderr", run.run.stderr.strip())
 
         if len(run.run.stdout.strip()) > 0:
-            reporter.add_log("Program stdout", run.run.stdout.strip())
+            report.add_log("Program stdout", run.run.stdout.strip())
+
+    return report
 
 
 class MultiProgressReporter:
@@ -389,7 +395,7 @@ class RunProgressReporter:
     def get_message(self):
         return str.join("\n", [f"**{self.title}**"] + self.lines)
 
-    async def generate_report(self, title: str, result: FullResult):
+    async def display_report(self, title: str, report: RunResultReport):
         raise NotImplementedError()
 
     async def _update_message(self):
@@ -410,16 +416,13 @@ class RunProgressReporterDiscord(RunProgressReporter):
     async def _update_message(self):
         await self.root._update_message()
 
-    async def generate_report(self, title: str, result: FullResult):
+    async def display_report(self, title: str, report: RunResultReport):
         thread = await self.interaction.channel.create_thread(
             name=title,
             type=discord.ChannelType.private_thread,
             auto_archive_duration=1440,
         )
         await thread.add_user(self.interaction.user)
-        report = RunResultReport()
-        report.add_text(generate_system_info(result.system))
-        generate_report(report, result.runs)
         message = ""
         for part in report.data:
             if isinstance(part, Text):
@@ -439,9 +442,15 @@ class RunProgressReporterDiscord(RunProgressReporter):
 class RunProgressReporterAPI(RunProgressReporter):
     def __init__(self, title: str):
         super().__init__(title=title)
+        self.long_report = ""
 
     async def _update_message(self):
         pass
 
-    async def generate_report(self, title: str, runs: dict[str, EvalResult]):
-        pass
+    async def display_report(self, title: str, report: RunResultReport):
+        for part in report.data:
+            if isinstance(part, Text):
+                self.long_report += part.text
+            elif isinstance(part, Log):
+                self.long_report += f"\n\n## {part.header}:\n"
+                self.long_report += f"```\n{part.content}```"

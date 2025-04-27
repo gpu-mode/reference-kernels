@@ -11,7 +11,12 @@ import discord
 from consts import GPU, GPU_TO_SM, RankCriterion, SubmissionMode, get_gpu_by_name
 from discord import app_commands
 from discord.ext import commands
-from report import MultiProgressReporter, RunProgressReporter, make_short_report
+from report import (
+    MultiProgressReporter,
+    RunProgressReporter,
+    generate_report,
+    make_short_report,
+)
 from run_eval import FullResult
 from task import LeaderboardTask
 from utils import (
@@ -224,8 +229,9 @@ class SubmitCog(commands.Cog):
                 # does the last message of the short report start with ✅ or ❌?
                 verdict = short_report[-1][0]
                 id_str = f"{verdict}" if submission_id == -1 else f"{verdict} #{submission_id}"
-                await reporter.generate_report(
-                    f"{id_str} {name} on {gpu_type.name} ({launcher.name})", result
+                await reporter.display_report(
+                    f"{id_str} {name} on {gpu_type.name} ({launcher.name})",
+                    generate_report(result),
                 )
             except Exception as E:
                 logger.error("Error generating report. Result: %s", result, exc_info=E)
