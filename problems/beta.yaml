@@ -7,7 +7,7 @@ description: ""
 problems:
   - directory: pmpp/conv2d_py
     name: conv2d
-    deadline: "2025-04-30"
+    deadline: "2025-06-30"
     gpus:
       - H100
       - A100
@@ -15,7 +15,7 @@ problems:
       - L4
   - directory: pmpp/grayscale_py
     name: grayscale
-    deadline: "2025-04-30"
+    deadline: "2025-06-30"
     gpus:
       - H100
       - A100
@@ -23,7 +23,7 @@ problems:
       - L4
   - directory: pmpp/histogram_py
     name: histogram
-    deadline: "2025-04-30"
+    deadline: "2025-06-30"
     gpus:
       - H100
       - A100
@@ -31,7 +31,7 @@ problems:
       - L4
   - directory: pmpp/matmul_py
     name: matmul
-    deadline: "2025-04-30"
+    deadline: "2025-06-30"
     gpus:
       - H100
       - A100
@@ -39,7 +39,7 @@ problems:
       - L4
   - directory: pmpp/prefixsum_py
     name: prefixsum
-    deadline: "2025-04-30"
+    deadline: "2025-06-30"
     gpus:
       - H100
       - A100
@@ -47,7 +47,7 @@ problems:
       - L4
   - directory: pmpp/sort_py
     name: sort
-    deadline: "2025-04-30"
+    deadline: "2025-06-30"
     gpus:
       - H100
       - A100
@@ -55,7 +55,7 @@ problems:
       - L4
   - directory: pmpp/vectoradd_py
     name: vectoradd
-    deadline: "2025-04-30"
+    deadline: "2025-06-30"
     gpus:
       - H100
       - A100
@@ -63,7 +63,7 @@ problems:
       - L4
   - directory: pmpp/vectorsum_py
     name: vectorsum
-    deadline: "2025-04-30"
+    deadline: "2025-06-30"
     gpus:
       - H100
       - A100
