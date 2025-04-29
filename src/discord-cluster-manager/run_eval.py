@@ -549,6 +549,9 @@ def run_config(config: dict):
         "benchmarks": build_test_string(config.get("benchmarks", [])),
         "seed": config.get("seed", None),
         "ranking_by": config.get("ranking_by", "last"),
+        "ranked_timeout": config.get("ranked_timeout", Timeout.RANKED),
+        "benchmark_timeout": config.get("benchmark_timeout", Timeout.BENCHMARK),
+        "test_timeout": config.get("test_timeout", Timeout.TEST),
     }
     if config["lang"] == "py":
         runner = functools.partial(
