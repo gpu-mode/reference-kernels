@@ -226,7 +226,7 @@ class GitHubRun:
             return False
 
     async def wait_for_completion(
-        self, callback: Callable[["GitHubRun"], Awaitable[None]], timeout_minutes: int = 5
+        self, callback: Callable[["GitHubRun"], Awaitable[None]], timeout_minutes: int = 10
     ):
         if self.run is None:
             raise ValueError("Run needs to be triggered before a status check!")
