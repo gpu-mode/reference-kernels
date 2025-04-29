@@ -1,0 +1,57 @@
+# name: 3_moe
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  For a more complete description, see: https://tinyurl.com/amd-comp-moe
+  Implement a DeepSeek-style Mixture of Experts (MoE) layer for efficient transformer models
+  on a single MI300X device.
+  
+  MoE is a technique that allows scaling model capacity without proportionally increasing computational costs
+  by using a routing mechanism to selectively activate only a subset of parameters for each token.
+  
+  Your task:
+  - Implement token routing using a simple softmax-based learned router
+  - Route tokens to the top-k experts based on router probabilities
+  - Process tokens through their assigned experts
+  - Combine expert outputs weighted by router probabilities
+  - Calculate appropriate auxiliary losses for training stability
+  
+  Input:
+  - `data`: Tuple of (input: torch.Tensor, weights: Dict[str, torch.Tensor], config: Dict)
+    - input: Input tensor of shape [bs, seq_len, d_hidden]
+    - weights: Dictionary containing model weights
+    - config: Dictionary containing model configuration parameters
+  
+  Output:
+  - Tuple containing:
+    - output: Processed tensor [bs, seq_len, d_model]
+    - aux_data: Dictionary with auxiliary data like router probabilities and losses
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+test_timeout: 540
+benchmark_timeout: 540
+ranked_timeout: 540
+ranking_by: "geom"
+
+tests:
+  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 4, "nsharedexperts": 1, "nexpertspertoken": 4, "bs": 1, "seqlen": 512, "seed": 9371}
+  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 8, "nsharedexperts": 1, "nexpertspertoken": 4, "bs": 2, "seqlen": 512, "seed": 2291}
+  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 8, "nsharedexperts": 1, "nexpertspertoken": 4, "bs": 1, "seqlen": 8192, "seed": 81934}
+
+benchmarks:
+  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nsharedexperts": 1, "nexpertspertoken": 4, "bs": 1, "seqlen": 2048, "seed": 9371}
+  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nsharedexperts": 1, "nexpertspertoken": 4, "bs": 2, "seqlen": 4096, "seed": 12819}
+  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nsharedexperts": 1, "nexpertspertoken": 4, "bs": 1, "seqlen": 8192, "seed": 1212}

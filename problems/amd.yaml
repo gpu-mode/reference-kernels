@@ -15,3 +15,8 @@ problems:
     deadline: "2025-05-27"
     gpus:
       - MI300
+  - directory: amd/moe
+    name: amd-mixture-of-experts
+    deadline: "2025-05-27"
+    gpus:
+      - MI300
