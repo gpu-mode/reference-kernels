@@ -38,3 +38,7 @@ benchmarks:
   - {"m": 1024, "n": 1536, "k": 1024, "seed": 321}
   - {"m": 2048, "n": 3072, "k": 2048, "seed": 32412}
   - {"m": 4096, "n": 5120, "k": 4096, "seed": 123456}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 180

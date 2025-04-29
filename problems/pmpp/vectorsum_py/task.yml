@@ -35,3 +35,7 @@ benchmarks:
   - {"size": 13107200, "seed": 6252}
   - {"size": 26214400, "seed": 82135}
   - {"size": 52428800, "seed": 12345}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 180
