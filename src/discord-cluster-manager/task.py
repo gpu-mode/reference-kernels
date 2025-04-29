@@ -57,10 +57,10 @@ class LeaderboardTask:
     description: str = ""
     libraries: list[str] = dataclasses.field(default_factory=list)
     tests: list[TestCaseType] = dataclasses.field(default_factory=list)
-    test_timeout: int = 30
+    test_timeout: int = 180
     benchmarks: list[TestCaseType] = dataclasses.field(default_factory=list)
-    benchmark_timeout: int = 60
-    ranked_timeout: int = 90
+    benchmark_timeout: int = 180
+    ranked_timeout: int = 180
     ranking_by: RankCriterion = RankCriterion.LAST
     templates: dict[str, str] = dataclasses.field(default_factory=dict)
     seed: Optional[int] = None

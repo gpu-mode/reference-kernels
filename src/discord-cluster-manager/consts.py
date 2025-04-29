@@ -4,8 +4,8 @@ from typing import Type
 
 
 class Timeout(IntEnum):
-    TEST = 60
-    BENCHMARK = 120
+    TEST = 180
+    BENCHMARK = 180
     RANKED = 180
     COMPILE = 120
     SCRIPT = 120
