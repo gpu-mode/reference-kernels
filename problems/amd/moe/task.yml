@@ -38,8 +38,6 @@ description: |
 config:
   main: "eval.py"
 
-templates:
-  Python: "../template.py"
 
 test_timeout: 540
 benchmark_timeout: 540
