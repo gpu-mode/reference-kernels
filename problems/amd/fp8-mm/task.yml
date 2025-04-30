@@ -22,8 +22,8 @@ description: |
   and `c` is the output matrix:
   * `a` is M x K in column-major order in e4m3fnuz
   * `b` is N x K in column-major order in e4m3fnuz
-  * `a_scale` is M x K in column-major order in fp32
-  * `b_scale` is N x K in column-major order in fp32
+  * `a_scale` is M x K // 128 in column-major order in fp32
+  * `b_scale` is N // 128 x K // 128 in column-major order in fp32
   * `c` is M x N in ROW-major order in bf16
   
   Matrix sizes `m` and `n` are divisible by 64, `k` is divisible by 128.
