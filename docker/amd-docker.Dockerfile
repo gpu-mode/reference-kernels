@@ -48,6 +48,9 @@ RUN git clone --recursive https://github.com/ROCm/aiter.git \
     && sudo pip install -r requirements.txt \
     && sudo python3 setup.py develop
 
+RUN sudo mkdir -p /home/runner/aiter/aiter/jit/build \
+    && sudo chown -R runner:runner /home/runner/aiter/aiter/jit/build
+
 RUN sudo pip install \
     ninja \
     numpy \
