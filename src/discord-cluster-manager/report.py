@@ -51,6 +51,7 @@ class Text:
     """
     Text represents markdown-formatted text to be added to the report.
     """
+
     text: str
 
 
@@ -64,6 +65,7 @@ class Log:
     message, it can be broken up automatically (and reasonably) into multiple
     smaller messages.
     """
+
     header: str
     content: str
 

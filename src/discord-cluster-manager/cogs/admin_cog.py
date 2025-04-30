@@ -762,7 +762,8 @@ class AdminCog(commands.Cog):
             logger.exception("Error updating problem set", exc_info=e)
 
     @with_error_handling
-    async def show_bot_stats(self, interaction: discord.Interaction):
+    @discord.app_commands.describe(last_day_only="Only show stats for the last day")
+    async def show_bot_stats(self, interaction: discord.Interaction, last_day_only: bool):
         is_admin = await self.admin_check(interaction)
         if not is_admin:
             await send_discord_message(
@@ -773,7 +774,7 @@ class AdminCog(commands.Cog):
             return
 
         with self.bot.leaderboard_db as db:
-            stats = db.generate_stats()
+            stats = db.generate_stats(last_day_only)
             msg = """```"""
             for k, v in stats.items():
                 msg += f"\n{k} = {v}"
