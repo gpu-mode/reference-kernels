@@ -9,7 +9,7 @@ from consts import (
     get_gpu_by_name,
 )
 from discord import app_commands
-from discord.ext import commands, tasks
+from discord.ext import commands
 from leaderboard_db import leaderboard_name_autocomplete
 from report import MultiProgressReporter
 from submission import SubmissionRequest, prepare_submission
@@ -377,48 +377,9 @@ class LeaderboardCog(commands.Cog):
             name="get-submission", description="Retrieve one of your past submissions"
         )(self.get_submission_by_id)
 
-        # Start updating leaderboard
-        self.leaderboard_update.start()
-
-    # --------------------------------------------------------------------------
-    # |                           LOOPING FUNCTIONS                            |
-    # --------------------------------------------------------------------------
-    @tasks.loop(minutes=1)
-    async def leaderboard_update(self):
-        """Task that updates the leaderboard every minute."""
-        for guild in self.bot.guilds:
-            channel = await self.ensure_channel_exists(guild, "active-leaderboards")
-
-            # Get the pinned message or create a new one
-            pinned_messages = await channel.pins()
-            if pinned_messages:
-                message = pinned_messages[0]
-            else:
-                message = await channel.send("Loading leaderboard...")
-                await message.pin()
-
-            # Update the leaderboard message
-            embed, view = await self._get_leaderboard_helper()
-
-            if embed:
-                await message.edit(content="", embed=embed, view=view)
-            else:
-                await message.edit(content="There are currently no active leaderboards.")
-
-    @leaderboard_update.before_loop
-    async def before_leaderboard_update(self):
-        """Wait for the bot to be ready before starting the task."""
-        await self.bot.wait_until_ready()
-
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
     # --------------------------------------------------------------------------
-    async def ensure_channel_exists(self, guild, channel_name):
-        """Ensure the leaderboard channel exists, and create it if not."""
-        channel = discord.utils.get(guild.text_channels, name=channel_name)
-        if not channel:
-            channel = await guild.create_text_channel(channel_name)
-        return channel
 
     async def _display_lb_submissions_helper(
         self,
