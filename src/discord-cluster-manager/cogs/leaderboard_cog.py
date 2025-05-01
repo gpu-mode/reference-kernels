@@ -377,6 +377,7 @@ class LeaderboardCog(commands.Cog):
             name="get-submission", description="Retrieve one of your past submissions"
         )(self.get_submission_by_id)
 
+
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
     # --------------------------------------------------------------------------
@@ -726,3 +727,44 @@ class LeaderboardCog(commands.Cog):
             msg += "\n"
 
         await send_discord_message(interaction, msg, ephemeral=True, file=file)
+
+    # Help
+    @with_error_handling
+    async def get_help(
+        self,
+        interaction: discord.Interaction,
+    ):
+        help_message = """
+# Leaderboard Commands Help
+
+## Basic Commands
+- `/get-api-url` \
+- For popcorn-cli users, get the API URL
+- `/leaderboard list` \
+- View all active leaderboards
+- `/leaderboard help` \
+- Show this help message
+- `/leaderboard show <leaderboard_name>` \
+- View all submissions for a leaderboard
+- `/leaderboard show-personal <leaderboard_name>` \
+- View your submissions for a leaderboard
+
+## Submission Commands
+- `/leaderboard submit ranked <leaderboard_name> <script>` \
+- Submit a ranked run for a leaderboard
+- `/leaderboard submit test <leaderboard_name> <script>` \
+- Test your submission without affecting rankings
+- `/leaderboard get-submission <submission_id>` \
+- Retrieve one of your past submissions
+
+## Task Information
+- `/leaderboard task <leaderboard_name>` \
+- Get reference code for a leaderboard
+- `/leaderboard template <leaderboard_name> <language>` \
+- Get a starter template for a task
+
+## Documentation
+For more detailed information, visit our documentation:
+https://gpu-mode.github.io/discord-cluster-manager/docs/intro/
+"""
+        await send_discord_message(interaction, help_message, ephemeral=True)
