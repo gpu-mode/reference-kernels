@@ -43,7 +43,7 @@ templates:
 
 test_timeout: 540
 benchmark_timeout: 540
-ranked_timeout: 540
+ranked_timeout: 840
 ranking_by: "geom"
 
 tests:
