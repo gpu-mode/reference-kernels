@@ -28,9 +28,14 @@ jobs:
     - name: Create input files
       shell: bash
       run: |
-        cat > "payload.json" <<'EOL'
-        ${{ github.event.inputs.payload }}
-        EOL
+        # Extract the payload content without printing it
+        PAYLOAD=$(jq -r '.inputs.payload' $GITHUB_EVENT_PATH)
+        
+        # Apply mask to the extracted content
+        echo "::add-mask::$PAYLOAD"
+        
+        # Now write to file (won't be logged since it's masked)
+        echo "$PAYLOAD" > payload.json
 
     - name: Install uv
       uses: astral-sh/setup-uv@v3
