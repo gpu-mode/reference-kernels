@@ -488,6 +488,18 @@ class LeaderboardCog(commands.Cog):
                     return
 
                 gpus = db.get_leaderboard_gpu_types(leaderboard_name)
+
+                if len(gpus) == 1:
+                    submission = db.get_leaderboard_submissions(leaderboard_name, gpus[0], user_id)
+                    await self._display_lb_submissions_helper(
+                        submission,
+                        interaction,
+                        leaderboard_name,
+                        gpus[0],
+                        user_id,
+                    )
+                    return
+
                 for gpu in gpus:
                     submissions[gpu] = db.get_leaderboard_submissions(
                         leaderboard_name, gpu, user_id
