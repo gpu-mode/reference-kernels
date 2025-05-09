@@ -308,16 +308,9 @@ class DeepseekScalingRotaryEmbedding(RotaryEmbedding):
 ## End of the implementation of the rotary embedding
 
 def scaled_dot_product_attention(query, key, value, hq, hkv, is_causal=False):
-    # Convert to higher precision for numerical stability
-    query = query.to(torch.float32)
-    key = key.to(torch.float32)
-    value = value.to(torch.float32)
-
-    # Multi-query attention pattern: repeat the keys and values for each query head
     key = key.repeat_interleave(hq // hkv, dim=0)
     value = value.repeat_interleave(hq // hkv, dim=0)
 
-    # Scale dot product attention
     scale = 1.0 / math.sqrt(query.size(-1))
     attn_weight = torch.matmul(query, key.transpose(-2, -1)) * scale
 
@@ -330,10 +323,7 @@ def scaled_dot_product_attention(query, key, value, hq, hkv, is_causal=False):
         attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
         attn_weight += attn_bias
 
-    # Apply softmax for attention weights
     attn_weight = torch.nn.functional.softmax(attn_weight, dim=-1)
-
-    # Apply attention to values
     out = torch.matmul(attn_weight, value)
 
     return out
@@ -348,7 +338,7 @@ def custom_kernel(data: input_t, use_rope=False) -> output_t:
     """
 
     q, k, v, cache_seqlens, max_seqlen_pad, positions = data
-    causal = False  # Default value as it's not provided in the input
+    causal = False
     b, sq, hq, d = q.shape
     _, _, hkv, dv = v.shape
     rope_head_dim = d - dv
@@ -366,7 +356,7 @@ def custom_kernel(data: input_t, use_rope=False) -> output_t:
                     rope_scaling,
                     q.dtype,
                     device=q.device)
-    out = torch.empty(b, sq, hq, dv, dtype=torch.float32)
+    out = torch.empty(b, sq, hq, dv, dtype=q.dtype)
     for i in range(b):
         begin = i * max_seqlen_pad
         end = begin + cache_seqlens[i]
