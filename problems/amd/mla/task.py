@@ -1,17 +1,16 @@
 import torch
 from typing import TypeVar, TypedDict
 
-input_t = TypeVar("input_t", bound=tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, int])
-output_t = TypeVar("output_t", bound=tuple[torch.Tensor, torch.Tensor])
+input_t = TypeVar("input_t", bound=tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, int, torch.Tensor])
+output_t = TypeVar("output_t", bound=torch.Tensor)
 
+# Define test spec with parameters in the same order as in task.yml
 class TestSpec(TypedDict):
-    b: int
-    s_q: int
-    mean_sk: int
-    h_q: int
-    h_kv: int
-    d: int
-    dv: int
-    causal: bool
-    var_len: bool
-    seed: int
+    b: int      # batch size
+    d: int      # dimension
+    dv: int     # value dimension
+    hq: int     # number of query heads
+    sq: int     # query sequence length
+    hkv: int    # number of key/value heads
+    meansk: int # mean kv sequence length
+    seed: int   # random seed
