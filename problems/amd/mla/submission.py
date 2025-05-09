@@ -4,9 +4,9 @@ from reference import ref_kernel
 
 def custom_kernel(data: input_t) -> output_t:
     """
-    Reference implementation of rope + mla 
+    Reference implementation of mla without RoPE
     Args:
-        data: q, k_cache, v_cache, block_table, cached_seqlens, max_seqlen_pad, rope_positions
+        data: b, s_q, mean_sk, h_q, h_kv, d, dv, causal, varlen, seed
     Returns:
         mla output
     """
