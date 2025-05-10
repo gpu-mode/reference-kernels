@@ -1,3 +1,4 @@
+import base64
 import dataclasses
 import multiprocessing
 import re
@@ -248,7 +249,8 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
     return calculate_stats(durations)
 
 
-def run_single_benchmark(pool: multiprocessing.Pool, test: TestCase, recheck: bool, max_repeats: int, max_time_ns: float):
+def run_single_benchmark(pool: multiprocessing.Pool, test: TestCase, recheck: bool, max_repeats: int,
+                         max_time_ns: float):
     """
     For a particular test case, check correctness (if applicable) and grab runtime results.
 
@@ -295,6 +297,31 @@ def run_benchmarking(logger: PopcornOutput, pool: multiprocessing.Pool, tests: l
         return 112
 
 
+def run_single_profile(test: TestCase) -> str:
+    """
+    Runs a single test case. Do not call directly
+    """
+    from submission import custom_kernel
+    from torch.profiler import profile, record_function, ProfilerActivity
+    data = generate_input(**test.args)
+    torch.cuda.synchronize()
+
+    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+        submission_output = custom_kernel(_clone_data(data))
+        torch.cuda.synchronize()
+    return prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
+
+
+def run_profiling(logger: PopcornOutput, tests: list[TestCase]):
+    logger.log("benchmark-count", len(tests))
+    for idx, test in enumerate(tests):
+        logger.log(f"benchmark.{idx}.spec", test.spec)
+        report = run_single_profile(test)
+        logger.log(f"benchmark.{idx}.report", base64.b64encode(report.encode("utf-8"), b"+*").decode("utf-8"))
+    logger.log("check", "pass")
+    return 0
+
+
 def main():
     fd = os.getenv("POPCORN_FD")
     if not fd:
@@ -333,12 +360,14 @@ def main():
                     else:
                         passed = False
                         logger.log(f"benchmark.{i}.status", "fail")
-                        logger.log(f"benchmark.{i}.error", str(result)) #TODO: Make sure result implements __str__?
+                        logger.log(f"benchmark.{i}.error", str(result))  # TODO: Make sure result implements __str__?
                         break
 
                 logger.log("check", "pass" if passed else "fail")
+            elif mode == "profile":
+                run_profiling(logger, tests)
             else:
-                # TODO: Implement script and profile mode
+                # TODO: Implement script mode
                 return 2
 
 
