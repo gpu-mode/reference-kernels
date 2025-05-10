@@ -1,3 +1,4 @@
+import base64
 import dataclasses
 import multiprocessing
 import re
@@ -137,6 +138,17 @@ def _clone_data(data):
         return data
 
 
+def wrap_check_implementation(data, submission_output):
+    # Old version returned just a single string, new version
+    # returns (bool, str); this function ensures compatibility with old
+    # problem definitions.
+    result = check_implementation(data, submission_output)
+    if isinstance(result, tuple):
+        return result
+    else:
+        return not bool(result), result
+
+
 def _run_single_test(test: TestCase):
     """
     Runs a single test case. Do not call directly
@@ -146,7 +158,7 @@ def _run_single_test(test: TestCase):
     torch.cuda.synchronize()
     submission_output = custom_kernel(_clone_data(data))
     torch.cuda.synchronize()
-    return check_implementation(data, submission_output)
+    return wrap_check_implementation(data, submission_output)
 
 
 def run_single_test(pool: multiprocessing.Pool, test: TestCase):
@@ -168,13 +180,15 @@ def run_testing(logger: PopcornOutput, pool: multiprocessing.Pool, tests: list[T
     logger.log("test-count", len(tests))
     for idx, test in enumerate(tests):
         logger.log(f"test.{idx}.spec", test.spec)
-        error = run_single_test(pool, test)
-        if error:
+        good, message = run_single_test(pool, test)
+        if not good:
             logger.log(f"test.{idx}.status", "fail")
-            logger.log(f"test.{idx}.error", error)
+            logger.log(f"test.{idx}.error", message)
             passed = False
         else:
             logger.log(f"test.{idx}.status", "pass")
+            if message:
+                logger.log(f"test.{idx}.message", message)
 
     if passed:
         logger.log("check", "pass")
@@ -196,9 +210,9 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
     check_copy = _clone_data(data)
     #  first, one obligatory correctness check
     output = custom_kernel(data)
-    error = check_implementation(check_copy, output)
-    if error:
-        return error
+    good, message = wrap_check_implementation(check_copy, output)
+    if not good:
+        return message
 
     # now, do multiple timing runs without further correctness testing
     # there is an upper bound of 100 runs, and a lower bound of 3 runs;
@@ -220,16 +234,16 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
         end = time.perf_counter_ns()
 
         if recheck:
-            error = check_implementation(check_copy, output)
-            if error:
-                return error
+            good, message = check_implementation(check_copy, output)
+            if not good:
+                return message
 
         del output
         durations.append(end-start)
 
         if i > 1:
             stats = calculate_stats(durations)
-            if stats.err / stats.mean < 0.01 or stats.mean * stats.runs > max_time_ns:
+            if stats.err / stats.mean < 0.001 or stats.mean * stats.runs > max_time_ns:
                 break
 
     return calculate_stats(durations)
@@ -282,6 +296,31 @@ def run_benchmarking(logger: PopcornOutput, pool: multiprocessing.Pool, tests: l
         return 112
 
 
+def run_single_profile(test: TestCase) -> str:
+    """
+    Runs a single test case. Do not call directly
+    """
+    from submission import custom_kernel
+    from torch.profiler import profile, record_function, ProfilerActivity
+    data = generate_input(**test.args)
+    torch.cuda.synchronize()
+
+    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+        submission_output = custom_kernel(_clone_data(data))
+        torch.cuda.synchronize()
+    return prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
+
+
+def run_profiling(logger: PopcornOutput, tests: list[TestCase]):
+    logger.log("benchmark-count", len(tests))
+    for idx, test in enumerate(tests):
+        logger.log(f"benchmark.{idx}.spec", test.spec)
+        report = run_single_profile(test)
+        logger.log(f"benchmark.{idx}.report", base64.b64encode(report.encode("utf-8"), b"+*").decode("utf-8"))
+    logger.log("check", "pass")
+    return 0
+
+
 def main():
     fd = os.getenv("POPCORN_FD")
     if not fd:
@@ -324,8 +363,10 @@ def main():
                         break
 
                 logger.log("check", "pass" if passed else "fail")
+            elif mode == "profile":
+                run_profiling(logger, tests)
             else:
-                # TODO: Implement script and profile mode
+                # TODO: Implement script mode
                 return 2
 
 

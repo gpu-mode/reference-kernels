@@ -1,4 +1,6 @@
+import base64
 import dataclasses
+import textwrap
 from typing import List
 
 import consts
@@ -195,6 +197,17 @@ def make_short_report(runs: dict[str, EvalResult], full=True) -> list[str]:  # n
     elif full:
         result.append("❌ Benchmarks missing")
 
+    if "profile" in runs:
+        bench_run = runs["profile"].run
+        if not bench_run.success:
+            result.append("❌ Running profile failed" + _short_fail_reason(bench_run))
+            return result
+        elif not bench_run.passed:
+            result.append("❌ Profiling failed")
+            return result
+        else:
+            result.append("✅ Profiling successful")
+
     if "leaderboard" in runs:
         lb_run = runs["leaderboard"].run
         if not lb_run.success:
@@ -263,6 +276,29 @@ def make_benchmark_log(run: RunResult) -> str:
         return "❗ Could not find any benchmarks"
 
 
+def make_profile_log(run: RunResult) -> str:
+    num_bench = int(run.result.get("benchmark-count", 0))
+
+    def log_one(base_name):
+        spec = run.result.get(f"{base_name}.spec")
+
+        report: str = run.result.get(f"{base_name}.report")
+        report = base64.b64decode(report.encode("utf-8"), b"+*").decode("utf-8")
+        report = textwrap.indent(report, "  ")
+        bench_log.append(f"{spec}\n")
+        bench_log.append(report)
+
+    bench_log = []
+    for i in range(num_bench):
+        log_one(f"benchmark.{i}")
+        bench_log.append("")
+
+    if len(bench_log) > 0:
+        return "\n".join(bench_log)
+    else:
+        return "❗ Could not find any profiling data"
+
+
 def generate_system_info(system: SystemInfo):
     return f"""
 Running on:
@@ -312,6 +348,22 @@ def generate_report(result: FullResult) -> RunResultReport:  # noqa: C901
         report.add_log(
             "Benchmarks",
             make_benchmark_log(bench_run),
+        )
+
+    if "profile" in runs:
+        prof_run = runs["profile"]
+        if prof_run.compilation is not None and not prof_run.compilation.success:
+            _generate_compile_report(report, prof_run.compilation)
+            return report
+
+        prof_run = prof_run.run
+        if not prof_run.success:
+            _generate_crash_report(report, prof_run)
+            return report
+
+        report.add_log(
+            "Profiling",
+            make_profile_log(prof_run),
         )
 
     if "leaderboard" in runs:

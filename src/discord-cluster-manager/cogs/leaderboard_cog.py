@@ -279,6 +279,25 @@ class LeaderboardSubmitCog(app_commands.Group):
             interaction, leaderboard_name, script, mode=SubmissionMode.BENCHMARK, gpu=gpu
         )
 
+    @app_commands.command(name="profile", description="Start a profiling run")
+    @app_commands.describe(
+        leaderboard_name="Name of the competition / kernel to optimize",
+        script="The Python / CUDA script file to run",
+        gpu="Select GPU. Leave empty for interactive or automatic selection.",
+    )
+    @app_commands.autocomplete(leaderboard_name=leaderboard_name_autocomplete)
+    @with_error_handling
+    async def submit_profile(
+        self,
+        interaction: discord.Interaction,
+        script: discord.Attachment,
+        leaderboard_name: Optional[str],
+        gpu: Optional[str],
+    ):
+        return await self.submit(
+            interaction, leaderboard_name, script, mode=SubmissionMode.PROFILE, gpu=gpu
+        )
+
     @app_commands.command(
         name="ranked", description="Start a ranked run for an official leaderboard submission"
     )
