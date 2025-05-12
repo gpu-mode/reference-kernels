@@ -219,6 +219,7 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
     # otherwise, we repeat until we either measure at least 10 full seconds,
     # or the relative error of the mean is below 1%.
 
+    bm_start_time = time.perf_counter_ns()
     for i in range(max_repeats):
         if recheck:
             # ensure we use a different seed for every benchmark
@@ -239,11 +240,16 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
                 return message
 
         del output
-        durations.append(end-start)
+        durations.append(end - start)
 
         if i > 1:
+            total_bm_duration = bm_start_time - time.perf_counter_ns()
             stats = calculate_stats(durations)
-            if stats.err / stats.mean < 0.001 or stats.mean * stats.runs > max_time_ns:
+            # stop if either
+            # a) relative error dips below 0.1%
+            # b) we exceed the total time limit for benchmarking the kernel
+            # c) we exceed 2 minutes of total wallclock time.
+            if stats.err / stats.mean < 0.001 or stats.mean * stats.runs > max_time_ns or total_bm_duration > 120e9:
                 break
 
     return calculate_stats(durations)
