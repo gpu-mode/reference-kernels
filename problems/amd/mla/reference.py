@@ -28,10 +28,32 @@ class RoPE(nn.Module):
         sin = idx_theta2.sin()
         return x * cos + self.rotate_half(x) * sin
 
+class KVCache(nn.Module):
+    def __init__(self, kv_cache_shape: tuple, sk: int) -> None:
+        super().__init__()
+        self.register_buffer('data', torch.zeros(kv_cache_shape))
+        self.sk = sk
+        self.zero()
+
+    def zero(self) -> None:
+        self.data.zero_()
+
+    def forward(self, c_kv: torch.Tensor) -> torch.Tensor:
+        assert self.sk + c_kv.size(1) <= self.data.size(1), "KV Cache Exceeded"
+
+        self.data = self.data.to(c_kv.dtype)
+        self.data[
+            :, self.sk : self.sk + c_kv.size(1), :
+        ] = c_kv
+        self.sk += c_kv.size(1)
+
+        return self.data[:, :self.sk], self.sk
+    
 @dataclass
 class Config:
     bs: int
     sq: int
+    sk: int
     dim: int
     n_heads: int
     q_lora_rank: int 
@@ -39,6 +61,7 @@ class Config:
     qk_nope_head_dim: int
     qk_rope_head_dim: int
     v_head_dim: int
+    max_seq_len: int
 
 class MLA(nn.Module):
     def __init__(self, config: Config):
@@ -59,7 +82,7 @@ class MLA(nn.Module):
         self.wo = nn.Linear(self.v_head_dim * self.n_heads, self.dim, dtype=torch.bfloat16, bias=False)
         self.eps =1e-6
    
-    def forward(self,x: torch.Tensor) -> torch.Tensor:
+    def forward(self,x: torch.Tensor, kv_cache: KVCache) -> torch.Tensor:
         bsz, seq_len, _ = x.size()
         q = self.wq_a(x)
         q = self.wq_b(q)   
@@ -72,10 +95,11 @@ class MLA(nn.Module):
         q = torch.cat([q_nope, q_rope.expand(-1,-1,self.n_heads,-1)], dim=-1)
         
         kv = self.wkv_a(x)
+        kv, sk = kv_cache(kv)
         kv, k_pe = torch.split(kv, [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
         k_pe = k_pe.unsqueeze(2)
         k_pe = self.k_rope(k_pe, start_pos)
-        kv = self.wkv_b(kv).view(bsz, seq_len, self.n_heads, self.qk_nope_head_dim + self.v_head_dim)
+        kv = self.wkv_b(kv).view(bsz, sk, self.n_heads, self.qk_nope_head_dim + self.v_head_dim)
         k_nope,v = torch.split(kv,[self.qk_nope_head_dim,self.v_head_dim], dim=-1)
         k = torch.concat([k_nope, k_pe.expand(-1,-1,self.n_heads,-1)], dim=-1)
                 
@@ -84,10 +108,11 @@ class MLA(nn.Module):
         y = torch.matmul(attn, v)
         return y
 
-def generate_input(bs, sq, dim, seed):
+def generate_input(bs, sq, sk, dim, seed):
     config = Config(
         bs=bs,
         sq=sq,
+        sk=sk,
         dim=dim,
         n_heads=128,
         q_lora_rank=1536,
@@ -95,20 +120,18 @@ def generate_input(bs, sq, dim, seed):
         qk_nope_head_dim=128,
         qk_rope_head_dim=64,
         v_head_dim=128,
+        max_seq_len=8192
     )
     gen = torch.Generator()
     gen.manual_seed(seed)
     x = torch.randn((bs, sq, dim), dtype=torch.bfloat16, generator=gen)
-    return config, x
+    kv_cache = KVCache((config.bs, config.max_seq_len, config.kv_lora_rank + config.qk_rope_head_dim), sk=config.sk)
+    return config, x, kv_cache
 
 def ref_kernel(data: input_t) -> output_t:
-    config, x= data
+    config, x, kv_cache= data
     model = MLA(config)
-    output = model(x)
+    output = model(x, kv_cache)
     return output
 
-check_implementation = make_match_reference(ref_kernel, rtol=2e-02, atol=1e-03)         
-    
-    
-    
-  
+check_implementation = make_match_reference(ref_kernel, rtol=2e-02, atol=1e-03)  
