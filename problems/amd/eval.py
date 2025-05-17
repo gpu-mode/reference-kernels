@@ -243,7 +243,7 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
         durations.append(end - start)
 
         if i > 1:
-            total_bm_duration = bm_start_time - time.perf_counter_ns()
+            total_bm_duration = time.perf_counter_ns() - bm_start_time
             stats = calculate_stats(durations)
             # stop if either
             # a) relative error dips below 0.1%
