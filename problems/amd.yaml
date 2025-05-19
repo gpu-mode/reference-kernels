@@ -20,3 +20,8 @@ problems:
     deadline: "2025-05-27"
     gpus:
       - MI300
+  - directory: amd/mla-decode
+    name: amd-mla-decode
+    deadline: "2025-05-27"
+    gpus:
+      - MI300
