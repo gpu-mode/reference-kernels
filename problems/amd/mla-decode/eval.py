@@ -55,20 +55,20 @@ def copy_kv_cache(module, kv_cache_shape):
     # Copy parameters
     params = OrderedDict()
     for name, param in module.named_parameters():
-        params[name] = param.clone().requires_grad_(param.requires_grad)
+        params[name] = param.clone().requires_grad_(param.requires_grad).cuda()
         
     # Copy buffers
     buffers = OrderedDict()
     for name, buff in module.named_buffers():
         print(f"Buff name: {name}, shape: {buff.shape}")
-        buffers[name] = buff.clone()
+        buffers[name] = buff.clone().cuda()
     
     # Assign params and buffers to copied module
     copied_module.load_state_dict(params, strict=False)
     copied_module.load_state_dict(buffers, strict=False)
     copied_module.seq_len = module.seq_len
     
-    return copied_module
+    return copied_module.cuda()
 
 
 def get_test_cases(file_name: str) -> list[TestCase]:
@@ -148,10 +148,10 @@ def copy_config_weights(config):
     """
     return dataclasses.replace(
         config,
-        Q_proj_down_weight=config.Q_proj_down_weight.clone(),
-        Q_proj_up_weight=config.Q_proj_up_weight.clone(),
-        KV_proj_down_weight=config.KV_proj_down_weight.clone(),
-        KV_proj_up_weight=config.KV_proj_up_weight.clone()
+        Q_proj_down_weight=config.Q_proj_down_weight.clone().cuda(),
+        Q_proj_up_weight=config.Q_proj_up_weight.clone().cuda(),
+        KV_proj_down_weight=config.KV_proj_down_weight.clone().cuda(),
+        KV_proj_up_weight=config.KV_proj_up_weight.clone().cuda()
     )
 
 
@@ -206,8 +206,9 @@ def benchmark(test: TestCase, recheck: bool, max_repeats: int, max_time_ns: floa
     # first, one obligatory correctness check; also triggers triton compile for the given shape
     kv_cache_copy = copy_kv_cache(kv_cache, config.kv_cache_shape)
     config_copy = copy_config_weights(config)
-    output = custom_kernel((config, data, kv_cache))
-    error = check_implementation((config_copy, data, kv_cache_copy), output)
+    with torch.no_grad():
+        output = custom_kernel((config, data, kv_cache))
+        error = check_implementation((config_copy, data, kv_cache_copy), output)
     if error:
         return error
 
@@ -216,29 +217,30 @@ def benchmark(test: TestCase, recheck: bool, max_repeats: int, max_time_ns: floa
     # otherwise, we repeat until we either measure at least 10 full seconds,
     # or the relative error of the mean is below 1%.
 
-    for i in range(max_repeats):
-        if recheck:
-            config, data, kv_cache = generate_input(**test.args)
-            kv_cache_copy = copy_kv_cache(kv_cache, config.kv_cache_shape)
-            config_copy = copy_config_weights(config)
-        torch.cuda.synchronize()
-        start = time.perf_counter_ns()
-        output = custom_kernel((config, data, kv_cache))
-        torch.cuda.synchronize()
-        end = time.perf_counter_ns()
+    with torch.no_grad():
+        for i in range(max_repeats):
+            if recheck:
+                config, data, kv_cache = generate_input(**test.args)
+                kv_cache_copy = copy_kv_cache(kv_cache, config.kv_cache_shape)
+                config_copy = copy_config_weights(config)
+            torch.cuda.synchronize()
+            start = time.perf_counter_ns()
+            output = custom_kernel((config, data, kv_cache))
+            torch.cuda.synchronize()
+            end = time.perf_counter_ns()
 
-        if recheck:
-            error = check_implementation((config_copy, data, kv_cache_copy), output)
-            if error:
-                return error
+            if recheck:
+                error = check_implementation((config_copy, data, kv_cache_copy), output)
+                if error:
+                    return error
 
-        del output
-        durations.append(end-start)
+            del output
+            durations.append(end-start)
 
-        if i > 1:
-            stats = calculate_stats(durations)
-            if stats.err / stats.mean < 0.01 or stats.mean *  stats.runs > max_time_ns:
-                break
+            if i > 1:
+                stats = calculate_stats(durations)
+                if stats.err / stats.mean < 0.01 or stats.mean *  stats.runs > max_time_ns:
+                    break
 
     return calculate_stats(durations)
 

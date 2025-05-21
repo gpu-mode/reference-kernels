@@ -29,8 +29,8 @@ class RoPE(nn.Module):
         return x * cos + self.rotate_half(x) * sin
 
 class KVCache(nn.Module):
-    def __init__(self, kv_cache_shape: tuple) -> None:
-        super().__init__()
+    def __init__(self, kv_cache_shape: tuple, **kwargs) -> None:
+        super().__init__(**kwargs)
         self.register_buffer('data', torch.zeros(kv_cache_shape, dtype=torch.bfloat16))
         self.seq_len = 0
         self.zero()
@@ -186,8 +186,8 @@ def generate_input(batchsize, dim, dq, prefill, seed):
     
     # Pre-fill KV cache
     kv_cache = KVCache((config.batch_size, config.max_seq_len, config.kv_lora_rank + config.qk_rope_head_dim)).to('cuda')
-    pre_filled_cache = torch.randn((config.batch_size, prefill, config.kv_lora_rank + config.qk_rope_head_dim), device='cuda', 
-                                 dtype=torch.bfloat16, generator=gen)
+    pre_filled_cache = torch.randn((config.batch_size, prefill, config.kv_lora_rank + config.qk_rope_head_dim), 
+                                 dtype=torch.bfloat16, generator=gen, device='cuda')
     kv_cache(pre_filled_cache)
 
     return config, x, kv_cache
@@ -196,7 +196,7 @@ def ref_kernel(data: input_t) -> output_t:
     config, x, kv_cache = data
 
     # Load in model weights
-    model = MLA(config).cuda()
+    model = MLA(config).to('cuda')
     model.Q_proj_down.weight = nn.Parameter(config.Q_proj_down_weight)
     model.Q_proj_up.weight = nn.Parameter(config.Q_proj_up_weight)
     model.KV_proj_down.weight = nn.Parameter(config.KV_proj_down_weight)
@@ -210,14 +210,16 @@ check_implementation = make_match_reference(ref_kernel, rtol=2e-02, atol=1e-03)
 
 
 def time_mla(model, x, kv_cache, num_warmup=3, num_trials=5):
+
     # Warmup runs
-    for _ in range(num_warmup):
+    for _ in range(1):
         output, _ = model(x, kv_cache)
         torch.cuda.synchronize()
 
     # Timed runs
     times = []
     for _ in range(num_trials):
+        kv_cache = KVCache((config.batch_size, config.max_seq_len, config.kv_lora_rank + config.qk_rope_head_dim)).to('cuda')
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         
@@ -241,10 +243,23 @@ if __name__ == "__main__":
 
     # Create model and inputs
     config, x, kv_cache = generate_input(batchsize, dim, dq, prefill, seed)
-    model = MLA(config).cuda()
+    model = MLA(config).to('cuda')
 
     # Run model with timing
     output, updated_kv, avg_time, times = time_mla(model, x, kv_cache)
+
+    # Test reference kernel
+    ref_output, ref_kv = ref_kernel((config, x, kv_cache))
+    print("\nReference kernel output:")
+    print(f"Output shape: {ref_output.shape}")
+    print(f"KV cache shape: {ref_kv.shape}")
+    print("\nFirst few values of reference output:")
+    print(ref_output[0, :10])
+
+    # Compare outputs
+    print("\nOutput difference:")
+    print(f"Max absolute difference: {torch.max(torch.abs(output - ref_output))}")
+    print(f"Mean absolute difference: {torch.mean(torch.abs(output - ref_output))}")
 
     print(f"Input shape: {x.shape}")
     print(f"Output shape: {output.shape}")

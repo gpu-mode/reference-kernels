@@ -129,9 +129,18 @@ def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08):
     """
     Convenient "default" implementation for tasks' `check_implementation` function.
     """
+    output_mla, output_kv = output
+
+    # To fit in memory for the big test
+    output_mla = output_mla.cpu()
+    output_kv = output_kv.cpu()
+
     config, x, kv_cache = data
     expected_mla, expected_kv = reference((config, x, kv_cache))
-    output_mla, output_kv = output
+
+    output_mla = output_mla.cuda()
+    output_kv = output_kv.cuda()
+
     reasons_mla = verbose_allclose(output_mla, expected_mla, rtol=rtol, atol=atol)
     reasons_kv = verbose_allclose(output_kv, expected_kv, rtol=rtol, atol=atol)
 

@@ -31,7 +31,7 @@ class RoPE(nn.Module):
 class KVCache(nn.Module):
     def __init__(self, kv_cache_shape: tuple) -> None:
         super().__init__()
-        self.register_buffer('data', torch.zeros(kv_cache_shape, dtype=torch.bfloat16))
+        self.register_buffer('data', torch.zeros(kv_cache_shape, dtype=torch.bfloat16, device='cuda'))
         self.seq_len = 0
         self.zero()
 
@@ -154,7 +154,7 @@ class MLA(nn.Module):
 
 def custom_kernel(data: input_t) -> output_t:
     config, x, kv_cache = data
-    model = MLA(config)
+    model = MLA(config).to('cuda')
     model.Q_proj_down.weight = nn.Parameter(config.Q_proj_down_weight)
     model.Q_proj_up.weight = nn.Parameter(config.Q_proj_up_weight)
     model.KV_proj_down.weight = nn.Parameter(config.KV_proj_down_weight)
