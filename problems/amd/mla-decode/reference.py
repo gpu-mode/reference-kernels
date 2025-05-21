@@ -197,11 +197,11 @@ def ref_kernel(data: input_t) -> output_t:
 
     # Load in model weights
     model = MLA(config).to('cuda')
-    model.Q_proj_down.weight = nn.Parameter(config.Q_proj_down_weight, device='cuda')
-    model.Q_proj_up.weight = nn.Parameter(config.Q_proj_up_weight, device='cuda')
-    model.KV_proj_down.weight = nn.Parameter(config.KV_proj_down_weight, device='cuda')
-    model.KV_proj_up.weight = nn.Parameter(config.KV_proj_up_weight, device='cuda')
-    model.wo.weight = nn.Parameter(config.wo_weight, device='cuda')
+    model.Q_proj_down.weight = nn.Parameter(config.Q_proj_down_weight)
+    model.Q_proj_up.weight = nn.Parameter(config.Q_proj_up_weight)
+    model.KV_proj_down.weight = nn.Parameter(config.KV_proj_down_weight)
+    model.KV_proj_up.weight = nn.Parameter(config.KV_proj_up_weight)
+    model.wo.weight = nn.Parameter(config.wo_weight)
 
     output, kv_cache = model(x, kv_cache)
     return output, kv_cache
