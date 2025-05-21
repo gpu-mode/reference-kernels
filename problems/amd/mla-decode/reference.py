@@ -154,15 +154,15 @@ class MLA(nn.Module):
 
 def generate_input(batchsize, dim, dq, prefill, seed):
     # Sizes derived from: https://github.com/deepseek-ai/DeepSeek-V3/blob/main/inference/model.py
-    gen = torch.Generator()
+    gen = torch.Generator(device='cuda')
     gen.manual_seed(seed)
     
     # Generate weights for linear layers
-    Q_proj_down_weight = torch.randn((dq, dim), dtype=torch.bfloat16, generator=gen)
-    KV_proj_down_weight = torch.randn((512 + 64, dim), dtype=torch.bfloat16, generator=gen)
-    Q_proj_up_weight = torch.randn(((128 + 64) * 128, dq), dtype=torch.bfloat16, generator=gen)
-    KV_proj_up_weight = torch.randn(((128 + 128) * 128, 512), dtype=torch.bfloat16, generator=gen)
-    wo_weight = torch.randn((dim, 128 * 128), dtype=torch.bfloat16, generator=gen)
+    Q_proj_down_weight = torch.randn((dq, dim), dtype=torch.bfloat16, generator=gen, device='cuda')
+    KV_proj_down_weight = torch.randn((512 + 64, dim), dtype=torch.bfloat16, generator=gen, device='cuda')
+    Q_proj_up_weight = torch.randn(((128 + 64) * 128, dq), dtype=torch.bfloat16, generator=gen, device='cuda')
+    KV_proj_up_weight = torch.randn(((128 + 128) * 128, 512), dtype=torch.bfloat16, generator=gen, device='cuda')
+    wo_weight = torch.randn((dim, 128 * 128), dtype=torch.bfloat16, generator=gen, device='cuda')
 
     config = Config(
         batch_size=batchsize,
@@ -182,10 +182,10 @@ def generate_input(batchsize, dim, dq, prefill, seed):
         KV_proj_up_weight=KV_proj_up_weight,
         wo_weight=wo_weight,
     )
-    x = torch.randn((config.batch_size, 1, config.dim), dtype=torch.bfloat16, generator=gen)
+    x = torch.randn((config.batch_size, 1, config.dim), dtype=torch.bfloat16, generator=gen, device='cuda')
     
     # Pre-fill KV cache
-    kv_cache = KVCache((config.batch_size, config.max_seq_len, config.kv_lora_rank + config.qk_rope_head_dim))
+    kv_cache = KVCache((config.batch_size, config.max_seq_len, config.kv_lora_rank + config.qk_rope_head_dim)).to('cuda')
     pre_filled_cache = torch.randn((config.batch_size, prefill, config.kv_lora_rank + config.qk_rope_head_dim), 
                                  dtype=torch.bfloat16, generator=gen)
     kv_cache(pre_filled_cache)
