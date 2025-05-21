@@ -186,7 +186,7 @@ def generate_input(batchsize, dim, dq, prefill, seed):
     
     # Pre-fill KV cache
     kv_cache = KVCache((config.batch_size, config.max_seq_len, config.kv_lora_rank + config.qk_rope_head_dim)).to('cuda')
-    pre_filled_cache = torch.randn((config.batch_size, prefill, config.kv_lora_rank + config.qk_rope_head_dim), 
+    pre_filled_cache = torch.randn((config.batch_size, prefill, config.kv_lora_rank + config.qk_rope_head_dim), device='cuda', 
                                  dtype=torch.bfloat16, generator=gen)
     kv_cache(pre_filled_cache)
 
@@ -196,7 +196,7 @@ def ref_kernel(data: input_t) -> output_t:
     config, x, kv_cache = data
 
     # Load in model weights
-    model = MLA(config)
+    model = MLA(config).cuda()
     model.Q_proj_down.weight = nn.Parameter(config.Q_proj_down_weight)
     model.Q_proj_up.weight = nn.Parameter(config.Q_proj_up_weight)
     model.KV_proj_down.weight = nn.Parameter(config.KV_proj_down_weight)
@@ -241,7 +241,7 @@ if __name__ == "__main__":
 
     # Create model and inputs
     config, x, kv_cache = generate_input(batchsize, dim, dq, prefill, seed)
-    model = MLA(config)
+    model = MLA(config).cuda()
 
     # Run model with timing
     output, updated_kv, avg_time, times = time_mla(model, x, kv_cache)
