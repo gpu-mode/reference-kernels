@@ -135,8 +135,9 @@ class MLA(nn.Module):
         q = torch.concat([q_nope, q_rope], dim=-1)
 
         # Compute RoPE for keys and combine with no-RoPE part
-        k_rope = k_rope[:, :, None, :]
-        k_rope = self.k_rope(k_rope).expand(-1,-1,self.n_heads,-1)
+        k_rope = k_rope[:, None, :, :]
+        k_rope = self.k_rope(k_rope).expand(-1,self.n_heads,-1,-1)
+        k_rope = k_rope.reshape(batch_size, kv_len, self.n_heads, self.rope_head_dim)
         k = torch.concat([k_nope, k_rope], dim=-1)
                 
         ################################################################################
