@@ -129,24 +129,23 @@ class MLA(nn.Module):
         ################################################################################
 
         # Compute RoPE for queries and combine with no-RoPE part
-        q_rope = q_rope.reshape(batch_size, self.n_heads, seq_len, self.rope_head_dim)
+        q_rope = q_rope.permute(0, 2, 1, 3) # bs x n_heads x seq_len x rope_head_dim
         q_rope = self.q_rope(q_rope, start_pos=query_pos)
-        q_rope = q_rope.permute(0, 2, 1, 3) # bs x seq_len x n_heads x rope_head_dim
+
+        q_nope = q_nope.permute(0, 2, 1, 3) # bs x n_heads x seq_len x rope_head_dim
         q = torch.concat([q_nope, q_rope], dim=-1)
 
 
         # Compute RoPE for keys and combine with no-RoPE part
         k_rope = k_rope[:, None, :, :]
         k_rope = self.k_rope(k_rope).expand(-1,self.n_heads,-1,-1)
-        k_rope = k_rope.permute(0, 2, 1, 3) # bs x kv_len x n_heads x rope_head_dim
+        k_nope = k_nope.permute(0, 2, 1, 3) # bs x kv_len x n_heads x rope_head_dim
         k = torch.concat([k_nope, k_rope], dim=-1)
                 
         ################################################################################
         #                        Compute Multi-head Attention                          #
         ################################################################################
-        q = q.reshape(batch_size, self.n_heads, 1, self.rope_head_dim + self.nope_head_dim)
-        k = k.reshape(batch_size, self.n_heads, kv_len, self.rope_head_dim + self.nope_head_dim)
-        v = v.reshape(batch_size, self.n_heads, -1, self.v_head_dim)
+        v = v.permute(0, 2, 1, 3) # bs x n_heads x kv_len x v_head_dim
         scores = torch.matmul(q, k.transpose(-1, -2)) / math.sqrt(self.rope_head_dim + self.nope_head_dim)
         attn = F.softmax(scores, dim=-1).to(torch.bfloat16)
         y = torch.matmul(attn, v).view(batch_size, 1, -1)
