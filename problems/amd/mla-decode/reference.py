@@ -131,13 +131,14 @@ class MLA(nn.Module):
         # Compute RoPE for queries and combine with no-RoPE part
         q_rope = q_rope.reshape(batch_size, self.n_heads, seq_len, self.rope_head_dim)
         q_rope = self.q_rope(q_rope, start_pos=query_pos)
-        q_rope = q_rope.reshape(batch_size, seq_len, self.n_heads, self.rope_head_dim)
+        q_rope = q_rope.permute(0, 2, 1, 3) # bs x seq_len x n_heads x rope_head_dim
         q = torch.concat([q_nope, q_rope], dim=-1)
+
 
         # Compute RoPE for keys and combine with no-RoPE part
         k_rope = k_rope[:, None, :, :]
         k_rope = self.k_rope(k_rope).expand(-1,self.n_heads,-1,-1)
-        k_rope = k_rope.reshape(batch_size, kv_len, self.n_heads, self.rope_head_dim)
+        k_rope = k_rope.permute(0, 2, 1, 3) # bs x kv_len x n_heads x rope_head_dim
         k = torch.concat([k_nope, k_rope], dim=-1)
                 
         ################################################################################
