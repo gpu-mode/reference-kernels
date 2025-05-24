@@ -1,0 +1,29 @@
+# name: mla-py
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a custom mla decode that matches the reference implementation.
+  The function should handle a tuple of input tensors and apply fused attention decode calculation
+  The shapes of all outer and inner dimensions of tensors are from DeepSeek-R1
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"b": 128, "s_q": 1, "mean_sk": 1024, "h_q": 128, "h_kv": 1, "d": 576, "dv": 512, "causal": True, "var_len": False, "seed": 97}
+  - {"b": 128, "s_q": 1, "mean_sk": 6144, "h_q": 128, "h_kv": 1, "d": 576, "dv": 512, "causal": True, "var_len": False, "seed": 97}
+
+benchmarks:
+  - {"b": 128, "s_q": 1, "mean_sk": 1024, "h_q": 128, "h_kv": 1, "d": 576, "dv": 512, "causal": True, "var_len": False, "seed": 97}
+  - {"b": 128, "s_q": 1, "mean_sk": 6144, "h_q": 128, "h_kv": 1, "d": 576, "dv": 512, "causal": True, "var_len": False, "seed": 97}
