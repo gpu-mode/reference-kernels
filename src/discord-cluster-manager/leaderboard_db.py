@@ -66,6 +66,7 @@ class LeaderboardDB:
             "port": port,
         }
         self.connection: Optional[psycopg2.extensions.connection] = None
+        self.refcount: int = 0
         self.cursor: Optional[psycopg2.extensions.cursor] = None
 
     def connect(self) -> bool:
@@ -93,14 +94,20 @@ class LeaderboardDB:
 
     def __enter__(self):
         """Context manager entry"""
-        assert self.connection is None, "Nested db __enter__"
+        if self.connection is not None:
+            self.refcount += 1
+            return self
+
         if self.connect():
+            self.refcount = 1
             return self
         return None
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit"""
-        self.disconnect()
+        self.refcount -= 1
+        if self.refcount == 0:
+            self.disconnect()
 
     def create_leaderboard(self, leaderboard: LeaderboardItem) -> int:
         try:
