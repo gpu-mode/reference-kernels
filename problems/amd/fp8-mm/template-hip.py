@@ -1,4 +1,7 @@
 # This script provides a template for using load_inline to run a HIP kernel for
+import os 
+os.environ['PYTORCH_ROCM_ARCH'] = 'gfx942'
+
 from torch.utils.cpp_extension import load_inline
 from task import input_t, output_t
 CPP_WRAPPER = """

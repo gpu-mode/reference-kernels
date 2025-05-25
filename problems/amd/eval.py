@@ -1,3 +1,4 @@
+import base64
 import dataclasses
 import multiprocessing
 import re
@@ -218,6 +219,7 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
     # otherwise, we repeat until we either measure at least 10 full seconds,
     # or the relative error of the mean is below 1%.
 
+    bm_start_time = time.perf_counter_ns()
     for i in range(max_repeats):
         if recheck:
             # ensure we use a different seed for every benchmark
@@ -238,17 +240,23 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
                 return message
 
         del output
-        durations.append(end-start)
+        durations.append(end - start)
 
         if i > 1:
+            total_bm_duration = time.perf_counter_ns() - bm_start_time
             stats = calculate_stats(durations)
-            if stats.err / stats.mean < 0.001 or stats.mean * stats.runs > max_time_ns:
+            # stop if either
+            # a) relative error dips below 0.1%
+            # b) we exceed the total time limit for benchmarking the kernel
+            # c) we exceed 2 minutes of total wallclock time.
+            if stats.err / stats.mean < 0.001 or stats.mean * stats.runs > max_time_ns or total_bm_duration > 120e9:
                 break
 
     return calculate_stats(durations)
 
 
-def run_single_benchmark(pool: multiprocessing.Pool, test: TestCase, recheck: bool, max_repeats: int, max_time_ns: float):
+def run_single_benchmark(pool: multiprocessing.Pool, test: TestCase, recheck: bool, max_repeats: int,
+                         max_time_ns: float):
     """
     For a particular test case, check correctness (if applicable) and grab runtime results.
 
@@ -295,6 +303,31 @@ def run_benchmarking(logger: PopcornOutput, pool: multiprocessing.Pool, tests: l
         return 112
 
 
+def run_single_profile(test: TestCase) -> str:
+    """
+    Runs a single test case. Do not call directly
+    """
+    from submission import custom_kernel
+    from torch.profiler import profile, record_function, ProfilerActivity
+    data = generate_input(**test.args)
+    torch.cuda.synchronize()
+
+    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+        submission_output = custom_kernel(_clone_data(data))
+        torch.cuda.synchronize()
+    return prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
+
+
+def run_profiling(logger: PopcornOutput, tests: list[TestCase]):
+    logger.log("benchmark-count", len(tests))
+    for idx, test in enumerate(tests):
+        logger.log(f"benchmark.{idx}.spec", test.spec)
+        report = run_single_profile(test)
+        logger.log(f"benchmark.{idx}.report", base64.b64encode(report.encode("utf-8"), b"+*").decode("utf-8"))
+    logger.log("check", "pass")
+    return 0
+
+
 def main():
     fd = os.getenv("POPCORN_FD")
     if not fd:
@@ -333,12 +366,14 @@ def main():
                     else:
                         passed = False
                         logger.log(f"benchmark.{i}.status", "fail")
-                        logger.log(f"benchmark.{i}.error", str(result)) #TODO: Make sure result implements __str__?
+                        logger.log(f"benchmark.{i}.error", str(result))  # TODO: Make sure result implements __str__?
                         break
 
                 logger.log("check", "pass" if passed else "fail")
+            elif mode == "profile":
+                run_profiling(logger, tests)
             else:
-                # TODO: Implement script and profile mode
+                # TODO: Implement script mode
                 return 2
 
 

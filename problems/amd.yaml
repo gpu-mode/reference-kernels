@@ -1,22 +1,27 @@
 name: AMD Developer Challenge 2025
 # when does this end (individual problems might close earlier)
-deadline: "2025-05-27"
+deadline: "2025-06-02"
 # A description for this particular competition
 description: "AMD Developer Challenge 2025: Inference Sprint"
 # the list of problems
 problems:
   - directory: amd/identity
     name: amd-identity
-    deadline: "2025-06-08"
+    deadline: "2025-06-02"
     gpus:
       - MI300
   - directory: amd/fp8-mm
     name: amd-fp8-mm
-    deadline: "2025-05-27"
+    deadline: "2025-06-02"
     gpus:
       - MI300
   - directory: amd/moe
     name: amd-mixture-of-experts
-    deadline: "2025-05-27"
+    deadline: "2025-06-02"
+    gpus:
+      - MI300
+  - directory: amd/mla-decode
+    name: amd-mla-decode
+    deadline: "2025-06-02"
     gpus:
       - MI300
