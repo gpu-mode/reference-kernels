@@ -145,6 +145,8 @@ CUDA_FLAGS = [
 ]
 MODAL_CUDA_INCLUDE_DIRS = ["/ThunderKittens/include"]
 
+DEFAULT_GITHUB_TIMEOUT_MINUTES = 10  # Default timeout for GitHub launcher in minutes
+
 NVIDIA_REQUIREMENTS = """
 numpy
 torch
@@ -157,3 +159,6 @@ AMD_REQUIREMENTS = """
 --index-url https://download.pytorch.org/whl/rocm6.2.4
 torch
 """
+
+# A buffer for timeouts to account for github setup time
+TIMEOUT_BUFFER_MINUTES = 2

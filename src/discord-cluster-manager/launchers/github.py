@@ -1,13 +1,22 @@
 import asyncio
 import datetime
 import json
+import math
 import pprint
 import tempfile
 import zipfile
 from typing import Awaitable, Callable, Optional
 
 import requests
-from consts import AMD_REQUIREMENTS, GPU, NVIDIA_REQUIREMENTS, GitHubGPU
+from consts import (
+    AMD_REQUIREMENTS,
+    DEFAULT_GITHUB_TIMEOUT_MINUTES,
+    GPU,
+    NVIDIA_REQUIREMENTS,
+    TIMEOUT_BUFFER_MINUTES,
+    GitHubGPU,
+    SubmissionMode,
+)
 from github import Github, UnknownObjectException, WorkflowRun
 from report import RunProgressReporter
 from run_eval import CompileResult, EvalResult, FullResult, RunResult, SystemInfo
@@ -17,6 +26,15 @@ from .launcher import Launcher
 
 logger = setup_logging()
 
+def get_timeout(config: dict) -> int:
+    mode = config.get("mode")
+    sec_map = {
+        SubmissionMode.TEST.value: config.get("test_timeout"),
+        SubmissionMode.BENCHMARK.value: config.get("benchmark_timeout"),
+        SubmissionMode.LEADERBOARD.value: config.get("ranked_timeout"),
+    }
+    seconds = sec_map.get(mode) or DEFAULT_GITHUB_TIMEOUT_MINUTES * 60
+    return math.ceil(seconds / 60)
 
 class GitHubLauncher(Launcher):
     def __init__(self, repo: str, token: str):
@@ -70,7 +88,13 @@ class GitHubLauncher(Launcher):
 
         await status.push("⏳ Waiting for workflow to start...")
         logger.info("Waiting for workflow to start...")
-        await run.wait_for_completion(lambda x: self.wait_callback(x, status))
+
+        timeout = get_timeout(config) + TIMEOUT_BUFFER_MINUTES
+        logger.info(f"Waiting for workflow to complete... (timeout: {timeout} minutes)")
+        await run.wait_for_completion(
+            lambda x: self.wait_callback(x, status),
+            timeout_minutes=timeout
+            )
         await status.update(f"Workflow [{run.run_id}]({run.html_url}) completed")
         logger.info(f"Workflow [{run.run_id}]({run.html_url}) completed")
         await status.push("Downloading artifacts...")
