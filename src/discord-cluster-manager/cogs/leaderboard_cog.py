@@ -396,7 +396,6 @@ class LeaderboardCog(commands.Cog):
             name="get-submission", description="Retrieve one of your past submissions"
         )(self.get_submission_by_id)
 
-
     # --------------------------------------------------------------------------
     # |                           HELPER FUNCTIONS                              |
     # --------------------------------------------------------------------------

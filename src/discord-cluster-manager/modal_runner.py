@@ -2,16 +2,11 @@ import signal
 import traceback
 from contextlib import contextmanager
 
-from consts import MODAL_PATH
-from modal import App, Image, Mount
+from modal import App, Image
 from run_eval import FullResult, SystemInfo, run_config
 
 # Create a stub for the Modal app
 # IMPORTANT: This has to stay in separate file or modal breaks
-mount = Mount.from_local_dir(
-    MODAL_PATH,
-    remote_path="/root/",
-)
 app = App("discord-bot-runner")
 cuda_version = "12.4.0"
 flavor = "devel"

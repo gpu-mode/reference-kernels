@@ -122,13 +122,6 @@ GPU_TO_SM = {
 }
 
 
-# Modal-specific constants
-MODAL_PATH = "/tmp/dcs/"
-MODAL_EVAL_CODE_PATH = "/tmp/dcs/eval.py"
-MODAL_REFERENCE_CODE_PATH = "/tmp/dcs/reference.py"
-MODAL_SUBMISSION_CODE_PATH = "/tmp/dcs/submission.py"
-
-
 # Compilation flags for Modal
 CUDA_FLAGS = [
     "--std=c++20",
