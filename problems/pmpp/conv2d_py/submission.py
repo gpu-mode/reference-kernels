@@ -12,6 +12,9 @@ def custom_kernel(data: input_t) -> output_t:
     Returns:
         Output tensor after convolution
     """
+
+    torch.backends.cudnn.allow_tf32 = False
+    torch.backends.cudnn.deterministic = True
     input_tensor, kernel = data
     return F.conv2d(
         input_tensor, 
