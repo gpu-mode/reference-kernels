@@ -1,6 +1,7 @@
 import os
 
 from dotenv import load_dotenv
+from utils import get_github_branch_name
 
 
 def init_environment():
@@ -33,6 +34,7 @@ CLI_GITHUB_CLIENT_SECRET = os.getenv("CLI_GITHUB_CLIENT_SECRET", "")
 # GitHub-specific constants
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPO")
+GITHUB_WORKFLOW_BRANCH = os.getenv("GITHUB_WORKFLOW_BRANCH", get_github_branch_name())
 PROBLEMS_REPO = os.getenv("PROBLEMS_REPO")
 
 # Directory that will be used for local problem development.
