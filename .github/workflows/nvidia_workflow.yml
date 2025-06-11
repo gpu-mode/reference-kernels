@@ -2,6 +2,10 @@ name: NVIDIA PyTorch/CUDA Job
 on:
   workflow_dispatch:
     inputs:
+      run_id:
+        description: 'Unique identifier for this run'
+        required: true
+        type: string
       payload:
         description: 'Content of the user submission, as json string'
         required: true
@@ -10,6 +14,8 @@ on:
         description: 'Contents for a requirements.txt file'
         required: false
         type: string
+
+run-name: 'NVIDIA Job - ${{ github.event.inputs.run_id }}'
 
 jobs:
   run:

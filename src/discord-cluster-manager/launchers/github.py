@@ -5,6 +5,7 @@ import json
 import math
 import pprint
 import tempfile
+import uuid
 import zipfile
 import zlib
 from typing import Awaitable, Callable, Optional
@@ -46,7 +47,6 @@ class GitHubLauncher(Launcher):
         self.repo = repo
         self.token = token
         self.branch = branch
-        self.trigger_limit = asyncio.Semaphore(1)
 
     async def run_submission(
         self, config: dict, gpu_type: GPU, status: RunProgressReporter
@@ -87,11 +87,8 @@ class GitHubLauncher(Launcher):
             if gpu_vendor == "AMD":
                 inputs["runner"] = runner_name
 
-        async with self.trigger_limit:  # DO NOT REMOVE, PREVENTS A RACE CONDITION
-            if not await run.trigger(inputs):
-                raise RuntimeError(
-                    "Failed to trigger GitHub Action. Please check the configuration."
-                )
+        if not await run.trigger(inputs):
+            raise RuntimeError("Failed to trigger GitHub Action. Please check the configuration.")
 
         await status.push("⏳ Waiting for workflow to start...")
         logger.info("Waiting for workflow to start...")
@@ -188,6 +185,17 @@ class GitHubRun:
 
         Returns: Whether the run was successfully triggered,
         """
+        run_id = str(uuid.uuid4())
+
+        inputs_with_run_id = {**inputs, "run_id": run_id}
+
+        if self.workflow_file == "amd_workflow.yml":
+            expected_run_name = f"AMD Job - {run_id}"
+        elif self.workflow_file == "nvidia_workflow.yml":
+            expected_run_name = f"NVIDIA Job - {run_id}"
+        else:
+            raise ValueError(f"Unknown workflow file: {self.workflow_file}")
+
         trigger_time = datetime.datetime.now(datetime.timezone.utc)
         try:
             workflow = await asyncio.to_thread(self.repo.get_workflow, self.workflow_file)
@@ -195,14 +203,21 @@ class GitHubRun:
             logger.error(f"Could not find workflow {self.workflow_file}", exc_info=e)
             raise ValueError(f"Could not find workflow {self.workflow_file}") from e
 
-        logger.info("Dispatching workflow %s on branch %s", self.workflow_file, self.branch)
+        logger.info(
+            "Dispatching workflow %s on branch %s with run_id %s",
+            self.workflow_file,
+            self.branch,
+            run_id,
+        )
         logger.debug(
             "Dispatching workflow %s on branch %s with inputs %s",
             self.workflow_file,
             self.branch,
-            pprint.pformat(inputs),
+            pprint.pformat(inputs_with_run_id),
         )
-        success = await asyncio.to_thread(workflow.create_dispatch, self.branch, inputs=inputs)
+        success = await asyncio.to_thread(
+            workflow.create_dispatch, self.branch, inputs=inputs_with_run_id
+        )
 
         if success:
             wait_seconds = 5
@@ -214,28 +229,27 @@ class GitHubRun:
                 workflow.get_runs, event="workflow_dispatch"
             )
 
-            logger.info(
-                f"Checking recent workflow_dispatch runs after {trigger_time.isoformat()}..."
-            )
+            logger.info(f"Looking for workflow run with name: '{expected_run_name}'")
             found_run = None
             runs_checked = 0
             try:
                 run_iterator = recent_runs_paginated.__iter__()
-                while runs_checked < 50:
+                while runs_checked < 100:
                     try:
                         run = next(run_iterator)
                         runs_checked += 1
                         logger.debug(
-                            f"Checking run {run.id} created at {run.created_at.isoformat()}"
+                            f"Checking run {run.id} with name '{run.name}'"
+                            f" created at {run.created_at.isoformat()}"
                         )
-                        if run.created_at.replace(
+                        if run.name == expected_run_name and run.created_at.replace(
                             tzinfo=datetime.timezone.utc
-                        ) > trigger_time - datetime.timedelta(seconds=2):
+                        ) > trigger_time - datetime.timedelta(seconds=30):
                             found_run = run
-                            logger.info(f"Found matching workflow run: ID {found_run.id}")
-                            break
-                        else:
-                            logger.info(f"Run {run.id} is older than trigger time, stopping check.")
+                            logger.info(
+                                f"Found matching workflow run: ID {found_run.id} "
+                                f"with name '{found_run.name}'"
+                            )
                             break
                     except StopIteration:
                         logger.debug("Reached end of recent runs list.")
@@ -249,7 +263,8 @@ class GitHubRun:
                 return True
             else:
                 logger.warning(
-                    f"Could not find a workflow run created after {trigger_time.isoformat()}."
+                    f"Could not find a workflow run with name '{expected_run_name}' "
+                    f"created after {trigger_time.isoformat()}."
                 )
                 return False
         else:
