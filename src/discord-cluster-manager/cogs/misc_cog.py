@@ -5,7 +5,7 @@ import discord
 import psycopg2
 from discord import app_commands
 from discord.ext import commands
-from env import DATABASE_URL
+from env import DATABASE_URL, DISABLE_SSL
 from utils import send_discord_message, setup_logging
 
 if TYPE_CHECKING:
@@ -33,7 +33,8 @@ class BotManagerCog(commands.Cog):
             return
 
         try:
-            with psycopg2.connect(DATABASE_URL, sslmode="require") as conn:
+            sslmode = "disable" if DISABLE_SSL else "require"
+            with psycopg2.connect(DATABASE_URL, sslmode=sslmode) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT RANDOM()")
                     result = cursor.fetchone()

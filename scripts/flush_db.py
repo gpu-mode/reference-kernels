@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 
-import os
 
 import psycopg2
 from dotenv import load_dotenv
+from env import DATABASE_URL, DISABLE_SSL
 from psycopg2 import Error
 
 
 def flush_database():
     # Load environment variables
     load_dotenv()
-
-    DATABASE_URL = os.getenv("DATABASE_URL")
 
     if DATABASE_URL is None:
         print("❌ Missing DATABASE_URL environment variable")
@@ -20,7 +18,10 @@ def flush_database():
     try:
         # Connect to database
         print("📡 Connecting to database...")
-        connection = psycopg2.connect(DATABASE_URL, sslmode="require")
+        connection = psycopg2.connect(
+            DATABASE_URL,
+            sslmode="disable" if DISABLE_SSL else "require"
+        )
         cursor = connection.cursor()
 
         # Drop existing tables
