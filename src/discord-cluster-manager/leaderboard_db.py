@@ -1,7 +1,6 @@
 import dataclasses
 import datetime
 import json
-import logging
 from typing import List, NotRequired, Optional, TypedDict
 
 import psycopg2
@@ -507,7 +506,7 @@ class LeaderboardDB:
         try:
             return self._generate_stats(last_day)
         except Exception as e:
-            logging.exception("error generating stats", exc_info=e)
+            logger.exception("error generating stats", exc_info=e)
             raise
 
     def _generate_runner_stats(self, last_day: bool = False):
