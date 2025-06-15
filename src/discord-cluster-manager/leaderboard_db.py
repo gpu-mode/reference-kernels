@@ -4,16 +4,10 @@ import json
 import logging
 from typing import List, Optional
 
-import discord
 import psycopg2
 from env import (
     DATABASE_URL,
     DISABLE_SSL,
-    POSTGRES_DATABASE,
-    POSTGRES_HOST,
-    POSTGRES_PASSWORD,
-    POSTGRES_PORT,
-    POSTGRES_USER,
 )
 from run_eval import CompileResult, RunResult, SystemInfo
 from task import LeaderboardTask
@@ -27,32 +21,7 @@ from utils import (
     setup_logging,
 )
 
-leaderboard_name_cache = LRUCache(max_size=512)
-
 logger = setup_logging(__name__)
-
-
-async def leaderboard_name_autocomplete(
-    interaction: discord.Interaction,
-    current: str,
-) -> list[discord.app_commands.Choice[str]]:
-    """Return leaderboard names that match the current typed name"""
-    try:
-        cached_value = leaderboard_name_cache[current]
-        if cached_value is not None:
-            return cached_value
-
-        bot = interaction.client
-        with bot.leaderboard_db as db:
-            leaderboards = db.get_leaderboard_names()
-        filtered = [lb for lb in leaderboards if current.lower() in lb.lower()]
-        leaderboard_name_cache[current] = [
-            discord.app_commands.Choice(name=name, value=name) for name in filtered[:25]
-        ]
-        return leaderboard_name_cache[current]
-    except Exception as e:
-        logger.exception("Error in leaderboard autocomplete", exc_info=e)
-        return []
 
 
 class LeaderboardDB:
@@ -68,6 +37,7 @@ class LeaderboardDB:
         self.connection: Optional[psycopg2.extensions.connection] = None
         self.refcount: int = 0
         self.cursor: Optional[psycopg2.extensions.cursor] = None
+        self.name_cache = LRUCache(max_size=512)
 
     def connect(self) -> bool:
         """Establish connection to the database"""
@@ -143,7 +113,7 @@ class LeaderboardDB:
                 )
 
             self.connection.commit()
-            leaderboard_name_cache.invalidate()  # Invalidate autocomplete cache
+            self.name_cache.invalidate()  # Invalidate autocomplete cache
             return leaderboard_id
         except psycopg2.Error as e:
             logger.exception("Error in leaderboard creation.", e)
@@ -205,7 +175,7 @@ class LeaderboardDB:
                 (leaderboard_name,),
             )
             self.connection.commit()
-            leaderboard_name_cache.invalidate()  # Invalidate autocomplete cache
+            self.name_cache.invalidate()  # Invalidate autocomplete cache
         except psycopg2.Error as e:
             self.connection.rollback()
             logger.exception("Could not delete leaderboard %s.", leaderboard_name, exc_info=e)
@@ -923,23 +893,3 @@ class LeaderboardDB:
             self.connection.rollback()
             logger.exception("Error validating CLI ID %s", cli_id, exc_info=e)
             raise KernelBotError("Error validating CLI ID") from e
-
-
-if __name__ == "__main__":
-    print(
-        POSTGRES_HOST,
-        POSTGRES_DATABASE,
-        POSTGRES_USER,
-        POSTGRES_PASSWORD,
-        POSTGRES_PORT,
-    )
-
-    leaderboard_db = LeaderboardDB(
-        POSTGRES_HOST,
-        POSTGRES_DATABASE,
-        POSTGRES_USER,
-        POSTGRES_PASSWORD,
-        POSTGRES_PORT,
-    )
-    leaderboard_db.connect()
-    leaderboard_db.disconnect()

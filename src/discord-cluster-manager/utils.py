@@ -31,6 +31,9 @@ def setup_logging(name: Optional[str] = None):
     return logger
 
 
+logger = setup_logging(__name__)
+
+
 def with_error_handling(f: callable):
     @functools.wraps(f)
     async def wrap(self, interaction: discord.Interaction, *args, **kwargs):
@@ -336,3 +339,27 @@ def format_time(value: float | str, err: Optional[float | str] = None, scale=Non
             return f"{value:.0f} ± {err:.1f} {unit}"
         else:
             return f"{value:.0f} {unit}"
+
+
+async def leaderboard_name_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[discord.app_commands.Choice[str]]:
+    """Return leaderboard names that match the current typed name"""
+    try:
+        bot = interaction.client
+        name_cache = bot.leaderboard_db.name_cache
+        cached_value = name_cache[current]
+        if cached_value is not None:
+            return cached_value
+
+        with bot.leaderboard_db as db:
+            leaderboards = db.get_leaderboard_names()
+        filtered = [lb for lb in leaderboards if current.lower() in lb.lower()]
+        name_cache[current] = [
+            discord.app_commands.Choice(name=name, value=name) for name in filtered[:25]
+        ]
+        return name_cache[current]
+    except Exception as e:
+        logger.exception("Error in leaderboard autocomplete", exc_info=e)
+        return []

@@ -10,7 +10,6 @@ from consts import (
 )
 from discord import app_commands
 from discord.ext import commands
-from leaderboard_db import leaderboard_name_autocomplete
 from report import MultiProgressReporter
 from submission import SubmissionRequest, prepare_submission
 from ui.misc import GPUSelectionView
@@ -22,6 +21,7 @@ from utils import (
     SubmissionItem,
     format_time,
     get_user_from_id,
+    leaderboard_name_autocomplete,
     send_discord_message,
     setup_logging,
     with_error_handling,

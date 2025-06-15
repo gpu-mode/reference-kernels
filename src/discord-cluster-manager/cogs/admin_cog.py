@@ -13,13 +13,13 @@ import yaml
 from consts import GitHubGPU, ModalGPU
 from discord import app_commands
 from discord.ext import commands, tasks
-from leaderboard_db import leaderboard_name_autocomplete
 from task import LeaderboardTask, make_task
 from ui.misc import ConfirmationView, DeleteConfirmationModal, GPUSelectionView
 from utils import (
     KernelBotError,
     LeaderboardItem,
     SubmissionItem,
+    leaderboard_name_autocomplete,
     send_discord_message,
     setup_logging,
     with_error_handling,
