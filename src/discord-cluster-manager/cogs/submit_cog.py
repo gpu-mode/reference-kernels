@@ -18,10 +18,9 @@ from report import (
     make_short_report,
 )
 from run_eval import FullResult
-from task import LeaderboardTask
+from task import LeaderboardTask, build_task_config
 from utils import (
     KernelBotError,
-    build_task_config,
     send_discord_message,
     setup_logging,
     with_error_handling,

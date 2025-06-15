@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional, Union
 
-from consts import Language, RankCriterion
+from consts import Language, RankCriterion, SubmissionMode
 from utils import KernelBotError
 
 
@@ -134,3 +134,73 @@ def make_task(yaml_file: str | Path) -> LeaderboardTask:
 
 if __name__ == "__main__":
     print(json.dumps(make_task("task.yml").to_dict(), indent=4))
+
+
+def build_task_config(
+    task: "LeaderboardTask" = None,
+    submission_content: str = None,
+    arch: str = None,
+    mode: SubmissionMode = None,
+) -> dict:
+    if task is None:
+        assert mode == SubmissionMode.SCRIPT
+        # TODO detect language
+        lang = "py"
+
+        config = {
+            "lang": lang,
+            "arch": arch,
+        }
+
+        eval_name = {"py": "eval.py", "cu": "eval.cu"}[lang]
+
+        if lang == "py":
+            config["main"] = "eval.py"
+
+        return {
+            **config,
+            "sources": {
+                eval_name: submission_content,
+            },
+        }
+    else:
+        all_files = {}
+        for n, c in task.files.items():
+            if c == "@SUBMISSION@":
+                all_files[n] = submission_content
+            else:
+                all_files[n] = c
+
+        common = {
+            "lang": task.lang.value,
+            "arch": arch,
+            "benchmarks": task.benchmarks,
+            "tests": task.tests,
+            "mode": mode.value,
+            "test_timeout": task.test_timeout,
+            "benchmark_timeout": task.benchmark_timeout,
+            "ranked_timeout": task.ranked_timeout,
+            "ranking_by": task.ranking_by.value,
+            "seed": task.seed,
+        }
+
+        if task.lang == Language.Python:
+            return {
+                "main": task.config.main,
+                "sources": all_files,
+                **common,
+            }
+        else:
+            sources = {}
+            headers = {}
+            for f in all_files:
+                if f in task.config.sources:
+                    sources[f] = all_files[f]
+                else:
+                    headers[f] = all_files[f]
+
+            return {
+                "sources": sources,
+                "headers": headers,
+                "include_dirs": task.config.include_dirs,
+            }
