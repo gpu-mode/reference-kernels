@@ -5,10 +5,6 @@ import logging
 from typing import List, Optional
 
 import psycopg2
-from env import (
-    DATABASE_URL,
-    DISABLE_SSL,
-)
 from run_eval import CompileResult, RunResult, SystemInfo
 from task import LeaderboardTask
 from utils import (
@@ -25,7 +21,9 @@ logger = setup_logging(__name__)
 
 
 class LeaderboardDB:
-    def __init__(self, host: str, database: str, user: str, password: str, port: str = "5432"):
+    def __init__(
+        self, host: str, database: str, user: str, password: str, port: str, url: str, ssl_mode: str
+    ):
         """Initialize database connection parameters"""
         self.connection_params = {
             "host": host,
@@ -34,6 +32,8 @@ class LeaderboardDB:
             "password": password,
             "port": port,
         }
+        self.url = url
+        self.ssl_mode = ssl_mode
         self.connection: Optional[psycopg2.extensions.connection] = None
         self.refcount: int = 0
         self.cursor: Optional[psycopg2.extensions.cursor] = None
@@ -43,8 +43,8 @@ class LeaderboardDB:
         """Establish connection to the database"""
         try:
             self.connection = (
-                psycopg2.connect(DATABASE_URL, sslmode="require" if not DISABLE_SSL else "disable")
-                if DATABASE_URL
+                psycopg2.connect(self.url, sslmode=self.ssl_mode)
+                if self.url
                 else psycopg2.connect(**self.connection_params)
             )
             self.cursor = self.connection.cursor()

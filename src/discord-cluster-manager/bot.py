@@ -15,6 +15,8 @@ from cogs.verify_run_cog import VerifyRunCog
 from discord import app_commands
 from discord.ext import commands
 from env import (
+    DATABASE_URL,
+    DISABLE_SSL,
     DISCORD_CLUSTER_STAGING_ID,
     DISCORD_DEBUG_CLUSTER_STAGING_ID,
     DISCORD_DEBUG_TOKEN,
@@ -62,6 +64,8 @@ class ClusterBot(commands.Bot):
             POSTGRES_USER,
             POSTGRES_PASSWORD,
             POSTGRES_PORT,
+            url=DATABASE_URL,
+            ssl_mode="require" if not DISABLE_SSL else "disable",
         )
 
         try:
