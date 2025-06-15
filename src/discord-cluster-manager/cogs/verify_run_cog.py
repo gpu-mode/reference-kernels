@@ -14,10 +14,11 @@ from consts import GPU, SubmissionMode, get_gpu_by_name
 from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
+from discord_utils import send_discord_message, with_error_handling
 from leaderboard_db import RunItem, SubmissionItem
 from report import MultiProgressReporter
 from task import make_task
-from utils import send_discord_message, setup_logging, with_error_handling
+from utils import setup_logging
 
 logger = setup_logging()
 

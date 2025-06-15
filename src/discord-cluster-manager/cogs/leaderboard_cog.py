@@ -10,6 +10,12 @@ from consts import (
 )
 from discord import app_commands
 from discord.ext import commands
+from discord_utils import (
+    get_user_from_id,
+    leaderboard_name_autocomplete,
+    send_discord_message,
+    with_error_handling,
+)
 from leaderboard_db import (
     LeaderboardItem,
     LeaderboardRankedEntry,
@@ -22,11 +28,7 @@ from ui.misc import GPUSelectionView
 from ui.table import create_table
 from utils import (
     format_time,
-    get_user_from_id,
-    leaderboard_name_autocomplete,
-    send_discord_message,
     setup_logging,
-    with_error_handling,
 )
 
 if TYPE_CHECKING:
