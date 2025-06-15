@@ -10,8 +10,8 @@ from typing import Annotated, Optional
 from consts import SubmissionMode
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
+from leaderboard_db import LeaderboardRankedEntry
 from submission import SubmissionRequest
-from utils import LeaderboardRankedEntry
 
 from .utils import _handle_discord_oauth, _handle_github_oauth, _run_submission
 

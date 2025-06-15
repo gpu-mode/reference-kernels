@@ -4,9 +4,9 @@ from datetime import datetime
 from typing import Optional, Union
 
 from better_profanity import profanity
-from leaderboard_db import LeaderboardDB
+from leaderboard_db import LeaderboardDB, LeaderboardItem
 from task import LeaderboardTask
-from utils import KernelBotError, LeaderboardItem
+from utils import KernelBotError
 
 
 @dataclasses.dataclass

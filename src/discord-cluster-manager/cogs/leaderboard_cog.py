@@ -10,15 +10,17 @@ from consts import (
 )
 from discord import app_commands
 from discord.ext import commands
+from leaderboard_db import (
+    LeaderboardItem,
+    LeaderboardRankedEntry,
+    RunItem,
+    SubmissionItem,
+)
 from report import MultiProgressReporter
 from submission import SubmissionRequest, prepare_submission
 from ui.misc import GPUSelectionView
 from ui.table import create_table
 from utils import (
-    LeaderboardItem,
-    LeaderboardRankedEntry,
-    RunItem,
-    SubmissionItem,
     format_time,
     get_user_from_id,
     leaderboard_name_autocomplete,

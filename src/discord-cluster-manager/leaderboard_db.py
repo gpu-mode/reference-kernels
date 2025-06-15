@@ -2,18 +2,14 @@ import dataclasses
 import datetime
 import json
 import logging
-from typing import List, Optional
+from typing import List, NotRequired, Optional, TypedDict
 
 import psycopg2
 from run_eval import CompileResult, RunResult, SystemInfo
 from task import LeaderboardTask
 from utils import (
     KernelBotError,
-    LeaderboardItem,
-    LeaderboardRankedEntry,
     LRUCache,
-    RunItem,
-    SubmissionItem,
     setup_logging,
 )
 
@@ -79,7 +75,7 @@ class LeaderboardDB:
         if self.refcount == 0:
             self.disconnect()
 
-    def create_leaderboard(self, leaderboard: LeaderboardItem) -> int:
+    def create_leaderboard(self, leaderboard: "LeaderboardItem") -> int:
         try:
             self.cursor.execute(
                 """
@@ -342,7 +338,7 @@ class LeaderboardDB:
         self.cursor.execute("SELECT name FROM leaderboard.leaderboard")
         return [x[0] for x in self.cursor.fetchall()]
 
-    def get_leaderboards(self) -> list[LeaderboardItem]:
+    def get_leaderboards(self) -> list["LeaderboardItem"]:
         self.cursor.execute(
             """
             SELECT id, name, deadline, task, creator_id
@@ -393,7 +389,7 @@ class LeaderboardDB:
         else:
             return None
 
-    def get_leaderboard(self, leaderboard_name: str) -> LeaderboardItem | None:
+    def get_leaderboard(self, leaderboard_name: str) -> "LeaderboardItem | None":
         self.cursor.execute(
             """
             SELECT id, name, deadline, task, creator_id, forum_id, secret_seed
@@ -427,7 +423,7 @@ class LeaderboardDB:
         user_id: Optional[str] = None,
         limit: int = None,
         offset: int = 0,
-    ) -> list[LeaderboardRankedEntry]:
+    ) -> list["LeaderboardRankedEntry"]:
         # separate cases, for personal we want all submissions, for general we want best per user
         if user_id:
             # Query all if user_id (means called from show-personal)
@@ -642,7 +638,7 @@ class LeaderboardDB:
             logger.exception("Could not delete submission %s.", submission_id, exc_info=e)
             raise KernelBotError(f"Could not delete submission {submission_id}!") from e
 
-    def get_submission_by_id(self, submission_id: int) -> Optional[SubmissionItem]:
+    def get_submission_by_id(self, submission_id: int) -> Optional["SubmissionItem"]:
         query = """
                 SELECT s.leaderboard_id, lb.name, s.file_name, s.user_id,
                        s.submission_time, s.done, c.code
@@ -893,3 +889,52 @@ class LeaderboardDB:
             self.connection.rollback()
             logger.exception("Error validating CLI ID %s", cli_id, exc_info=e)
             raise KernelBotError("Error validating CLI ID") from e
+
+
+class LeaderboardItem(TypedDict):
+    id: int
+    name: str
+    creator_id: int
+    deadline: datetime.datetime
+    task: "LeaderboardTask"
+    gpu_types: List[str]
+    forum_id: int
+    secret_seed: NotRequired[int]
+
+
+class LeaderboardRankedEntry(TypedDict):
+    submission_id: int
+    rank: int
+    submission_name: str
+    submission_time: datetime.datetime
+    submission_score: float
+    leaderboard_name: str
+    user_id: int
+    user_name: str
+    gpu_type: str
+
+
+class RunItem(TypedDict):
+    start_time: datetime.datetime
+    end_time: datetime.datetime
+    mode: str
+    secret: bool
+    runner: str
+    score: Optional[float]
+    passed: bool
+    compilation: dict
+    meta: dict
+    result: dict
+    system: dict
+
+
+class SubmissionItem(TypedDict):
+    submission_id: int
+    leaderboard_id: int
+    leaderboard_name: str
+    file_name: str
+    user_id: int
+    submission_time: datetime.datetime
+    done: bool
+    code: str
+    runs: List[RunItem]
