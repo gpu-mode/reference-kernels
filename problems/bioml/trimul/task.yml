@@ -1,0 +1,65 @@
+# name: trimul
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  For a more complete description, see: https://tinyurl.com/gpumode-trimul
+  You will be implementing a Triangle Multiplicative Update (TriMul) module that is a core operation
+  for AlphaFold3, Chai, Protenix, and other protein structure prediction models in BioML.
+
+  The TriMul operator operates over a 4D tensor of shape [B, N, N, C]. 
+
+  Your task:
+  - Implement the "outgoing" version of the TriMul operator from the AlphaFold3 paper.
+  - You will not have to compute or store gradients for this version. You will only need to implement the forward pass.
+  
+  Input:
+  - `data`: Tuple of (input: torch.Tensor, weights: Dict[str, torch.Tensor], config: Dict)
+    - input: Input tensor of shape [bs, seq_len, seq_len, dim]
+    - mask: Mask tensor of shape [bs, seq_len, seq_len]
+    - weights: Dictionary containing model weights
+    - config: Dictionary containing model configuration parameters
+  
+  Output:
+  - Tuple containing:
+    - output: Processed tensor [bs, seq_len, seq_len, dim]
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "submission.py"
+
+test_timeout: 540
+benchmark_timeout: 540
+ranked_timeout: 540
+ranking_by: "geom"
+
+tests:
+  - {"seqlen": 32, "bs": 1, "dim": 128, "hiddendim": 128, "seed": 9371, "nomask": True}
+  - {"seqlen": 32, "bs": 1, "dim": 128, "hiddendim": 128, "seed": 1092, "nomask": False}
+  - {"seqlen": 64, "bs": 2, "dim": 256, "hiddendim": 128, "seed": 2291, "nomask": True} 
+  - {"seqlen": 64, "bs": 2, "dim": 256, "hiddendim": 128, "seed": 210284, "nomask": False} 
+  - {"seqlen": 128, "bs": 1, "dim": 768, "hiddendim": 128, "seed": 81934, "nomask": True}
+  - {"seqlen": 128, "bs": 1, "dim": 768, "hiddendim": 128, "seed": 1832, "nomask": False}
+  - {"seqlen": 256, "bs": 1, "dim": 128, "hiddendim": 128, "seed": 1932, "nomask": True}
+  - {"seqlen": 256, "bs": 1, "dim": 128, "hiddendim": 128, "seed": 10432, "nomask": False}
+  - {"seqlen": 768, "bs": 2, "dim": 128, "hiddendim": 128, "seed": 731, "nomask": True}
+  - {"seqlen": 768, "bs": 2, "dim": 128, "hiddendim": 128, "seed": 82102, "nomask": False}
+
+benchmarks:
+  - {"seqlen": 256, "bs": 1, "dim": 128, "hiddendim": 128, "seed": 9371, "nomask": True}
+  - {"seqlen": 256, "bs": 1, "dim": 384, "hiddendim": 128, "seed": 2301, "nomask": False}
+  - {"seqlen": 512, "bs": 2, "dim": 768, "hiddendim": 128, "seed": 12819, "nomask": True}
+  - {"seqlen": 512, "bs": 2, "dim": 768, "hiddendim": 128, "seed": 1219, "nomask": False}
+  - {"seqlen": 1024, "bs": 1, "dim": 384, "hiddendim": 128, "seed": 121, "nomask": True}
+  - {"seqlen": 1024, "bs": 1, "dim": 384, "hiddendim": 128, "seed": 8421, "nomask": False}
+  - {"seqlen": 1024, "bs": 1, "dim": 768, "hiddendim": 128, "seed": 8331, "nomask": True}
+  - {"seqlen": 1024, "bs": 1, "dim": 768, "hiddendim": 128, "seed": 9120, "nomask": False}
