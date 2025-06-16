@@ -1,24 +1,9 @@
-from utils import make_match_reference
+from utils import make_match_reference, DisableCuDNNTF32
 from task import input_t, output_t
 
 import torch
 from torch import nn, einsum
 import math
-
-class DisableCuDNNTF32:
-    def __init__(self):
-        self.allow_tf32 = torch.backends.cudnn.allow_tf32
-        self.deterministic = torch.backends.cudnn.deterministic
-        pass
-
-    def __enter__(self):
-        torch.backends.cudnn.allow_tf32 = False
-        torch.backends.cudnn.deterministic = True
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        torch.backends.cudnn.allow_tf32 = self.allow_tf32
-        torch.backends.cudnn.deterministic = self.deterministic
 
 # Reference code in PyTorch
 class TriMul(nn.Module):
@@ -97,21 +82,23 @@ def ref_kernel(data: input_t) -> output_t:
             - config: Dictionary containing model configuration parameters
     """
 
-    input_tensor, mask, weights, config = data
-    trimul = TriMul(dim=config["dim"], hidden_dim=config["hidden_dim"]).to(input_tensor.device)
+    # Use deterministic kernels and disable TF32 for accuracy
+    with DisableCuDNNTF32():
+        input_tensor, mask, weights, config = data
+        trimul = TriMul(dim=config["dim"], hidden_dim=config["hidden_dim"]).to(input_tensor.device)
 
-    # Fill in the given weights of the model
-    trimul.left_proj.weight = nn.Parameter(weights['left_proj.weight'])
-    trimul.right_proj.weight = nn.Parameter(weights['right_proj.weight'])
-    trimul.left_gate.weight = nn.Parameter(weights['left_gate.weight'])
-    trimul.right_gate.weight = nn.Parameter(weights['right_gate.weight'])
-    trimul.out_gate.weight = nn.Parameter(weights['out_gate.weight'])
-    trimul.to_out_norm.weight = nn.Parameter(weights['to_out_norm.weight'])
-    trimul.to_out.weight = nn.Parameter(weights['to_out.weight'])
+        # Fill in the given weights of the model
+        trimul.left_proj.weight = nn.Parameter(weights['left_proj.weight'])
+        trimul.right_proj.weight = nn.Parameter(weights['right_proj.weight'])
+        trimul.left_gate.weight = nn.Parameter(weights['left_gate.weight'])
+        trimul.right_gate.weight = nn.Parameter(weights['right_gate.weight'])
+        trimul.out_gate.weight = nn.Parameter(weights['out_gate.weight'])
+        trimul.to_out_norm.weight = nn.Parameter(weights['to_out_norm.weight'])
+        trimul.to_out.weight = nn.Parameter(weights['to_out.weight'])
 
-    output = trimul(input_tensor, mask)
+        output = trimul(input_tensor, mask)
 
-    return output
+        return output
 
 
 # Input generation for the reference code

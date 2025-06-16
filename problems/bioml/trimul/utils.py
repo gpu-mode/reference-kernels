@@ -141,3 +141,19 @@ def make_match_reference(reference: callable, **kwargs):
     def wrapped(data, output):
         return match_reference(data, output, reference=reference, **kwargs)
     return wrapped
+
+
+class DisableCuDNNTF32:
+    def __init__(self):
+        self.allow_tf32 = torch.backends.cudnn.allow_tf32
+        self.deterministic = torch.backends.cudnn.deterministic
+        pass
+
+    def __enter__(self):
+        torch.backends.cudnn.allow_tf32 = False
+        torch.backends.cudnn.deterministic = True
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        torch.backends.cudnn.allow_tf32 = self.allow_tf32
+        torch.backends.cudnn.deterministic = self.deterministic
