@@ -1,5 +1,3 @@
-#!POPCORN leaderboard trimul-dev
-
 import torch
 from torch import nn, einsum
 from task import input_t, output_t
