@@ -135,3 +135,10 @@ def format_time(value: float | str, err: Optional[float | str] = None, scale=Non
             return f"{value:.0f} ± {err:.1f} {unit}"
         else:
             return f"{value:.0f} {unit}"
+
+
+def limit_length(text: str, maxlen: int):
+    if len(text) > maxlen:
+        return text[: maxlen - 6] + " [...]"
+    else:
+        return text

@@ -2,7 +2,7 @@ import functools
 import logging
 
 import discord
-from utils import KernelBotError, setup_logging
+from utils import KernelBotError, limit_length, setup_logging
 
 logger = setup_logging(__name__)
 
@@ -103,3 +103,35 @@ async def leaderboard_name_autocomplete(
     except Exception as e:
         logger.exception("Error in leaderboard autocomplete", exc_info=e)
         return []
+
+
+async def _send_split_log(thread: discord.Thread, partial_message: str, header: str, log: str):
+    if len(partial_message) + len(log) + len(header) < 1900:
+        partial_message += f"\n\n## {header}:\n"
+        partial_message += f"```\n{log}```"
+        return partial_message
+    else:
+        # send previous chunk
+        if len(partial_message) > 0:
+            await thread.send(partial_message)
+        lines = log.splitlines()
+        chunks = []
+        partial_message = ""
+        for line in lines:
+            if len(partial_message) + len(line) < 1900:
+                partial_message += line + "\n"
+            else:
+                if partial_message != "":
+                    chunks.append(partial_message)
+                partial_message = line
+
+        if partial_message != "":
+            chunks.append(partial_message)
+
+        # now, format the chunks
+        for i, chunk in enumerate(chunks):
+            partial_message = f"\n\n## {header} ({i+1}/{len(chunks)}):\n"
+            partial_message += f"```\n{limit_length(chunk, 1900)}```"
+            await thread.send(partial_message)
+
+        return ""

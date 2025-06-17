@@ -4,48 +4,8 @@ import textwrap
 from typing import List
 
 import consts
-import discord
 from run_eval import CompileResult, EvalResult, FullResult, RunResult, SystemInfo
-from utils import format_time
-
-
-def _limit_length(text: str, maxlen: int):
-    if len(text) > maxlen:
-        return text[: maxlen - 6] + " [...]"
-    else:
-        return text
-
-
-async def _send_split_log(thread: discord.Thread, partial_message: str, header: str, log: str):
-    if len(partial_message) + len(log) + len(header) < 1900:
-        partial_message += f"\n\n## {header}:\n"
-        partial_message += f"```\n{log}```"
-        return partial_message
-    else:
-        # send previous chunk
-        if len(partial_message) > 0:
-            await thread.send(partial_message)
-        lines = log.splitlines()
-        chunks = []
-        partial_message = ""
-        for line in lines:
-            if len(partial_message) + len(line) < 1900:
-                partial_message += line + "\n"
-            else:
-                if partial_message != "":
-                    chunks.append(partial_message)
-                partial_message = line
-
-        if partial_message != "":
-            chunks.append(partial_message)
-
-        # now, format the chunks
-        for i, chunk in enumerate(chunks):
-            partial_message = f"\n\n## {header} ({i+1}/{len(chunks)}):\n"
-            partial_message += f"```\n{_limit_length(chunk, 1900)}```"
-            await thread.send(partial_message)
-
-        return ""
+from utils import format_time, limit_length
 
 
 @dataclasses.dataclass
@@ -95,7 +55,7 @@ def _generate_compile_report(reporter: "RunResultReport", comp: CompileResult):
     # ok, we found nvcc
     message += "# Compilation failed\n"
     message += "Command "
-    message += f"```bash\n>{_limit_length(comp.command, 1000)}```\n"
+    message += f"```bash\n>{limit_length(comp.command, 1000)}```\n"
     message += f"exited with code **{comp.exit_code}**."
     reporter.add_text(message)
 
@@ -108,7 +68,7 @@ def _generate_compile_report(reporter: "RunResultReport", comp: CompileResult):
 def _generate_crash_report(reporter: "RunResultReport", run: RunResult):
     message = "# Running failed\n"
     message += "Command "
-    message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
+    message += f"```bash\n{limit_length(run.command, 1000)}```\n"
     if run.exit_code == consts.ExitCode.TIMEOUT_EXPIRED:
         message += f"**timed out** after {float(run.duration):.2f} seconds."
     else:
@@ -127,7 +87,7 @@ def _generate_crash_report(reporter: "RunResultReport", run: RunResult):
 def _generate_test_report(reporter: "RunResultReport", run: RunResult):
     message = "# Testing failed\n"
     message += "Command "
-    message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
+    message += f"```bash\n{limit_length(run.command, 1000)}```\n"
     message += f"ran successfully in {run.duration:.2f} seconds, but did not pass all tests.\n"
     reporter.add_text(message)
 
@@ -392,7 +352,7 @@ def generate_report(result: FullResult) -> RunResultReport:  # noqa: C901
         # OK, we were successful
         message = "# Success!\n"
         message += "Command "
-        message += f"```bash\n{_limit_length(run.command, 1000)}```\n"
+        message += f"```bash\n{limit_length(run.command, 1000)}```\n"
         message += f"ran successfully in {run.duration:.2f} seconds.\n"
         report.add_text(message)
 
@@ -405,34 +365,6 @@ def generate_report(result: FullResult) -> RunResultReport:  # noqa: C901
             report.add_log("Program stdout", run.run.stdout.strip())
 
     return report
-
-
-class MultiProgressReporter:
-    def __init__(self, interaction: discord.Interaction, header: str):
-        self.header = header
-        self.runs = []
-        self.interaction = interaction
-
-    async def show(self):
-        await self._update_message()
-
-    def add_run(self, title: str) -> "RunProgressReporter":
-        rpr = RunProgressReporterDiscord(self, self.interaction, title)
-        self.runs.append(rpr)
-        return rpr
-
-    def make_message(self):
-        formatted_runs = []
-        for run in self.runs:
-            formatted_runs.append(run.get_message())
-
-        return str.join("\n\n", [f"# {self.header}"] + formatted_runs)
-
-    async def _update_message(self):
-        if self.interaction is None:
-            return
-
-        await self.interaction.edit_original_response(content=self.make_message(), view=None)
 
 
 class RunProgressReporter:
@@ -465,57 +397,3 @@ class RunProgressReporter:
 
     async def _update_message(self):
         raise NotImplementedError()
-
-
-class RunProgressReporterDiscord(RunProgressReporter):
-    def __init__(
-        self,
-        root: MultiProgressReporter,
-        interaction: discord.Interaction,
-        title: str,
-    ):
-        super().__init__(title=title)
-        self.root = root
-        self.interaction = interaction
-
-    async def _update_message(self):
-        await self.root._update_message()
-
-    async def display_report(self, title: str, report: RunResultReport):
-        thread = await self.interaction.channel.create_thread(
-            name=title,
-            type=discord.ChannelType.private_thread,
-            auto_archive_duration=1440,
-        )
-        await thread.add_user(self.interaction.user)
-        message = ""
-        for part in report.data:
-            if isinstance(part, Text):
-                if len(message) + len(part.text) > 1900:
-                    await thread.send(message)
-                    message = ""
-                message += part.text
-            elif isinstance(part, Log):
-                message = await _send_split_log(thread, message, part.header, part.content)
-
-        if len(message) > 0:
-            await thread.send(message)
-
-        await self.push(f"See results at {thread.jump_url}")
-
-
-class RunProgressReporterAPI(RunProgressReporter):
-    def __init__(self, title: str):
-        super().__init__(title=title)
-        self.long_report = ""
-
-    async def _update_message(self):
-        pass
-
-    async def display_report(self, title: str, report: RunResultReport):
-        for part in report.data:
-            if isinstance(part, Text):
-                self.long_report += part.text
-            elif isinstance(part, Log):
-                self.long_report += f"\n\n## {part.header}:\n"
-                self.long_report += f"```\n{part.content}```"

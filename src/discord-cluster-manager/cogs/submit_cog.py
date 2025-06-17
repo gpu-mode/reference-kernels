@@ -11,9 +11,9 @@ import discord
 from consts import GPU, GPU_TO_SM, RankCriterion, SubmissionMode, get_gpu_by_name
 from discord import app_commands
 from discord.ext import commands
+from discord_reporter import MultiProgressReporter
 from discord_utils import send_discord_message, with_error_handling
 from report import (
-    MultiProgressReporter,
     RunProgressReporter,
     generate_report,
     make_short_report,

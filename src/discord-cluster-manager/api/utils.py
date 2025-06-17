@@ -12,21 +12,8 @@ from env import (
     CLI_TOKEN_URL,
 )
 from fastapi import HTTPException
-from report import RunProgressReporterAPI
+from report import Log, RunProgressReporter, RunResultReport, Text
 from submission import SubmissionRequest, prepare_submission
-
-
-class MockProgressReporter:
-    """Class that pretends to be a progress reporter,
-    is used to avoid errors when running submission,
-    because runners report progress via discord interactions
-    """
-
-    async def push(self, message: str):
-        pass
-
-    async def update(self, message: str):
-        pass
 
 
 async def _handle_discord_oauth(code: str, redirect_uri: str) -> tuple[str, str]:
@@ -221,3 +208,20 @@ async def _run_submission(
             db.mark_submission_done(sub_id)
 
     return results, [rep.get_message() + "\n" + rep.long_report for rep in reporters]
+
+
+class RunProgressReporterAPI(RunProgressReporter):
+    def __init__(self, title: str):
+        super().__init__(title=title)
+        self.long_report = ""
+
+    async def _update_message(self):
+        pass
+
+    async def display_report(self, title: str, report: RunResultReport):
+        for part in report.data:
+            if isinstance(part, Text):
+                self.long_report += part.text
+            elif isinstance(part, Log):
+                self.long_report += f"\n\n## {part.header}:\n"
+                self.long_report += f"```\n{part.content}```"
