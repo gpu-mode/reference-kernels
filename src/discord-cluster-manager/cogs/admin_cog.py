@@ -482,7 +482,7 @@ class AdminCog(commands.Cog):
             )
             return
 
-        self.bot.accepts_jobs = False
+        self.bot.backend.accepts_jobs = False
         await send_discord_message(
             interaction, "Bot will refuse all future submissions!", ephemeral=True
         )
@@ -498,7 +498,7 @@ class AdminCog(commands.Cog):
             )
             return
 
-        self.bot.accepts_jobs = True
+        self.bot.backend.accepts_jobs = True
         await send_discord_message(
             interaction, "Bot will accept submissions again!", ephemeral=True
         )

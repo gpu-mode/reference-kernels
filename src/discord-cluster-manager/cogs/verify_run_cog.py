@@ -9,7 +9,6 @@ import discord
 import env
 from cogs import admin_cog
 from cogs.leaderboard_cog import LeaderboardSubmitCog
-from cogs.submit_cog import SubmitCog
 from consts import GPU, SubmissionMode, get_gpu_by_name
 from discord import app_commands
 from discord.app_commands import Choice
@@ -47,8 +46,7 @@ class VerifyRunCog(commands.Cog):
         self.bot = bot
 
     async def trigger_run(self, interaction: discord.Interaction, gpu: GPU, reporter, lang: str):
-        submit_cog: SubmitCog = self.bot.get_cog("SubmitCog")
-        submit_leaderboard = submit_cog.submit_leaderboard
+        submit_leaderboard = self.bot.backend.submit_leaderboard
 
         if lang == "py":
             sub_code = create_mock_attachment(
@@ -288,12 +286,6 @@ class VerifyRunCog(commands.Cog):
         try:
             if not interaction.response.is_done():
                 await interaction.response.defer()
-
-            submit_cog = self.bot.get_cog("SubmitCog")
-
-            if not submit_cog:
-                await send_discord_message(interaction, "❌ SubmitCog not found!")
-                return
 
             nvidia = get_gpu_by_name("nvidia")
             amd = get_gpu_by_name("mi300")

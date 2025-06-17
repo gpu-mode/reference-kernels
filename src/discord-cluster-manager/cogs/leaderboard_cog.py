@@ -107,7 +107,7 @@ class LeaderboardSubmitCog(app_commands.Group):
 
         selected_gpus = [get_gpu_by_name(gpu) for gpu in selected_gpus]
 
-        command = self.bot.get_cog("SubmitCog").submit_leaderboard
+        command = self.bot.backend.submit_leaderboard
 
         user_name = interaction.user.global_name or interaction.user.name
         # Create a submission entry in the database
@@ -232,7 +232,7 @@ class LeaderboardSubmitCog(app_commands.Group):
         mode: SubmissionMode,
         gpu: Optional[str],
     ):
-        if not self.bot.accepts_jobs:
+        if not self.bot.backend.accepts_jobs:
             await send_discord_message(
                 interaction,
                 "The bot is currently not accepting any new submissions, please try again later.",

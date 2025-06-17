@@ -4,9 +4,11 @@ import datetime
 import json
 import os
 import time
+from contextlib import contextmanager
 from dataclasses import asdict
 from typing import Annotated, Optional
 
+from backend import KernelBackend
 from consts import SubmissionMode
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -14,6 +16,9 @@ from leaderboard_db import LeaderboardRankedEntry
 from submission import SubmissionRequest
 
 from .utils import _handle_discord_oauth, _handle_github_oauth, _run_submission
+
+# yes, we do want  ... = Depends() in function signatures
+# ruff: noqa: B008
 
 app = FastAPI()
 
@@ -25,7 +30,7 @@ def json_serializer(obj):
     raise TypeError(f"Type {type(obj)} not serializable")
 
 
-bot_instance = None
+backend_instance: KernelBackend = None
 
 _last_action = time.time()
 _submit_limiter = asyncio.Semaphore(3)
@@ -50,13 +55,29 @@ async def simple_rate_limit():
     return
 
 
-def init_api(_bot_instance):
-    global bot_instance
-    bot_instance = _bot_instance
+def init_api(_backend_instance: KernelBackend):
+    global backend_instance
+    backend_instance = _backend_instance
+
+
+@contextmanager
+def get_db():
+    """Database context manager with guaranteed error handling"""
+    if not backend_instance:
+        raise HTTPException(status_code=500, detail="Bot instance not initialized")
+
+    if not hasattr(backend_instance, "leaderboard_db"):
+        raise HTTPException(status_code=500, detail="Database not initialized")
+
+    with backend_instance.db as db:
+        if db is None:
+            raise HTTPException(status_code=500, detail="Database connection failed")
+        yield db
 
 
 async def validate_cli_header(
     x_popcorn_cli_id: Optional[str] = Header(None, alias="X-Popcorn-Cli-Id"),
+    db_context=Depends(get_db),
 ) -> str:
     """
     FastAPI dependency to validate the X-Popcorn-Cli-Id header.
@@ -70,15 +91,8 @@ async def validate_cli_header(
     if not x_popcorn_cli_id:
         raise HTTPException(status_code=400, detail="Missing X-Popcorn-Cli-Id header")
 
-    if not bot_instance or not hasattr(bot_instance, "leaderboard_db"):
-        raise HTTPException(
-            status_code=500, detail="Bot instance or database not initialized for validation"
-        )
-
     try:
-        with bot_instance.leaderboard_db as db:
-            if db is None:
-                raise HTTPException(status_code=500, detail="Database connection failed")
+        with db_context as db:
             user_info = db.validate_cli_id(x_popcorn_cli_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error during validation: {e}") from e
@@ -90,7 +104,7 @@ async def validate_cli_header(
 
 
 @app.get("/auth/init")
-async def auth_init(provider: str) -> dict:
+async def auth_init(provider: str, db_context=Depends(get_db)) -> dict:
     if provider not in ["discord", "github"]:
         raise HTTPException(
             status_code=400, detail="Invalid provider, must be 'discord' or 'github'"
@@ -110,14 +124,8 @@ async def auth_init(provider: str) -> dict:
 
     state_uuid = str(uuid.uuid4())
 
-    # Ensure bot_instance and leaderboard_db are available
-    if not bot_instance or not hasattr(bot_instance, "leaderboard_db"):
-        raise HTTPException(status_code=500, detail="Bot instance or database not initialized")
-
     try:
-        with bot_instance.leaderboard_db as db:
-            if db is None:
-                raise HTTPException(status_code=500, detail="Database connection failed")
+        with db_context as db:
             # Assuming init_user_from_cli exists and handles DB interaction
             db.init_user_from_cli(state_uuid, provider)
     except AttributeError as e:
@@ -131,7 +139,7 @@ async def auth_init(provider: str) -> dict:
 
 
 @app.get("/auth/cli/{auth_provider}")
-async def cli_auth(auth_provider: str, code: str, state: str):  # noqa: C901
+async def cli_auth(auth_provider: str, code: str, state: str, db_context=Depends(get_db)):  # noqa: C901
     """
     Handle Discord/GitHub OAuth redirect. This endpoint receives the authorization code
     and state parameter from the OAuth flow.
@@ -194,13 +202,8 @@ async def cli_auth(auth_provider: str, code: str, state: str):  # noqa: C901
             status_code=500, detail="Failed to retrieve user ID or username from provider."
         )
 
-    if not bot_instance or not hasattr(bot_instance, "leaderboard_db"):
-        raise HTTPException(
-            status_code=500, detail="Bot instance or database not initialized for update"
-        )
-
     try:
-        with bot_instance.leaderboard_db as db:
+        with db_context as db:
             if is_reset:
                 db.reset_user_from_cli(user_id, cli_id, auth_provider)
             else:
@@ -223,7 +226,10 @@ async def cli_auth(auth_provider: str, code: str, state: str):  # noqa: C901
 
 
 async def _stream_submission_response(
-    submission_request, user_info, submission_mode_enum, bot_instance
+    submission_request: SubmissionRequest,
+    user_info: dict,
+    submission_mode_enum: SubmissionMode,
+    backend: KernelBackend,
 ):
     start_time = time.time()
     task: asyncio.Task | None = None
@@ -233,15 +239,15 @@ async def _stream_submission_response(
                 submission_request,
                 user_info,
                 submission_mode_enum,
-                bot_instance,
+                backend,
             )
         )
 
         while not task.done():
             elapsed_time = time.time() - start_time
             yield f"event: status\ndata: {json.dumps({'status': 'processing',
-                                                      'elapsed_time': round(elapsed_time, 2)}
-                                                      ,default=json_serializer)}\n\n"
+                                                      'elapsed_time': round(elapsed_time, 2)},
+                                                      default=json_serializer)}\n\n"
 
             try:
                 await asyncio.wait_for(asyncio.shield(task), timeout=15.0)
@@ -292,6 +298,7 @@ async def run_submission(  # noqa: C901
     submission_mode: str,
     file: UploadFile,
     user_info: Annotated[dict, Depends(validate_cli_header)],
+    db_context=Depends(get_db),
 ) -> StreamingResponse:
     """An endpoint that runs a submission on a given leaderboard, runner, and GPU type.
     Streams status updates and the final result via Server-Sent Events (SSE).
@@ -339,18 +346,8 @@ async def run_submission(  # noqa: C901
             detail=f"Submission mode '{submission_mode}' is not supported for this endpoint",
         )
 
-    if not bot_instance:
-        raise HTTPException(
-            status_code=503, detail="Service temporarily unavailable: Bot not initialized"
-        )
-
     try:
-        with bot_instance.leaderboard_db as db:
-            if db is None:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Service temporarily unavailable: Database connection failed",
-                )
+        with db_context as db:
             leaderboard_item = db.get_leaderboard(leaderboard_name)
             if not leaderboard_item:
                 all_leaderboards = [lb["name"] for lb in db.get_leaderboards()]
@@ -417,14 +414,14 @@ async def run_submission(  # noqa: C901
         submission_request=submission_request,
         user_info={"user_id": user_id, "user_name": user_name},
         submission_mode_enum=submission_mode_enum,
-        bot_instance=bot_instance,
+        backend=backend_instance,
     )
 
     return StreamingResponse(generator, media_type="text/event-stream")
 
 
 @app.get("/leaderboards")
-async def get_leaderboards():
+async def get_leaderboards(db_context=Depends(get_db)):
     """An endpoint that returns all leaderboards.
 
     Returns:
@@ -433,19 +430,15 @@ async def get_leaderboards():
         and the GPU types that are available for submissions.
     """
     await simple_rate_limit()
-    if not bot_instance or not hasattr(bot_instance, "leaderboard_db"):
-        raise HTTPException(status_code=500, detail="Bot instance or database not initialized")
     try:
-        with bot_instance.leaderboard_db as db:
-            if db is None:
-                raise HTTPException(status_code=500, detail="Database connection failed")
+        with db_context as db:
             return db.get_leaderboards()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching leaderboards: {e}") from e
 
 
 @app.get("/gpus/{leaderboard_name}")
-async def get_gpus(leaderboard_name: str) -> list[str]:
+async def get_gpus(leaderboard_name: str, db_context=Depends(get_db)) -> list[str]:
     """An endpoint that returns all GPU types that are available for a given leaderboard and runner.
 
     Args:
@@ -456,14 +449,8 @@ async def get_gpus(leaderboard_name: str) -> list[str]:
         list[str]: A list of GPU types that are available for the given leaderboard and runner.
     """
     await simple_rate_limit()
-    if not bot_instance or not hasattr(bot_instance, "leaderboard_db"):
-        raise HTTPException(status_code=500, detail="Bot instance or database not initialized")
-
     try:
-        with bot_instance.leaderboard_db as db:
-            if db is None:
-                raise HTTPException(status_code=500, detail="Database connection failed")
-
+        with db_context as db:
             # Validate leaderboard exists first
             leaderboard_names = [x["name"] for x in db.get_leaderboards()]
             if leaderboard_name not in leaderboard_names:
@@ -482,15 +469,15 @@ async def get_gpus(leaderboard_name: str) -> list[str]:
 
 @app.get("/submissions/{leaderboard_name}/{gpu_name}")
 async def get_submissions(
-    leaderboard_name: str, gpu_name: str, limit: int = None, offset: int = 0
+    leaderboard_name: str,
+    gpu_name: str,
+    limit: int = None,
+    offset: int = 0,
+    db_context=Depends(get_db),
 ) -> list[LeaderboardRankedEntry]:
     await simple_rate_limit()
-    if not bot_instance or not hasattr(bot_instance, "leaderboard_db"):
-        raise HTTPException(status_code=500, detail="Bot instance or database not initialized")
     try:
-        with bot_instance.leaderboard_db as db:
-            if db is None:
-                raise HTTPException(status_code=500, detail="Database connection failed")
+        with db_context as db:
             # Add validation for leaderboard and GPU? Might be redundant if DB handles it.
             return db.get_leaderboard_submissions(
                 leaderboard_name, gpu_name, limit=limit, offset=offset
@@ -500,15 +487,13 @@ async def get_submissions(
 
 
 @app.get("/submission_count/{leaderboard_name}/{gpu_name}")
-async def get_submission_count(leaderboard_name: str, gpu_name: str, user_id: str = None) -> dict:
+async def get_submission_count(
+    leaderboard_name: str, gpu_name: str, user_id: str = None, db_context=Depends(get_db)
+) -> dict:
     """Get the total count of submissions for pagination"""
     await simple_rate_limit()
-    if not bot_instance or not hasattr(bot_instance, "leaderboard_db"):
-        raise HTTPException(status_code=500, detail="Bot instance or database not initialized")
     try:
-        with bot_instance.leaderboard_db as db:
-            if db is None:
-                raise HTTPException(status_code=500, detail="Database connection failed")
+        with db_context as db:
             count = db.get_leaderboard_submission_count(leaderboard_name, gpu_name, user_id)
             return {"count": count}
     except Exception as e:

@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List
 
 import requests
+from backend import KernelBackend
 from consts import SubmissionMode, get_gpu_by_name
 from env import (
     CLI_DISCORD_CLIENT_ID,
@@ -139,10 +140,10 @@ async def _handle_github_oauth(code: str, redirect_uri: str) -> tuple[str, str]:
 
 
 async def _run_submission(
-    submission: SubmissionRequest, user_info: dict, mode: SubmissionMode, bot
+    submission: SubmissionRequest, user_info: dict, mode: SubmissionMode, backend: KernelBackend
 ):
     try:
-        req = prepare_submission(submission, bot.leaderboard_db)
+        req = prepare_submission(submission, backend.db)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -150,12 +151,10 @@ async def _run_submission(
     if len(selected_gpus) > 1 or selected_gpus[0] is None:
         raise HTTPException(status_code=400, detail="Invalid GPU type")
 
-    command = bot.get_cog("SubmitCog").submit_leaderboard
-
     user_name = user_info["user_name"]
     user_id = user_info["user_id"]
 
-    with bot.leaderboard_db as db:
+    with backend.db as db:
         sub_id = db.create_submission(
             leaderboard=req.leaderboard,
             file_name=submission.file_name,
@@ -176,7 +175,7 @@ async def _run_submission(
 
     try:
         tasks = [
-            command(
+            backend.submit_leaderboard(
                 sub_id,
                 submission.code,
                 submission.file_name,
@@ -190,7 +189,7 @@ async def _run_submission(
 
         if mode == SubmissionMode.LEADERBOARD:
             tasks += [
-                command(
+                backend.submit_leaderboard(
                     sub_id,
                     submission.code,
                     submission.file_name,
@@ -204,7 +203,7 @@ async def _run_submission(
 
         results = await asyncio.gather(*tasks)
     finally:
-        with bot.leaderboard_db as db:
+        with backend.db as db:
             db.mark_submission_done(sub_id)
 
     return results, [rep.get_message() + "\n" + rep.long_report for rep in reporters]
