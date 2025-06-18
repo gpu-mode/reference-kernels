@@ -12,7 +12,7 @@ class TriMul(nn.Module):
     ):
         super().__init__()
 
-        self.norm = nn.LayerNorm(dim, bias=False)
+        self.norm = nn.LayerNorm(dim)
 
         self.left_proj = nn.Linear(dim, hidden_dim, bias=False, dtype=torch.float32)
         self.right_proj = nn.Linear(dim, hidden_dim, bias=False, dtype=torch.float32)
@@ -21,7 +21,7 @@ class TriMul(nn.Module):
         self.right_gate = nn.Linear(dim, hidden_dim, bias=False, dtype=torch.float32)
         self.out_gate = nn.Linear(dim, hidden_dim, bias=False, dtype=torch.float32)
 
-        self.to_out_norm = nn.LayerNorm(hidden_dim, bias=False, dtype=torch.float32)
+        self.to_out_norm = nn.LayerNorm(hidden_dim)
         self.to_out = nn.Linear(hidden_dim, dim, bias=False, dtype=torch.float32)
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
@@ -92,6 +92,8 @@ def custom_kernel(data: input_t) -> output_t:
     trimul.out_gate.weight = nn.Parameter(weights['out_gate.weight'].to(torch.float32))
     trimul.to_out_norm.weight = nn.Parameter(weights['to_out_norm.weight'].to(torch.float32))
     trimul.to_out.weight = nn.Parameter(weights['to_out.weight'].to(torch.float32))
+    trimul.norm.bias = nn.Parameter(weights['norm.bias'].to(torch.float32))
+    trimul.to_out_norm.bias = nn.Parameter(weights['to_out_norm.bias'].to(torch.float32))
 
     output = trimul(input_tensor, mask).to(torch.float32)
 
