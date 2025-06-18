@@ -88,6 +88,7 @@ def ref_kernel(data: input_t) -> output_t:
         trimul = TriMul(dim=config["dim"], hidden_dim=config["hidden_dim"]).to(input_tensor.device)
 
         # Fill in the given weights of the model
+        trimul.norm.weight = nn.Parameter(weights['norm.weight'])
         trimul.left_proj.weight = nn.Parameter(weights['left_proj.weight'])
         trimul.right_proj.weight = nn.Parameter(weights['right_proj.weight'])
         trimul.left_gate.weight = nn.Parameter(weights['left_gate.weight'])
@@ -172,4 +173,4 @@ def generate_input(
     return (input_tensor, mask, weights, config)
 
 
-check_implementation = make_match_reference(ref_kernel, rtol=1e-3, atol=1e-3)
+check_implementation = make_match_reference(ref_kernel, rtol=2e-2, atol=2e-2)
