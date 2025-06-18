@@ -109,7 +109,8 @@ def generate_input(
     dim: int,
     hiddendim: int,
     seed: int,
-    nomask: bool
+    nomask: bool,
+    distribution: str,
 ) -> input_t:
 
     # Really dumb but for now _ isn't parsing correctly.
@@ -128,47 +129,34 @@ def generate_input(
 
     weights = {}
 
-    input_tensor = torch.randn(
-        (batch_size, seq_len, seq_len, dim),
-        device='cuda',
-        dtype=torch.float32,
-        generator=gen
-    ).contiguous()
+    # Generate input tensor based on distribution
+    if distribution == "cauchy":
+        # Heavier tail distribution
+        input_tensor = torch.distributions.Cauchy(0, 2).sample(
+            (batch_size, seq_len, seq_len, dim)
+        ).to(device='cuda', dtype=torch.float32)
+    else:  # normal distribution
+        input_tensor = torch.randn(
+            (batch_size, seq_len, seq_len, dim),
+            device='cuda',
+            dtype=torch.float32,
+            generator=gen
+        ).contiguous()
 
     if no_mask:
         mask = torch.ones(batch_size, seq_len, seq_len, device=input_tensor.device)
     else:
         mask = torch.randint(0, 2, (batch_size, seq_len, seq_len), device=input_tensor.device, generator=gen)
 
-    # Initialize model weights
-    weights["norm.weight"] = torch.randn(dim, 
-        device="cuda", 
-        dtype=torch.float32)
-
-    weights["left_proj.weight"] = torch.randn(hidden_dim, dim,
-        device="cuda", 
-        dtype=torch.float32) / math.sqrt(hidden_dim)
-
-    weights["right_proj.weight"] = torch.randn(hidden_dim, dim, 
-        device="cuda", 
-        dtype=torch.float32) / math.sqrt(hidden_dim)
-
-    weights["left_gate.weight"] = torch.randn(hidden_dim, dim, 
-        device="cuda", 
-        dtype=torch.float32) / math.sqrt(hidden_dim)
-
-    weights["right_gate.weight"] = torch.randn(hidden_dim, dim, 
-        device="cuda", 
-        dtype=torch.float32) / math.sqrt(hidden_dim)
-
-    weights["out_gate.weight"] = torch.randn(hidden_dim, dim, 
-        device="cuda", dtype=torch.float32) / math.sqrt(hidden_dim)
-
-    weights["to_out_norm.weight"] = torch.randn(hidden_dim, 
-        device="cuda", dtype=torch.float32)
-
-    weights["to_out.weight"] = torch.randn(dim, hidden_dim, 
-        device="cuda", dtype=torch.float32) / math.sqrt(dim)
+    # Initialize model weights based on distribution
+    weights["norm.weight"] = torch.randn(dim, device="cuda", dtype=torch.float32)
+    weights["left_proj.weight"] = torch.randn(hidden_dim, dim, device="cuda", dtype=torch.float32) / math.sqrt(hidden_dim)
+    weights["right_proj.weight"] = torch.randn(hidden_dim, dim, device="cuda", dtype=torch.float32) / math.sqrt(hidden_dim)
+    weights["left_gate.weight"] = torch.randn(hidden_dim, dim, device="cuda", dtype=torch.float32) / math.sqrt(hidden_dim)
+    weights["right_gate.weight"] = torch.randn(hidden_dim, dim, device="cuda", dtype=torch.float32) / math.sqrt(hidden_dim)
+    weights["out_gate.weight"] = torch.randn(hidden_dim, dim, device="cuda", dtype=torch.float32) / math.sqrt(hidden_dim)
+    weights["to_out_norm.weight"] = torch.randn(hidden_dim, device="cuda", dtype=torch.float32)
+    weights["to_out.weight"] = torch.randn(dim, hidden_dim, device="cuda", dtype=torch.float32) / math.sqrt(dim)
 
     return (input_tensor, mask, weights, config)
 
