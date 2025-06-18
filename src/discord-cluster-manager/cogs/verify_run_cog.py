@@ -13,7 +13,7 @@ from consts import GPU, SubmissionMode, get_gpu_by_name
 from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
-from discord_reporter import MultiProgressReporter
+from discord_reporter import MultiProgressReporterDiscord
 from discord_utils import send_discord_message, with_error_handling
 from leaderboard_db import RunItem, SubmissionItem
 from task import make_task
@@ -291,7 +291,7 @@ class VerifyRunCog(commands.Cog):
             amd = get_gpu_by_name("mi300")
             t4 = get_gpu_by_name("T4")
 
-            reporter = MultiProgressReporter("Verifying")
+            reporter = MultiProgressReporterDiscord("Verifying")
             await reporter.show(interaction)
 
             results = await asyncio.gather(

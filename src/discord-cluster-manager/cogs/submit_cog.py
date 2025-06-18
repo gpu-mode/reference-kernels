@@ -9,7 +9,7 @@ import discord
 from consts import SubmissionMode, get_gpu_by_name
 from discord import app_commands
 from discord.ext import commands
-from discord_reporter import MultiProgressReporter
+from discord_reporter import MultiProgressReporterDiscord
 from discord_utils import send_discord_message, with_error_handling
 from utils import (
     setup_logging,
@@ -70,7 +70,7 @@ class SubmitCog(commands.Cog):
         """
         Function invoked by the `run` command to run a single script.
         """
-        reporter = MultiProgressReporter(interaction, "Script run")
+        reporter = MultiProgressReporterDiscord(interaction, "Script run")
         rep = reporter.add_run(f"{gpu_type.name}")
         await reporter.show()
         gpu_type = get_gpu_by_name(gpu_type.name)

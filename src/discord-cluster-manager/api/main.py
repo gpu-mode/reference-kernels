@@ -227,7 +227,6 @@ async def cli_auth(auth_provider: str, code: str, state: str, db_context=Depends
 
 async def _stream_submission_response(
     submission_request: SubmissionRequest,
-    user_info: dict,
     submission_mode_enum: SubmissionMode,
     backend: KernelBackend,
 ):
@@ -237,7 +236,6 @@ async def _stream_submission_response(
         task = asyncio.create_task(
             _run_submission(
                 submission_request,
-                user_info,
                 submission_mode_enum,
                 backend,
             )
@@ -398,6 +396,7 @@ async def run_submission(  # noqa: C901
             code=submission_code,
             file_name=file.filename or "submission.py",
             user_id=user_id,
+            user_name=user_name,
             gpus=[gpu_type],
             leaderboard=leaderboard_name,
         )
@@ -412,7 +411,6 @@ async def run_submission(  # noqa: C901
 
     generator = _stream_submission_response(
         submission_request=submission_request,
-        user_info={"user_id": user_id, "user_name": user_name},
         submission_mode_enum=submission_mode_enum,
         backend=backend_instance,
     )

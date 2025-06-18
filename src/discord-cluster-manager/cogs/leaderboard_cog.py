@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timedelta
 from io import StringIO
 from typing import TYPE_CHECKING, List, Optional
@@ -6,11 +5,10 @@ from typing import TYPE_CHECKING, List, Optional
 import discord
 from consts import (
     SubmissionMode,
-    get_gpu_by_name,
 )
 from discord import app_commands
 from discord.ext import commands
-from discord_reporter import MultiProgressReporter
+from discord_reporter import MultiProgressReporterDiscord
 from discord_utils import (
     get_user_from_id,
     leaderboard_name_autocomplete,
@@ -85,79 +83,25 @@ class LeaderboardSubmitCog(app_commands.Group):
             )
             return -1
 
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
+
         req = SubmissionRequest(
             code=submission_content,
             file_name=script.filename,
             user_id=interaction.user.id,
+            user_name=interaction.user.global_name or interaction.user.name,
             gpus=cmd_gpus,
             leaderboard=leaderboard_name,
         )
         req = prepare_submission(req, self.bot.leaderboard_db)
 
-        # if there is more than one candidate GPU, display UI to let user select,
-        # otherwise just run on that GPU
-        if not interaction.response.is_done():
-            await interaction.response.defer(ephemeral=True)
-
         if req.gpus is None:
             view = await self.select_gpu_view(interaction, leaderboard_name, req.task_gpus)
-            selected_gpus = view.selected_gpus
-        else:
-            selected_gpus = req.gpus
+            req.gpus = view.selected_gpus
 
-        selected_gpus = [get_gpu_by_name(gpu) for gpu in selected_gpus]
-
-        command = self.bot.backend.submit_leaderboard
-
-        user_name = interaction.user.global_name or interaction.user.name
-        # Create a submission entry in the database
-        with self.bot.leaderboard_db as db:
-            sub_id = db.create_submission(
-                leaderboard=req.leaderboard,
-                file_name=script.filename,
-                code=submission_content,
-                user_id=interaction.user.id,
-                time=datetime.now(),
-                user_name=user_name,
-            )
-
-        run_msg = f"Submission **{sub_id}**: `{script.filename}` for `{req.leaderboard}`"
-        reporter = MultiProgressReporter(interaction, run_msg)
-        try:
-            tasks = [
-                command(
-                    sub_id,
-                    submission_content,
-                    script.filename,
-                    gpu,
-                    reporter.add_run(f"{gpu.name} on {gpu.runner}"),
-                    req.task,
-                    mode,
-                    None,
-                )
-                for gpu in selected_gpus
-            ]
-
-            # also schedule secret run
-            if mode == SubmissionMode.LEADERBOARD:
-                tasks += [
-                    command(
-                        sub_id,
-                        submission_content,
-                        script.filename,
-                        gpu,
-                        reporter.add_run(f"{gpu.name} on {gpu.runner} (secret)"),
-                        req.task,
-                        SubmissionMode.PRIVATE,
-                        req.secret_seed,
-                    )
-                    for gpu in selected_gpus
-                ]
-            await reporter.show()
-            await asyncio.gather(*tasks)
-        finally:
-            with self.bot.leaderboard_db as db:
-                db.mark_submission_done(sub_id)
+        reporter = MultiProgressReporterDiscord(interaction)
+        sub_id, results = await self.bot.backend.submit_full(req, mode, reporter)
 
         if mode == SubmissionMode.LEADERBOARD:
             await self.post_submit_hook(interaction, sub_id)

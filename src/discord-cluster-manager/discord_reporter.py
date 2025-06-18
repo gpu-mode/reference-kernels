@@ -1,18 +1,19 @@
 import discord
 from discord_utils import _send_split_log
-from report import Log, RunProgressReporter, RunResultReport, Text
+from report import Log, MultiProgressReporter, RunProgressReporter, RunResultReport, Text
 
 
-class MultiProgressReporter:
-    def __init__(self, interaction: discord.Interaction, header: str):
-        self.header = header
+class MultiProgressReporterDiscord(MultiProgressReporter):
+    def __init__(self, interaction: discord.Interaction):
+        self.header = ""
         self.runs = []
         self.interaction = interaction
 
-    async def show(self):
+    async def show(self, title: str):
+        self.header = title
         await self._update_message()
 
-    def add_run(self, title: str) -> "RunProgressReporter":
+    def add_run(self, title: str) -> "RunProgressReporterDiscord":
         rpr = RunProgressReporterDiscord(self, self.interaction, title)
         self.runs.append(rpr)
         return rpr
@@ -34,7 +35,7 @@ class MultiProgressReporter:
 class RunProgressReporterDiscord(RunProgressReporter):
     def __init__(
         self,
-        root: MultiProgressReporter,
+        root: MultiProgressReporterDiscord,
         interaction: discord.Interaction,
         title: str,
     ):

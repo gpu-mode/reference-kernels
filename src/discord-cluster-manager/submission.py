@@ -15,6 +15,7 @@ class SubmissionRequest:
     code: str
     file_name: str
     user_id: int
+    user_name: str
     gpus: Union[None, str, list]
     leaderboard: Optional[str]
 

@@ -1,10 +1,6 @@
-import asyncio
-from datetime import datetime
-from typing import List
-
 import requests
 from backend import KernelBackend
-from consts import SubmissionMode, get_gpu_by_name
+from consts import SubmissionMode
 from env import (
     CLI_DISCORD_CLIENT_ID,
     CLI_DISCORD_CLIENT_SECRET,
@@ -13,7 +9,7 @@ from env import (
     CLI_TOKEN_URL,
 )
 from fastapi import HTTPException
-from report import Log, RunProgressReporter, RunResultReport, Text
+from report import Log, MultiProgressReporter, RunProgressReporter, RunResultReport, Text
 from submission import SubmissionRequest, prepare_submission
 
 
@@ -140,73 +136,35 @@ async def _handle_github_oauth(code: str, redirect_uri: str) -> tuple[str, str]:
 
 
 async def _run_submission(
-    submission: SubmissionRequest, user_info: dict, mode: SubmissionMode, backend: KernelBackend
+    submission: SubmissionRequest, mode: SubmissionMode, backend: KernelBackend
 ):
     try:
         req = prepare_submission(submission, backend.db)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-    selected_gpus = [get_gpu_by_name(gpu) for gpu in req.gpus]
-    if len(selected_gpus) > 1 or selected_gpus[0] is None:
+    if len(req.gpus) != 1:
         raise HTTPException(status_code=400, detail="Invalid GPU type")
 
-    user_name = user_info["user_name"]
-    user_id = user_info["user_id"]
+    reporter = MultiProgressReporterAPI()
+    sub_id, results = await backend.submit_full(req, mode, reporter)
+    return results, [rep.get_message() + "\n" + rep.long_report for rep in reporter.runs]
 
-    with backend.db as db:
-        sub_id = db.create_submission(
-            leaderboard=req.leaderboard,
-            file_name=submission.file_name,
-            code=submission.code,
-            user_id=user_id,
-            time=datetime.now(),
-            user_name=user_name,
-        )
 
-    gpu = selected_gpus[0]
+class MultiProgressReporterAPI(MultiProgressReporter):
+    def __init__(self):
+        self.runs = []
 
-    reporters: List[RunProgressReporterAPI] = []
+    async def show(self, title: str):
+        return
 
-    def add_reporter(title: str):
+    def add_run(self, title: str) -> "RunProgressReporterAPI":
         rep = RunProgressReporterAPI(title)
-        reporters.append(rep)
+        self.runs.append(rep)
         return rep
 
-    try:
-        tasks = [
-            backend.submit_leaderboard(
-                sub_id,
-                submission.code,
-                submission.file_name,
-                gpu,
-                add_reporter(f"{gpu.name} on {gpu.runner}"),
-                req.task,
-                mode,
-                None,
-            )
-        ]
-
-        if mode == SubmissionMode.LEADERBOARD:
-            tasks += [
-                backend.submit_leaderboard(
-                    sub_id,
-                    submission.code,
-                    submission.file_name,
-                    gpu,
-                    add_reporter(f"{gpu.name} on {gpu.runner} (secret)"),
-                    req.task,
-                    SubmissionMode.PRIVATE,
-                    req.secret_seed,
-                )
-            ]
-
-        results = await asyncio.gather(*tasks)
-    finally:
-        with backend.db as db:
-            db.mark_submission_done(sub_id)
-
-    return results, [rep.get_message() + "\n" + rep.long_report for rep in reporters]
+    def make_message(self):
+        return
 
 
 class RunProgressReporterAPI(RunProgressReporter):

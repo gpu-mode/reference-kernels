@@ -1,13 +1,16 @@
+import asyncio
 import copy
 import math
+from datetime import datetime
 from typing import Optional
 
 import env
-from consts import GPU, GPU_TO_SM, RankCriterion, SubmissionMode
+from consts import GPU, GPU_TO_SM, RankCriterion, SubmissionMode, get_gpu_by_name
 from launchers import Launcher
 from leaderboard_db import LeaderboardDB
-from report import RunProgressReporter, generate_report, make_short_report
+from report import MultiProgressReporter, RunProgressReporter, generate_report, make_short_report
 from run_eval import FullResult
+from submission import ProcessedSubmissionRequest
 from task import LeaderboardTask, build_task_config
 from utils import KernelBotError, setup_logging
 
@@ -43,6 +46,60 @@ class KernelBackend:
     def register_launcher(self, launcher: Launcher):
         for gpu in launcher.gpus:
             self.launcher_map[gpu.value] = launcher
+
+    async def submit_full(
+        self, req: ProcessedSubmissionRequest, mode: SubmissionMode, reporter: MultiProgressReporter
+    ):
+        with self.db as db:
+            sub_id = db.create_submission(
+                leaderboard=req.leaderboard,
+                file_name=req.file_name,
+                code=req.code,
+                user_id=req.user_id,
+                time=datetime.now(),
+                user_name=req.user_name,
+            )
+
+        selected_gpus = [get_gpu_by_name(gpu) for gpu in req.gpus]
+
+        try:
+            tasks = [
+                self.submit_leaderboard(
+                    sub_id,
+                    req.code,
+                    req.file_name,
+                    gpu,
+                    reporter.add_run(f"{gpu.name} on {gpu.runner}"),
+                    req.task,
+                    mode,
+                    None,
+                )
+                for gpu in selected_gpus
+            ]
+
+            if mode == SubmissionMode.LEADERBOARD:
+                tasks += [
+                    self.submit_leaderboard(
+                        sub_id,
+                        req.code,
+                        req.file_name,
+                        gpu,
+                        reporter.add_run(f"{gpu.name} on {gpu.runner} (secret)"),
+                        req.task,
+                        SubmissionMode.PRIVATE,
+                        req.secret_seed,
+                    )
+                    for gpu in selected_gpus
+                ]
+            await reporter.show(
+                f"Submission **{sub_id}**: `{req.file_name}` for `{req.leaderboard}`"
+            )
+            results = await asyncio.gather(*tasks)
+        finally:
+            with self.db as db:
+                db.mark_submission_done(sub_id)
+
+        return sub_id, results
 
     async def submit_leaderboard(  # noqa: C901
         self,

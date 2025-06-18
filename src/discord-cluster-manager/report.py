@@ -367,6 +367,17 @@ def generate_report(result: FullResult) -> RunResultReport:  # noqa: C901
     return report
 
 
+class MultiProgressReporter:
+    async def show(self, title: str):
+        raise NotImplementedError()
+
+    def add_run(self, title: str) -> "RunProgressReporter":
+        raise NotImplementedError()
+
+    def make_message(self):
+        raise NotImplementedError()
+
+
 class RunProgressReporter:
     def __init__(self, title: str):
         # short report
