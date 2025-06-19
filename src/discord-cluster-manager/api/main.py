@@ -10,12 +10,13 @@ from typing import Annotated, Optional
 
 from backend import KernelBackend
 from consts import SubmissionMode
-from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse, StreamingResponse
 from leaderboard_db import LeaderboardRankedEntry
 from submission import SubmissionRequest
+from utils import KernelBotError
 
-from .utils import _handle_discord_oauth, _handle_github_oauth, _run_submission
+from .api_utils import _handle_discord_oauth, _handle_github_oauth, _run_submission
 
 # yes, we do want  ... = Depends() in function signatures
 # ruff: noqa: B008
@@ -60,18 +61,18 @@ def init_api(_backend_instance: KernelBackend):
     backend_instance = _backend_instance
 
 
+@app.exception_handler(KernelBotError)
+async def kernel_bot_error_handler(req: Request, exc: KernelBotError):
+    return JSONResponse(status_code=exc.http_code, content={"message": str(exc)})
+
+
 @contextmanager
 def get_db():
     """Database context manager with guaranteed error handling"""
     if not backend_instance:
         raise HTTPException(status_code=500, detail="Bot instance not initialized")
 
-    if not hasattr(backend_instance, "leaderboard_db"):
-        raise HTTPException(status_code=500, detail="Database not initialized")
-
     with backend_instance.db as db:
-        if db is None:
-            raise HTTPException(status_code=500, detail="Database connection failed")
         yield db
 
 

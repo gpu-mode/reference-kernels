@@ -57,7 +57,7 @@ class LeaderboardDB:
         self.cursor = None
         self.connection = None
 
-    def __enter__(self):
+    def __enter__(self) -> "LeaderboardDB":
         """Context manager entry"""
         if self.connection is not None:
             self.refcount += 1
@@ -66,7 +66,8 @@ class LeaderboardDB:
         if self.connect():
             self.refcount = 1
             return self
-        return None
+
+        raise KernelBotError("Could not connect to database", code=500)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit"""

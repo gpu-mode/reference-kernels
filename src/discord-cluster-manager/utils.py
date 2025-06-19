@@ -30,8 +30,9 @@ class KernelBotError(Exception):
     risk of leaking internal bot details.
     """
 
-    def __init__(self, message):
+    def __init__(self, message, code: int = 400):
         super().__init__(message)
+        self.http_code = 400
 
 
 def get_github_branch_name():
