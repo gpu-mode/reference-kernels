@@ -32,7 +32,7 @@ class KernelBotError(Exception):
 
     def __init__(self, message, code: int = 400):
         super().__init__(message)
-        self.http_code = 400
+        self.http_code = code
 
 
 def get_github_branch_name():

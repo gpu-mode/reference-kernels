@@ -347,18 +347,6 @@ async def run_submission(  # noqa: C901
     try:
         with db_context as db:
             leaderboard_item = db.get_leaderboard(leaderboard_name)
-            if not leaderboard_item:
-                all_leaderboards = [lb["name"] for lb in db.get_leaderboards()]
-                if leaderboard_name not in all_leaderboards:
-                    raise HTTPException(
-                        status_code=404, detail=f"Leaderboard '{leaderboard_name}' not found."
-                    )
-                else:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Error retrieving details for leaderboard '{leaderboard_name}'.",
-                    )
-
             gpus = leaderboard_item.get("gpu_types", [])
             if gpu_type not in gpus:
                 supported_gpus = ", ".join(gpus) if gpus else "None"

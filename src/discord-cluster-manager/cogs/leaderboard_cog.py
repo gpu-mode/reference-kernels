@@ -261,8 +261,6 @@ async def lang_autocomplete(
 
     with bot.leaderboard_db as db:
         leaderboard_item = db.get_leaderboard(lb)  # type: LeaderboardItem
-        if not leaderboard_item:
-            raise ValueError("Invalid leaderboard")
 
     candidates = leaderboard_item["task"].templates
     return [discord.app_commands.Choice(name=c, value=c) for c in candidates]
@@ -423,14 +421,6 @@ class LeaderboardCog(commands.Cog):
             submissions = {}
             with self.bot.leaderboard_db as db:
                 leaderboard_id = db.get_leaderboard(leaderboard_name)["id"]
-                if not leaderboard_id:
-                    await send_discord_message(
-                        interaction,
-                        f'Leaderboard "{leaderboard_name}" not found.',
-                        ephemeral=True,
-                    )
-                    return
-
                 gpus = db.get_leaderboard_gpu_types(leaderboard_name)
 
                 if len(gpus) == 1:
@@ -551,13 +541,6 @@ class LeaderboardCog(commands.Cog):
 
         with self.bot.leaderboard_db as db:
             leaderboard_item = db.get_leaderboard(leaderboard_name)  # type: LeaderboardItem
-            if not leaderboard_item:
-                await send_discord_message(
-                    interaction,
-                    f"Leaderboard with name `{leaderboard_name}` not found.",
-                    ephemeral=True,
-                )
-                return
 
         code = leaderboard_item["task"].files
 
@@ -585,13 +568,6 @@ class LeaderboardCog(commands.Cog):
         try:
             with self.bot.leaderboard_db as db:
                 leaderboard_item = db.get_leaderboard(leaderboard_name)  # type: LeaderboardItem
-                if not leaderboard_item:
-                    await send_discord_message(
-                        interaction,
-                        f"Leaderboard with name `{leaderboard_name}` not found.",
-                        ephemeral=True,
-                    )
-                    return
 
             if lang not in leaderboard_item["task"].templates:
                 langs = "\n".join(

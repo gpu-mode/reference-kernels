@@ -14,7 +14,7 @@ from consts import GitHubGPU, ModalGPU
 from discord import app_commands
 from discord.ext import commands, tasks
 from discord_utils import leaderboard_name_autocomplete, send_discord_message, with_error_handling
-from leaderboard_db import LeaderboardItem, SubmissionItem
+from leaderboard_db import LeaderboardDoesNotExist, LeaderboardItem, SubmissionItem
 from task import LeaderboardTask, make_task
 from ui.misc import ConfirmationView, DeleteConfirmationModal, GPUSelectionView
 from utils import (
@@ -176,7 +176,10 @@ class AdminCog(commands.Cog):
 
         # create-local overwrites existing leaderboard
         with self.bot.leaderboard_db as db:
-            old_lb = db.get_leaderboard(leaderboard_name)
+            try:
+                old_lb = db.get_leaderboard(leaderboard_name)
+            except LeaderboardDoesNotExist:
+                pass
             db.delete_leaderboard(leaderboard_name, force=True)
 
         # get existing forum thread or create new one
@@ -398,8 +401,7 @@ class AdminCog(commands.Cog):
         forum_channel = self.bot.get_channel(self.bot.leaderboard_forum_id)
 
         with self.bot.leaderboard_db as db:
-            lb: LeaderboardItem = db.get_leaderboard(leaderboard_name)
-            forum_id = lb["forum_id"]
+            forum_id = db.get_leaderboard(leaderboard_name)["forum_id"]
         threads = [thread for thread in forum_channel.threads if thread.id == forum_id]
 
         if threads:

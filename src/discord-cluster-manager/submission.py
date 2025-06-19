@@ -52,7 +52,8 @@ def prepare_submission(
     req = handle_popcorn_directives(req)
     assert req.leaderboard is not None
 
-    leaderboard = lookup_leaderboard(req.leaderboard, backend.db)
+    with backend.db as db:
+        leaderboard = db.get_leaderboard(req.leaderboard)
     check_deadline(leaderboard)
 
     task_gpus = get_avail_gpus(req.leaderboard, backend.db)
@@ -75,14 +76,6 @@ def prepare_submission(
         secret_seed=leaderboard["secret_seed"],
         task_gpus=task_gpus,
     )
-
-
-def lookup_leaderboard(leaderboard: str, lb_db: LeaderboardDB) -> LeaderboardItem:
-    with lb_db as db:
-        leaderboard_item = db.get_leaderboard(leaderboard)
-        if not leaderboard_item:
-            raise KernelBotError(f"Leaderboard `{leaderboard}` not found.")
-        return leaderboard_item
 
 
 def check_deadline(leaderboard: LeaderboardItem):

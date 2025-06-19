@@ -389,7 +389,7 @@ class LeaderboardDB:
         else:
             return None
 
-    def get_leaderboard(self, leaderboard_name: str) -> "LeaderboardItem | None":
+    def get_leaderboard(self, leaderboard_name: str) -> "LeaderboardItem":
         self.cursor.execute(
             """
             SELECT id, name, deadline, task, creator_id, forum_id, secret_seed
@@ -414,7 +414,7 @@ class LeaderboardDB:
                 gpu_types=self.get_leaderboard_gpu_types(res[1]),
             )
         else:
-            return None
+            raise LeaderboardDoesNotExist(leaderboard_name)
 
     def get_leaderboard_submissions(
         self,
@@ -938,3 +938,8 @@ class SubmissionItem(TypedDict):
     done: bool
     code: str
     runs: List[RunItem]
+
+
+class LeaderboardDoesNotExist(KernelBotError):
+    def __init__(self, name: str):
+        super().__init__(message=f"Leaderboard `{name}` does not exist.", code=404)
