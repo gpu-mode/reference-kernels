@@ -33,8 +33,6 @@ class LeaderboardTask:
     Attributes:
         lang: Programming language of this task. Specifies the type of
             the `data` attribute.
-        description: A description of the task.
-            TODO use for a sticky message for the LBs channel
         files: Dictionary containing a mapping of file names to file
             contents. Contents '@SUBMISSION@' get replaced with the
             submitted file before sending to the runner.
@@ -45,7 +43,6 @@ class LeaderboardTask:
         tests: List of test case specifications. Each test case is specified
             as a dict mapping function argument names to their values.
         benchmarks: List of benchmark specifications (same format as tests)
-        templates: Template files for participants to download
         test_timeout, benchmark_timeout, ranked_timeout: Timeouts for running
             tests, benchmarks, and ranked submissions.
 
@@ -54,7 +51,6 @@ class LeaderboardTask:
     lang: Language
     files: dict[str, str]
     config: CudaTaskData | PythonTaskData
-    description: str = ""
     libraries: list[str] = dataclasses.field(default_factory=list)
     tests: list[TestCaseType] = dataclasses.field(default_factory=list)
     test_timeout: int = 180
@@ -62,11 +58,10 @@ class LeaderboardTask:
     benchmark_timeout: int = 180
     ranked_timeout: int = 180
     ranking_by: RankCriterion = RankCriterion.LAST
-    templates: dict[str, str] = dataclasses.field(default_factory=dict)
     seed: Optional[int] = None
 
-    @staticmethod
-    def from_dict(data: dict):
+    @classmethod
+    def from_dict(cls, data: dict):
         data_ = copy.copy(data)
         lang = Language(data["lang"])
         criterion = RankCriterion(data.get("ranking_by", RankCriterion.LAST))
@@ -77,7 +72,7 @@ class LeaderboardTask:
         else:
             data_["config"] = CudaTaskData(**data["config"])
 
-        return LeaderboardTask(**data_)
+        return cls(**data_)
 
     def to_dict(self) -> dict:
         raw = dataclasses.asdict(self)
@@ -88,12 +83,28 @@ class LeaderboardTask:
     def to_str(self):
         return json.dumps(self.to_dict(), sort_keys=True)
 
-    @staticmethod
-    def from_str(data: str):
-        return LeaderboardTask.from_dict(json.loads(data))
+    @classmethod
+    def from_str(cls, data: str):
+        return cls.from_dict(json.loads(data))
 
 
-def make_task(yaml_file: str | Path) -> LeaderboardTask:
+@dataclasses.dataclass
+class LeaderboardDefinition:
+    """
+    LeaderboardDefinition extends LeaderboardTask with additional (meta)data
+    that is not directly required for running a submission.
+
+    description: A description of the task.
+    TODO use for a sticky message for the LBs channel
+    templates: Template files for participants to download
+    """
+
+    task: LeaderboardTask
+    description: str = ""
+    templates: dict[str, str] = dataclasses.field(default_factory=dict)
+
+
+def make_task_definition(yaml_file: str | Path) -> LeaderboardDefinition:
     import yaml
 
     if Path(yaml_file).is_dir():
@@ -127,13 +138,12 @@ def make_task(yaml_file: str | Path) -> LeaderboardTask:
     for lang, source in raw.get("templates", {}).items():
         assert lang in ["CUDA", "Python", "Triton", "HIP"]
         templates[lang] = (root / source).read_text()
-    raw["templates"] = templates
 
-    return LeaderboardTask.from_dict(raw)
-
-
-if __name__ == "__main__":
-    print(json.dumps(make_task("task.yml").to_dict(), indent=4))
+    del raw["templates"]
+    description = raw["description"]
+    del raw["description"]
+    task = LeaderboardTask.from_dict(raw)
+    return LeaderboardDefinition(task=task, templates=templates, description=description)
 
 
 def build_task_config(

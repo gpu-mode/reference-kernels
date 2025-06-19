@@ -16,7 +16,7 @@ from discord.ext import commands
 from discord_reporter import MultiProgressReporterDiscord
 from discord_utils import send_discord_message, with_error_handling
 from leaderboard_db import RunItem, SubmissionItem
-from task import make_task
+from task import make_task_definition
 from utils import setup_logging
 
 logger = setup_logging()
@@ -52,12 +52,12 @@ class VerifyRunCog(commands.Cog):
             sub_code = create_mock_attachment(
                 "submission.py", Path("examples/identity_py/submission.py").read_text()
             )
-            task = make_task("examples/identity_py")
+            task = make_task_definition("examples/identity_py")
         else:
             sub_code = create_mock_attachment(
                 "test.cu", Path("examples/identity_cuda/submission.cu").read_text()
             )
-            task = make_task("examples/identity_cuda")
+            task = make_task_definition("examples/identity_cuda")
 
         return await submit_leaderboard(
             interaction,
@@ -184,7 +184,7 @@ class VerifyRunCog(commands.Cog):
             await send_discord_message(interaction, f"Invalid path {directory.resolve()}")
             return
         try:
-            task = make_task(directory)
+            task = make_task_definition(directory)
         except Exception as E:
             logger.exception("Could not make task", exc_info=E)
             await send_discord_message(interaction, f"Invalid task {directory}")

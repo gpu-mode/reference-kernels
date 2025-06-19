@@ -1,11 +1,11 @@
 import dataclasses
 import datetime
 import json
-from typing import List, NotRequired, Optional, TypedDict
+from typing import Dict, List, NotRequired, Optional, TypedDict
 
 import psycopg2
 from run_eval import CompileResult, RunResult, SystemInfo
-from task import LeaderboardTask
+from task import LeaderboardDefinition, LeaderboardTask
 from utils import (
     KernelBotError,
     LRUCache,
@@ -75,29 +75,32 @@ class LeaderboardDB:
         if self.refcount == 0:
             self.disconnect()
 
-    def create_leaderboard(self, leaderboard: "LeaderboardItem") -> int:
+    def create_leaderboard(
+        self,
+        *,
+        name: str,
+        deadline: datetime.datetime,
+        definition: LeaderboardDefinition,
+        creator_id: int,
+        forum_id: int,
+        gpu_types: list | str,
+    ) -> int:
         try:
+            task = definition.task
             self.cursor.execute(
                 """
-                INSERT INTO leaderboard.leaderboard (name, deadline, task, creator_id, forum_id)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO leaderboard.leaderboard (name, deadline, task, creator_id,
+                                                     forum_id, description)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (
-                    leaderboard["name"],
-                    leaderboard["deadline"],
-                    leaderboard["task"].to_str(),
-                    leaderboard["creator_id"],
-                    leaderboard["forum_id"],
-                ),
+                (name, deadline, task.to_str(), creator_id, forum_id, definition.description),
             )
 
             leaderboard_id = self.cursor.fetchone()[0]
 
-            if isinstance(leaderboard["gpu_types"], str):
-                gpu_types = [leaderboard["gpu_types"]]
-            else:
-                gpu_types = leaderboard["gpu_types"]
+            if isinstance(gpu_types, str):
+                gpu_types = [gpu_types]
 
             for gpu_type in gpu_types:
                 self.cursor.execute(
@@ -108,6 +111,16 @@ class LeaderboardDB:
                     (leaderboard_id, gpu_type),
                 )
 
+            # insert templates
+            for lang, code in definition.templates.items():
+                self.cursor.execute(
+                    """
+                    INSERT INTO leaderboard.templates (leaderboard_id, lang, code)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (leaderboard_id, lang, code),
+                )
+
             self.connection.commit()
             self.name_cache.invalidate()  # Invalidate autocomplete cache
             return leaderboard_id
@@ -115,22 +128,59 @@ class LeaderboardDB:
             logger.exception("Error in leaderboard creation.", e)
             if isinstance(e, psycopg2.errors.UniqueViolation):
                 raise KernelBotError(
-                    "Error: Tried to create a leaderboard "
-                    f'"{leaderboard["name"]}" that already exists.'
+                    "Error: Tried to create a leaderboard " f'"{name}" that already exists.'
                 ) from e
             self.connection.rollback()  # Ensure rollback if error occurs
             raise KernelBotError("Error in leaderboard creation.") from e
 
-    def update_leaderboard(self, name, deadline, task):
+    def update_leaderboard(
+        self, name, deadline: datetime.datetime, definition: LeaderboardDefinition
+    ):
+        task = definition.task
         try:
             self.cursor.execute(
                 """
                 UPDATE leaderboard.leaderboard
-                SET deadline = %s, task = %s
+                SET deadline = %s, task = %s, description = %s
                 WHERE name = %s;
                 """,
-                (deadline, task.to_str(), name),
+                (
+                    deadline.astimezone(datetime.timezone.utc),
+                    task.to_str(),
+                    definition.description,
+                    name,
+                ),
             )
+
+            self.cursor.execute(
+                """
+                SELECT id
+                FROM leaderboard.leaderboard
+                WHERE name = %s
+                """,
+                (name,),
+            )
+
+            lb_id = self.cursor.fetchone()[0]
+
+            # replace templates
+            self.cursor.execute(
+                """
+                DELETE FROM leaderboard.templates
+                WHERE leaderboard_id = %s
+                """,
+                (lb_id,),
+            )
+
+            for lang, code in definition.templates.items():
+                self.cursor.execute(
+                    """
+                    INSERT INTO leaderboard.templates (leaderboard_id, lang, code)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (lb_id, lang, code),
+                )
+
             self.connection.commit()
         except psycopg2.Error as e:
             self.connection.rollback()
@@ -164,6 +214,15 @@ class LeaderboardDB:
                     (leaderboard_name,),
                 )
 
+            self.cursor.execute(
+                """
+                DELETE FROM leaderboard.templates
+                USING leaderboard.leaderboard
+                WHERE leaderboard.templates.leaderboard_id = leaderboard.leaderboard.id
+                    AND leaderboard.leaderboard.name = %s;
+                """,
+                (leaderboard_name,),
+            )
             self.cursor.execute(
                 """
                 DELETE FROM leaderboard.leaderboard WHERE name = %s
@@ -341,7 +400,7 @@ class LeaderboardDB:
     def get_leaderboards(self) -> list["LeaderboardItem"]:
         self.cursor.execute(
             """
-            SELECT id, name, deadline, task, creator_id
+            SELECT id, name, deadline, task, creator_id, forum_id, description
             FROM leaderboard.leaderboard
             """
         )
@@ -363,6 +422,8 @@ class LeaderboardDB:
                     task=LeaderboardTask.from_dict(lb[3]),
                     gpu_types=gpu_types,
                     creator_id=lb[4],
+                    forum_id=lb[5],
+                    description=lb[6],
                 )
             )
 
@@ -392,10 +453,34 @@ class LeaderboardDB:
 
         return [x[0] for x in self.cursor.fetchall()]
 
+    def get_leaderboard_templates(self, leaderboard_name: str) -> Dict[str, str]:
+        self.cursor.execute(
+            """
+            SELECT id
+            FROM leaderboard.leaderboard
+            WHERE name = %s
+            """,
+            (leaderboard_name,),
+        )
+        lb_id = self.cursor.fetchone()
+        if lb_id is None:
+            raise LeaderboardDoesNotExist(leaderboard_name)
+
+        self.cursor.execute(
+            """
+            SELECT lang, code
+            FROM leaderboard.templates
+            WHERE leaderboard_id = %s
+            """,
+            (lb_id[0],),
+        )
+
+        return {x[0]: x[1] for x in self.cursor.fetchall()}
+
     def get_leaderboard(self, leaderboard_name: str) -> "LeaderboardItem":
         self.cursor.execute(
             """
-            SELECT id, name, deadline, task, creator_id, forum_id, secret_seed
+            SELECT id, name, deadline, task, creator_id, forum_id, secret_seed, description
             FROM leaderboard.leaderboard
             WHERE name = %s
             """,
@@ -415,6 +500,7 @@ class LeaderboardDB:
                 forum_id=res[5],
                 secret_seed=res[6],
                 gpu_types=self.get_leaderboard_gpu_types(res[1]),
+                description=res[7],
             )
         else:
             raise LeaderboardDoesNotExist(leaderboard_name)
@@ -899,6 +985,7 @@ class LeaderboardItem(TypedDict):
     name: str
     creator_id: int
     deadline: datetime.datetime
+    description: str
     task: "LeaderboardTask"
     gpu_types: List[str]
     forum_id: int

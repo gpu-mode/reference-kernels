@@ -266,14 +266,10 @@ async def lang_autocomplete(
     return [discord.app_commands.Choice(name=c, value=c) for c in candidates]
 
 
-def add_header_to_template(lang: str, lb: LeaderboardItem):
-    template_file = lb["task"].templates[lang]
-
+def add_header_to_template(lang: str, code: str, lb: LeaderboardItem):
     comment_char = {"CUDA": "//", "Python": "#", "Triton": "#", "HIP": "#"}[lang]
 
-    description_comment = [
-        f"{comment_char} > {line}" for line in lb["task"].description.splitlines()
-    ]
+    description_comment = [f"{comment_char} > {line}" for line in lb["description"].splitlines()]
     header = f"""
 {comment_char}!POPCORN leaderboard {lb["name"]}
 
@@ -287,7 +283,7 @@ def add_header_to_template(lang: str, lb: LeaderboardItem):
 {comment_char} Happy hacking!
 
 """[1:]
-    return header + template_file + "\n"
+    return header + code + "\n"
 
 
 class LeaderboardCog(commands.Cog):
@@ -566,12 +562,11 @@ class LeaderboardCog(commands.Cog):
 
         try:
             with self.bot.leaderboard_db as db:
-                leaderboard_item = db.get_leaderboard(leaderboard_name)  # type: LeaderboardItem
+                templates = db.get_leaderboard_templates(leaderboard_name)
+                leaderboard_item = db.get_leaderboard(leaderboard_name)
 
-            if lang not in leaderboard_item["task"].templates:
-                langs = "\n".join(
-                    (f"* {lang} " for lang in leaderboard_item["task"].templates.keys())
-                )
+            if lang not in templates:
+                langs = "\n".join((f"* {lang} " for lang in templates.keys()))
                 await send_discord_message(
                     interaction,
                     f"Leaderboard `{leaderboard_name}` does not have a template for `{lang}`.\n"  # noqa: E501
@@ -580,7 +575,7 @@ class LeaderboardCog(commands.Cog):
                 )
                 return
 
-            template = add_header_to_template(lang, leaderboard_item)
+            template = add_header_to_template(lang, templates[lang], leaderboard_item)
             ext = {"CUDA": "cu", "Python": "py", "Triton": "py", "HIP": "py"}
             file_name = f"{leaderboard_name}.{ext[lang]}"
             file = discord.File(fp=StringIO(template), filename=file_name)
