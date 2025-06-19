@@ -1,5 +1,6 @@
 import copy
 import dataclasses
+import typing
 from datetime import datetime
 from typing import Optional, Union
 
@@ -7,6 +8,9 @@ from better_profanity import profanity
 from leaderboard_db import LeaderboardDB, LeaderboardItem
 from task import LeaderboardTask
 from utils import KernelBotError
+
+if typing.TYPE_CHECKING:
+    from backend import KernelBackend
 
 
 @dataclasses.dataclass
@@ -27,7 +31,14 @@ class ProcessedSubmissionRequest(SubmissionRequest):
     task_gpus: list
 
 
-def prepare_submission(req: SubmissionRequest, lb_db: LeaderboardDB) -> ProcessedSubmissionRequest:
+def prepare_submission(
+    req: SubmissionRequest, backend: "KernelBackend"
+) -> ProcessedSubmissionRequest:
+    if not backend.accepts_jobs:
+        raise KernelBotError(
+            "The bot is currently not accepting any new submissions, please try again later."
+        )
+
     if profanity.contains_profanity(req.file_name):
         raise KernelBotError("Please provide a non rude filename")
 
@@ -41,10 +52,10 @@ def prepare_submission(req: SubmissionRequest, lb_db: LeaderboardDB) -> Processe
     req = handle_popcorn_directives(req)
     assert req.leaderboard is not None
 
-    leaderboard = lookup_leaderboard(req.leaderboard, lb_db)
+    leaderboard = lookup_leaderboard(req.leaderboard, backend.db)
     check_deadline(leaderboard)
 
-    task_gpus = get_avail_gpus(req.leaderboard, lb_db)
+    task_gpus = get_avail_gpus(req.leaderboard, backend.db)
 
     if req.gpus is not None:
         for g in req.gpus:
@@ -70,7 +81,7 @@ def lookup_leaderboard(leaderboard: str, lb_db: LeaderboardDB) -> LeaderboardIte
     with lb_db as db:
         leaderboard_item = db.get_leaderboard(leaderboard)
         if not leaderboard_item:
-            raise KernelBotError(f"Leaderboard {leaderboard} not found.")
+            raise KernelBotError(f"Leaderboard `{leaderboard}` not found.")
         return leaderboard_item
 
 
@@ -106,15 +117,11 @@ def handle_popcorn_directives(req: SubmissionRequest) -> SubmissionRequest:
         req.gpus = info["gpus"]
 
     if info["leaderboard"] is not None:
-        if req.leaderboard is not None:
-            pass
-            # TODO how do we handle this?
-            # await send_discord_message(
-            #     interaction,
-            #     "Leaderboard name specified in the command doesn't match the one "
-            #     f"in the submission script header. Submitting to `{leaderboard_name}`",
-            #     ephemeral=True,
-            # )
+        if req.leaderboard is not None and req.leaderboard != info["leaderboard"]:
+            raise KernelBotError(
+                f"Leaderboard name `{req.leaderboard}` specified in the command doesn't match the one "
+                f"in the submission script header `{info['leaderboard']}`."
+            )
         else:
             req.leaderboard = info["leaderboard"]
 

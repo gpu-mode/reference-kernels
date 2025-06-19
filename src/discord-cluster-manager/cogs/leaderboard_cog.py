@@ -61,52 +61,6 @@ class LeaderboardSubmitCog(app_commands.Group):
         await view.wait()
         return view
 
-    async def on_submit_hook(  # noqa: C901
-        self,
-        interaction: discord.Interaction,
-        leaderboard_name: Optional[str],
-        script: discord.Attachment,
-        mode: SubmissionMode,
-        cmd_gpus: Optional[List[str]],
-    ) -> int:
-        """
-        Called as the main body of a submission to route to the correct runner.
-        """
-        # Read the template file
-        submission_content = await script.read()
-
-        try:
-            submission_content = submission_content.decode()
-        except UnicodeError:
-            await send_discord_message(
-                interaction, "Could not decode your file. Is it UTF-8?", ephemeral=True
-            )
-            return -1
-
-        if not interaction.response.is_done():
-            await interaction.response.defer(ephemeral=True)
-
-        req = SubmissionRequest(
-            code=submission_content,
-            file_name=script.filename,
-            user_id=interaction.user.id,
-            user_name=interaction.user.global_name or interaction.user.name,
-            gpus=cmd_gpus,
-            leaderboard=leaderboard_name,
-        )
-        req = prepare_submission(req, self.bot.leaderboard_db)
-
-        if req.gpus is None:
-            view = await self.select_gpu_view(interaction, leaderboard_name, req.task_gpus)
-            req.gpus = view.selected_gpus
-
-        reporter = MultiProgressReporterDiscord(interaction)
-        sub_id, results = await self.bot.backend.submit_full(req, mode, reporter)
-
-        if mode == SubmissionMode.LEADERBOARD:
-            await self.post_submit_hook(interaction, sub_id)
-        return sub_id
-
     def generate_run_verdict(self, run: RunItem, sub_data: SubmissionItem):
         medals = {1: "🥇 First", 2: "🥈 Second", 3: "🥉 Third"}
 
@@ -176,18 +130,42 @@ class LeaderboardSubmitCog(app_commands.Group):
         mode: SubmissionMode,
         gpu: Optional[str],
     ):
-        if not self.bot.backend.accepts_jobs:
-            await send_discord_message(
-                interaction,
-                "The bot is currently not accepting any new submissions, please try again later.",
-                ephemeral=True,
-            )
-            return
-
         if gpu is not None:
             gpu = [gpu.strip() for gpu in gpu.split(",")]
 
-        return await self.on_submit_hook(interaction, leaderboard_name, script, mode, gpu)
+        submission_content = await script.read()
+
+        try:
+            submission_content = submission_content.decode()
+        except UnicodeError:
+            await send_discord_message(
+                interaction, "Could not decode your file. Is it UTF-8?", ephemeral=True
+            )
+            return -1
+
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
+
+        req = SubmissionRequest(
+            code=submission_content,
+            file_name=script.filename,
+            user_id=interaction.user.id,
+            user_name=interaction.user.global_name or interaction.user.name,
+            gpus=gpu,
+            leaderboard=leaderboard_name,
+        )
+        req = prepare_submission(req, self.bot.backend)
+
+        if req.gpus is None:
+            view = await self.select_gpu_view(interaction, leaderboard_name, req.task_gpus)
+            req.gpus = view.selected_gpus
+
+        reporter = MultiProgressReporterDiscord(interaction)
+        sub_id, results = await self.bot.backend.submit_full(req, mode, reporter)
+
+        if mode == SubmissionMode.LEADERBOARD:
+            await self.post_submit_hook(interaction, sub_id)
+        return sub_id
 
     @app_commands.command(name="test", description="Start a testing/debugging run")
     @app_commands.describe(
