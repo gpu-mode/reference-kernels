@@ -442,15 +442,10 @@ async def get_gpus(leaderboard_name: str, db_context=Depends(get_db)) -> list[st
             if leaderboard_name not in leaderboard_names:
                 raise HTTPException(status_code=400, detail="Invalid leaderboard name")
 
-            gpu_types = db.get_leaderboard_gpu_types(leaderboard_name)
-            if gpu_types is None:  # Handle case where function returns None
-                return []
+            return db.get_leaderboard_gpu_types(leaderboard_name)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching GPU data: {e}") from e
-
-    # Filter based on known runners
-    return gpu_types
 
 
 @app.get("/submissions/{leaderboard_name}/{gpu_name}")

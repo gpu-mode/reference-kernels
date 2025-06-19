@@ -97,7 +97,7 @@ def get_avail_gpus(leaderboard: str, lb_db: LeaderboardDB):
         gpus = db.get_leaderboard_gpu_types(leaderboard)
 
     if len(gpus) == 0:
-        raise KernelBotError("❌ No available GPUs for Leaderboard " + f"`{leaderboard}`.")
+        raise KernelBotError(f"❌ No available GPUs for Leaderboard `{leaderboard}`.")
 
     return gpus
 

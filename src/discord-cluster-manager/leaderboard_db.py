@@ -368,7 +368,7 @@ class LeaderboardDB:
 
         return leaderboards
 
-    def get_leaderboard_gpu_types(self, leaderboard_name: str) -> List[str] | None:
+    def get_leaderboard_gpu_types(self, leaderboard_name: str) -> List[str]:
         self.cursor.execute(
             """
             SELECT *
@@ -382,12 +382,7 @@ class LeaderboardDB:
             (leaderboard_name,),
         )
 
-        gpu_types = [x[1] for x in self.cursor.fetchall()]
-
-        if gpu_types:
-            return gpu_types
-        else:
-            return None
+        return [x[1] for x in self.cursor.fetchall()]
 
     def get_leaderboard(self, leaderboard_name: str) -> "LeaderboardItem":
         self.cursor.execute(
