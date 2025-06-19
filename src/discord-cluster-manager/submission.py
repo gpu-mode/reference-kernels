@@ -112,7 +112,8 @@ def handle_popcorn_directives(req: SubmissionRequest) -> SubmissionRequest:
     if info["leaderboard"] is not None:
         if req.leaderboard is not None and req.leaderboard != info["leaderboard"]:
             raise KernelBotError(
-                f"Leaderboard name `{req.leaderboard}` specified in the command doesn't match the one "
+                f"Leaderboard name `{req.leaderboard}` specified in the command"
+                f" doesn't match the one "
                 f"in the submission script header `{info['leaderboard']}`."
             )
         else:

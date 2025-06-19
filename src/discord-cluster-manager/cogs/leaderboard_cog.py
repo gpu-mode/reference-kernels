@@ -420,7 +420,6 @@ class LeaderboardCog(commands.Cog):
         try:
             submissions = {}
             with self.bot.leaderboard_db as db:
-                leaderboard_id = db.get_leaderboard(leaderboard_name)["id"]
                 gpus = db.get_leaderboard_gpu_types(leaderboard_name)
 
                 if len(gpus) == 1:

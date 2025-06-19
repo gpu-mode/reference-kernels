@@ -371,18 +371,26 @@ class LeaderboardDB:
     def get_leaderboard_gpu_types(self, leaderboard_name: str) -> List[str]:
         self.cursor.execute(
             """
-            SELECT *
-            FROM leaderboard.gpu_type
-            WHERE leaderboard_id = (
-                SELECT id
-                FROM leaderboard.leaderboard
-                WHERE name = %s
-            )
+            SELECT id
+            FROM leaderboard.leaderboard
+            WHERE name = %s
             """,
             (leaderboard_name,),
         )
+        lb_id = self.cursor.fetchone()
+        if lb_id is None:
+            raise LeaderboardDoesNotExist(leaderboard_name)
 
-        return [x[1] for x in self.cursor.fetchall()]
+        self.cursor.execute(
+            """
+            SELECT gpu_type
+            FROM leaderboard.gpu_type
+            WHERE leaderboard_id = %s
+            """,
+            (lb_id[0],),
+        )
+
+        return [x[0] for x in self.cursor.fetchall()]
 
     def get_leaderboard(self, leaderboard_name: str) -> "LeaderboardItem":
         self.cursor.execute(

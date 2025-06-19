@@ -437,11 +437,6 @@ async def get_gpus(leaderboard_name: str, db_context=Depends(get_db)) -> list[st
     await simple_rate_limit()
     try:
         with db_context as db:
-            # Validate leaderboard exists first
-            leaderboard_names = [x["name"] for x in db.get_leaderboards()]
-            if leaderboard_name not in leaderboard_names:
-                raise HTTPException(status_code=400, detail="Invalid leaderboard name")
-
             return db.get_leaderboard_gpu_types(leaderboard_name)
 
     except Exception as e:
