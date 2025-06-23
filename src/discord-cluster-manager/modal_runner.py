@@ -8,41 +8,48 @@ from run_eval import FullResult, SystemInfo, run_config
 # Create a stub for the Modal app
 # IMPORTANT: This has to stay in separate file or modal breaks
 app = App("discord-bot-runner")
-cuda_version = "12.4.0"
+cuda_version = "12.8.0"
 flavor = "devel"
-operating_sys = "ubuntu22.04"
+operating_sys = "ubuntu24.04"
 tag = f"{cuda_version}-{flavor}-{operating_sys}"
 
 # Move this to another file later:
 cuda_image = (
-    Image.from_registry(f"nvidia/cuda:{tag}", add_python="3.11")
+    Image.from_registry(f"nvidia/cuda:{tag}", add_python="3.12")
     .apt_install(
         "git",
-        "gcc-11",
-        "g++-11",
-        "clang-11",  # note i skip a step
+        "gcc-13",
+        "g++-13",
+        "clang-18",
     )
     .pip_install(
-        "ninja",
-        "packaging",
-        "wheel",
-        "torch",
-        "numpy",
-        "triton",
-        "jax[cuda12]",
-        "jax2torch",
-        "tinygrad",
+        "ninja~=1.11",
+        "wheel~=0.45",
+        "requests~=2.32.4",
+        "packaging~=25.0",
+        "numpy~=2.3",
     )
-    .run_commands(
-        "update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100 "
-        + "--slave /usr/bin/g++ g++ /usr/bin/g++-11",
-        # "apt update",
-        # "apt  -y install clang-10", # this should be clang-10 but I can't get it to work yet
-        #
-        "git clone https://github.com/HazyResearch/ThunderKittens.git",
-        # "cd /ThunderKittens && pwd && python setup.py install",
+    .pip_install(
+        "torch~=2.7",
+        "torchvision~=0.22",
+        "torchaudio~=2.7",
+        index_url="https://download.pytorch.org/whl/cu128"
     )
-    .pip_install("requests")
+    # other frameworks
+    .pip_install(
+        "jax[cuda12]==0.5.3",   # 0.6 want's cudnn 9.8 in conflict with torch 2.7
+        "jax2torch==0.0.7",
+        "tinygrad~=0.10",
+    )
+    # nvidia cuda packages
+    .pip_install(
+        "nvidia-cupynumeric~=25.3",
+        "nvidia-cutlass-dsl~=4.0",
+        "cuda-core[cu12]~=0.3",
+        "cuda-python[all]==12.8",
+        #"nvmath-python[cu12]~=0.4",
+        #"numba-cuda[cu12]~=0.15",
+    )
 )
 
 cuda_image = cuda_image.add_local_python_source(
