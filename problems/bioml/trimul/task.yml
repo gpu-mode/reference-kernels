@@ -64,14 +64,9 @@ tests:
 
 benchmarks:
   - {"seqlen": 256, "bs": 2, "dim": 128, "hiddendim": 128, "seed": 9371, "nomask": True, "distribution": "normal"}
-  - {"seqlen": 256, "bs": 2, "dim": 384, "hiddendim": 128, "seed": 2301, "nomask": False, "distribution": "normal"}
-  - {"seqlen": 512, "bs": 1, "dim": 768, "hiddendim": 128, "seed": 12819, "nomask": True, "distribution": "normal"}
-  - {"seqlen": 512, "bs": 1, "dim": 768, "hiddendim": 128, "seed": 1219, "nomask": False, "distribution": "normal"}
-  - {"seqlen": 768, "bs": 1, "dim": 128, "hiddendim": 128, "seed": 481, "nomask": False, "distribution": "normal"}
-  - {"seqlen": 768, "bs": 1, "dim": 768, "hiddendim": 128, "seed": 3821, "nomask": True, "distribution": "normal"}
-  - {"seqlen": 1024, "bs": 1, "dim": 128, "hiddendim": 128, "seed": 23291, "nomask": True, "distribution": "normal"}
-  - {"seqlen": 1024, "bs": 1, "dim": 128, "hiddendim": 128, "seed": 587231, "nomask": False, "distribution": "normal"}
-  - {"seqlen": 256, "bs": 1, "dim": 384, "hiddendim": 128, "seed": 22301, "nomask": False, "distribution": "cauchy"}
-  - {"seqlen": 512, "bs": 1, "dim": 768, "hiddendim": 128, "seed": 12819, "nomask": True, "distribution": "cauchy"}
   - {"seqlen": 768, "bs": 1, "dim": 128, "hiddendim": 128, "seed": 381, "nomask": True, "distribution": "cauchy"}
+  - {"seqlen": 256, "bs": 2, "dim": 384, "hiddendim": 128, "seed": 2301, "nomask": False, "distribution": "normal"}
+  - {"seqlen": 512, "bs": 1, "dim": 128, "hiddendim": 128, "seed": 12819, "nomask": True, "distribution": "normal"}
   - {"seqlen": 1024, "bs": 1, "dim": 128, "hiddendim": 128, "seed": 381, "nomask": True, "distribution": "cauchy"}
+  - {"seqlen": 768, "bs": 1, "dim": 384, "hiddendim": 128, "seed": 481, "nomask": False, "distribution": "normal"}
+  - {"seqlen": 1024, "bs": 1, "dim": 384, "hiddendim": 128, "seed": 23291, "nomask": True, "distribution": "normal"}
