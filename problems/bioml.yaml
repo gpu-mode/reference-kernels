@@ -1,0 +1,16 @@
+name: BioML Kernels (no cash prizes)
+
+deadline: ""
+# A description for this particular competition
+description: "Popular and important kernels for BioML models like AlphaFold3"
+
+# the list of problems
+problems:
+  - directory: bioml/trimul
+    name: trimul
+    deadline: "2025-09-30"
+    gpus:
+      - B200
+      - H100
+      - A100
+      - MI300
