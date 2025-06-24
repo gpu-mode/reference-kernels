@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 import torch.cuda
 
-from utils import set_seed, clear_l2_cache
+from utils import set_seed
 try:
     from task import TestSpec
 except ImportError:
@@ -232,7 +232,6 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
         start_event.record()
-        clear_l2_cache()
         output = custom_kernel(data)
         end_event.record()
         torch.cuda.synchronize()

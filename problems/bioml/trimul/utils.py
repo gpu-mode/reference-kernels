@@ -2,7 +2,6 @@ import random
 from typing import Tuple
 
 import numpy as np
-import cupy as cp
 import torch
 
 
@@ -159,9 +158,9 @@ class DisableCuDNNTF32:
         torch.backends.cudnn.allow_tf32 = self.allow_tf32
         torch.backends.cudnn.deterministic = self.deterministic
 
-
 def clear_l2_cache():
-    cp.cuda.runtime.cudaDeviceSetLimit(cp.cuda.runtime.cudaLimitPersistingL2CacheSize, 0)
+    # import cupy as cp
+    # cp.cuda.runtime.deviceSetLimit(cp.cuda.runtime.cudaLimitPersistingL2CacheSize, 0)
     # create a large dummy tensor
     dummy = torch.empty((32, 1024, 1024), dtype=torch.int64, device="cuda")
     # write stuff to
