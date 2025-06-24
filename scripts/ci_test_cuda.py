@@ -204,7 +204,8 @@ def test_include_dirs(tmp_path: Path):
         {"eval.cu": eval_cu, "submission.cu": sub},
         header_files,
         flags=["-I.", f"-I{tmp_path}"],
-        mode="script",
+        mode=SubmissionMode.TEST.value,
+        tests="size: 256; seed: 42\n",
     )
 
     assert result.compilation.success is True

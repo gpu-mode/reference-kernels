@@ -142,65 +142,43 @@ def build_task_config(
     arch: str = None,
     mode: SubmissionMode = None,
 ) -> dict:
-    if task is None:
-        assert mode == SubmissionMode.SCRIPT
-        # TODO detect language
-        lang = "py"
+    all_files = {}
+    for n, c in task.files.items():
+        if c == "@SUBMISSION@":
+            all_files[n] = submission_content
+        else:
+            all_files[n] = c
 
-        config = {
-            "lang": lang,
-            "arch": arch,
-        }
+    common = {
+        "lang": task.lang.value,
+        "arch": arch,
+        "benchmarks": task.benchmarks,
+        "tests": task.tests,
+        "mode": mode.value,
+        "test_timeout": task.test_timeout,
+        "benchmark_timeout": task.benchmark_timeout,
+        "ranked_timeout": task.ranked_timeout,
+        "ranking_by": task.ranking_by.value,
+        "seed": task.seed,
+    }
 
-        eval_name = {"py": "eval.py", "cu": "eval.cu"}[lang]
-
-        if lang == "py":
-            config["main"] = "eval.py"
-
+    if task.lang == Language.Python:
         return {
-            **config,
-            "sources": {
-                eval_name: submission_content,
-            },
+            "main": task.config.main,
+            "sources": all_files,
+            **common,
         }
     else:
-        all_files = {}
-        for n, c in task.files.items():
-            if c == "@SUBMISSION@":
-                all_files[n] = submission_content
+        sources = {}
+        headers = {}
+        for f in all_files:
+            if f in task.config.sources:
+                sources[f] = all_files[f]
             else:
-                all_files[n] = c
+                headers[f] = all_files[f]
 
-        common = {
-            "lang": task.lang.value,
-            "arch": arch,
-            "benchmarks": task.benchmarks,
-            "tests": task.tests,
-            "mode": mode.value,
-            "test_timeout": task.test_timeout,
-            "benchmark_timeout": task.benchmark_timeout,
-            "ranked_timeout": task.ranked_timeout,
-            "ranking_by": task.ranking_by.value,
-            "seed": task.seed,
+        return {
+            "sources": sources,
+            "headers": headers,
+            "include_dirs": task.config.include_dirs,
         }
-
-        if task.lang == Language.Python:
-            return {
-                "main": task.config.main,
-                "sources": all_files,
-                **common,
-            }
-        else:
-            sources = {}
-            headers = {}
-            for f in all_files:
-                if f in task.config.sources:
-                    sources[f] = all_files[f]
-                else:
-                    headers[f] = all_files[f]
-
-            return {
-                "sources": sources,
-                "headers": headers,
-                "include_dirs": task.config.include_dirs,
-            }

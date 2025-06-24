@@ -342,20 +342,6 @@ def generate_report(result: FullResult) -> RunResultReport:  # noqa: C901
             make_benchmark_log(bench_run),
         )
 
-    if "script" in runs:
-        run = runs["script"]
-        if run.compilation is not None and not run.compilation.success:
-            _generate_compile_report(report, run.compilation)
-            return report
-
-        run = run.run
-        # OK, we were successful
-        message = "# Success!\n"
-        message += "Command "
-        message += f"```bash\n{limit_length(run.command, 1000)}```\n"
-        message += f"ran successfully in {run.duration:.2f} seconds.\n"
-        report.add_text(message)
-
     if len(runs) == 1:
         run = next(iter(runs.values()))
         if len(run.run.stderr.strip()) > 0:

@@ -366,7 +366,7 @@ def main():
             elif mode == "profile":
                 run_profiling(logger, tests)
             else:
-                # TODO: Implement script mode
+                # invalid mode
                 return 2
 
 

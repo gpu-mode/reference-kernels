@@ -335,7 +335,6 @@ async def run_submission(  # noqa: C901
     allowed_modes = [
         SubmissionMode.TEST,
         SubmissionMode.BENCHMARK,
-        SubmissionMode.SCRIPT,
         SubmissionMode.LEADERBOARD,
     ]
     if submission_mode_enum not in allowed_modes:

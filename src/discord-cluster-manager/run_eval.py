@@ -306,8 +306,7 @@ def run_single_evaluation(
             bench_file.flush()
             return run_program(call + [mode, bench_file.name], seed=seed, timeout=timeout)
     else:
-        assert mode == "script"
-        return run_program(call, seed=seed, timeout=Timeout.SCRIPT)
+        raise ValueError(f"Invalid mode {mode}")
 
 
 def make_system_info() -> SystemInfo:
@@ -506,12 +505,12 @@ def run_evaluation(
     """
     Given a "runner" function `call`, interprets the mode
     and calls the runner with the right arguments.
-    Simple modes (test, benchmark, profile, script) just
+    Simple modes (test, benchmark, profile) just
     invoke the runner once, but private/leaderboard
     require multiple runner calls.
     """
     results: dict[str, EvalResult] = {}
-    if mode in ["test", "benchmark", "profile", "script"]:
+    if mode in ["test", "benchmark", "profile"]:
         results[mode] = call(mode=mode)
     elif mode in ["private", "leaderboard"]:
         # first, run the tests

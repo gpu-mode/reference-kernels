@@ -11,7 +11,6 @@ from backend import KernelBackend
 from cogs.admin_cog import AdminCog
 from cogs.leaderboard_cog import LeaderboardCog
 from cogs.misc_cog import BotManagerCog
-from cogs.submit_cog import SubmitCog
 from cogs.verify_run_cog import VerifyRunCog
 from discord import app_commands
 from discord.ext import commands
@@ -36,13 +35,6 @@ class ClusterBot(commands.Bot):
         super().__init__(intents=intents, command_prefix="!")
         self.debug_mode = debug_mode
 
-        # Create the run group for leaderboardless runs. Debugging only.
-        if self.debug_mode:
-            self.run_group = app_commands.Group(
-                name="run", description="Run jobs on different platforms"
-            )
-            self.tree.add_command(self.run_group)
-
         self.leaderboard_group = app_commands.Group(
             name="leaderboard", description="Leaderboard commands"
         )
@@ -65,7 +57,6 @@ class ClusterBot(commands.Bot):
         logger.info(f"Syncing commands for staging guild {DISCORD_CLUSTER_STAGING_ID}")
         try:
             # Load cogs
-            await self.add_cog(SubmitCog(self))
             await self.add_cog(BotManagerCog(self))
             await self.add_cog(LeaderboardCog(self))
             await self.add_cog(VerifyRunCog(self))

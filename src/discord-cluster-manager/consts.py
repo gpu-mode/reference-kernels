@@ -8,7 +8,6 @@ class Timeout(IntEnum):
     BENCHMARK = 180
     RANKED = 180
     COMPILE = 120
-    SCRIPT = 120
 
 
 class SchedulerType(Enum):
@@ -88,7 +87,6 @@ class SubmissionMode(Enum):
         limited (no stdout/stderr).
     Private: Special run that does test followed by leaderboard (on a secret seed), but gives only
         very limited feedback.
-    Script: Submit an arbitrary script.
     """
 
     TEST = "test"
@@ -96,7 +94,6 @@ class SubmissionMode(Enum):
     PROFILE = "profile"
     LEADERBOARD = "leaderboard"
     PRIVATE = "private"
-    SCRIPT = "script"
 
 
 class Language(Enum):
