@@ -4,7 +4,6 @@ import datetime
 import json
 import os
 import time
-from contextlib import contextmanager
 from dataclasses import asdict
 from typing import Annotated, Optional
 
@@ -66,14 +65,12 @@ async def kernel_bot_error_handler(req: Request, exc: KernelBotError):
     return JSONResponse(status_code=exc.http_code, content={"message": str(exc)})
 
 
-@contextmanager
 def get_db():
     """Database context manager with guaranteed error handling"""
     if not backend_instance:
         raise HTTPException(status_code=500, detail="Bot instance not initialized")
 
-    with backend_instance.db as db:
-        yield db
+    return backend_instance.db
 
 
 async def validate_cli_header(
@@ -359,7 +356,8 @@ async def run_submission(  # noqa: C901
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Internal server error while validating leaderboard/GPU: {e}"
+            status_code=500,
+            detail=f"Internal server error while validating leaderboard/GPU: {e}",
         ) from e
 
     try:

@@ -139,7 +139,7 @@ async def _run_submission(
     submission: SubmissionRequest, mode: SubmissionMode, backend: KernelBackend
 ):
     try:
-        req = prepare_submission(submission, backend.db)
+        req = prepare_submission(submission, backend)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
