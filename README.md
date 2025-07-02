@@ -7,6 +7,7 @@ You can see what's going on [gpumode.com](https://www.gpumode.com/)
 ## Competition
 1. [PMPP practice problems](https://gpu-mode.github.io/discord-cluster-manager/docs/active#practice-round-leaderboard): Starting on Sunday Feb 21, 2025.
 2. [AMD $100K kernel competition](problems/amd)
+3. [BioML kernels](problems/bioml)
 
 ## Making a Leaderboard Submission
 
