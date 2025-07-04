@@ -8,6 +8,7 @@ import sys
 import math
 from pathlib import Path
 from typing import Any, Optional
+from copy import deepcopy
 
 import torch.cuda
 
@@ -135,7 +136,7 @@ def _clone_data(data):
     elif isinstance(data, torch.Tensor):
         return data.clone()
     else:
-        return data
+        return deepcopy(data)
 
 
 def wrap_check_implementation(data, submission_output):
