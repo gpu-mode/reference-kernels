@@ -11,7 +11,9 @@ def ref_kernel(data: input_t) -> output_t:
     Returns:
         Tensor containing the inclusive prefix sum
     """
-    return torch.cumsum(data.to(torch.float64), dim=0).to(torch.float64)
+    data, output = data
+    output = torch.cumsum(data.to(torch.float64), dim=0).to(torch.float64)
+    return output
 
 
 def generate_input(size: int, seed: int) -> input_t:
@@ -20,9 +22,11 @@ def generate_input(size: int, seed: int) -> input_t:
     Returns:
         Tensor to compute prefix sum on
     """
-    gen = torch.Generator(device='cuda')
+    gen = torch.Generator(device="cuda")
     gen.manual_seed(seed)
-    return torch.randn(size, device='cuda', dtype=torch.float32, generator=gen).contiguous()
+    return torch.randn(
+        size, device="cuda", dtype=torch.float32, generator=gen
+    ).contiguous()
 
 
 # This algorithm is very sensitive to the tolerance and the error is magnified by the input size
@@ -30,8 +34,8 @@ def generate_input(size: int, seed: int) -> input_t:
 def check_implementation(data: input_t, output: output_t) -> str:
     # Then get the size for scaling the tolerance
     n = data.numel()
-    
-    scale_factor = n ** 0.5  # Square root of input size
+
+    scale_factor = n**0.5  # Square root of input size
     rtol = 1e-5 * scale_factor
     atol = 1e-5 * scale_factor
 
