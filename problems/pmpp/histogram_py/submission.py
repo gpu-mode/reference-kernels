@@ -1,6 +1,7 @@
 import torch
 from task import input_t, output_t
 
+
 def custom_kernel(data: input_t) -> output_t:
     """
     Reference implementation of histogram using PyTorch.
@@ -9,4 +10,7 @@ def custom_kernel(data: input_t) -> output_t:
     Returns:
         Tensor containing bin counts
     """
-    return torch.bincount(data, minlength=256)
+    data, output = data
+    # Compute histogram with 256 bins
+    output = torch.bincount(data, minlength=256)
+    return output
