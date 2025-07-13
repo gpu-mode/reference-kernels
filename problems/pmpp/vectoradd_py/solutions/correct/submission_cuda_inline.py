@@ -16,13 +16,13 @@ __global__ void add_kernel(const scalar_t* __restrict__ A,
     }
 }
 
-torch::Tensor add_cuda(torch::Tensor A, torch::Tensor B) {
+torch::Tensor add_cuda(torch::Tensor A, torch::Tensor B, torch::Tensor C) {
     TORCH_CHECK(A.device().is_cuda(), "Tensor A must be a CUDA tensor");
     TORCH_CHECK(B.device().is_cuda(), "Tensor B must be a CUDA tensor");
+    TORCH_CHECK(C.device().is_cuda(), "Tensor C must be a CUDA tensor");
     TORCH_CHECK(A.sizes() == B.sizes(), "Input tensors must have the same size");
     
     int N = A.numel();  
-    auto C = torch::empty_like(A); 
 
     const int threads = 256; 
     const int blocks = (N + threads - 1) / threads;  

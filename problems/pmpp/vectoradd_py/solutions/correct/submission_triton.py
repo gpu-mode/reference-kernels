@@ -24,10 +24,8 @@ def add_kernel(
     tl.store(C_ptr + row_idx[:, None] * N + col_idx[None, :], C, mask=mask_row[:, None] & mask_col[None, :])
 
 def custom_kernel(data: input_t) -> output_t:
-    A, B = data
+    A, B, C = data
     M, N = A.shape
-
-    C = torch.empty_like(A)
 
     BLOCK_SIZE = 32
     grid = (triton.cdiv(M, BLOCK_SIZE), triton.cdiv(N, BLOCK_SIZE))
