@@ -46,7 +46,9 @@ def generate_input(size: int, seed: int) -> input_t:
     scale = (torch.rand(1, device="cuda", generator=scale_gen) * 9.9 + 0.1).item()
 
     # Apply scale and offset
-    return (data * scale + offset).contiguous()
+    input_tensor = (data * scale + offset).contiguous()
+    output_tensor = torch.empty(1, device="cuda", dtype=torch.float32)
+    return (input_tensor, output_tensor)
 
 
 check_implementation = make_match_reference(ref_kernel)

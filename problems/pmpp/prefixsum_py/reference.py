@@ -24,9 +24,11 @@ def generate_input(size: int, seed: int) -> input_t:
     """
     gen = torch.Generator(device="cuda")
     gen.manual_seed(seed)
-    return torch.randn(
+    x = torch.randn(
         size, device="cuda", dtype=torch.float32, generator=gen
     ).contiguous()
+    y = torch.empty(size, device="cuda", dtype=torch.float32).contiguous()
+    return (x, y)
 
 
 # This algorithm is very sensitive to the tolerance and the error is magnified by the input size

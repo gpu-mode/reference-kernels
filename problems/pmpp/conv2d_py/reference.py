@@ -68,7 +68,16 @@ def generate_input(
         generator=gen,
     ).contiguous()
 
-    return (input_tensor, kernel)
+    output_tensor = torch.empty(
+        batch,
+        channels,
+        size - kernelsize + 1,
+        size - kernelsize + 1,
+        device="cuda",
+        dtype=torch.float32,
+    )
+
+    return (input_tensor, kernel, output_tensor)
 
 
 check_implementation = make_match_reference(ref_kernel, rtol=1e-3, atol=1e-3)
