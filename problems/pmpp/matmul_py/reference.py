@@ -10,7 +10,8 @@ def generate_input(m: int, n: int, k: int, seed: int) -> input_t:
     a.uniform_(0, 1, generator=gen)
     b = torch.empty(k, n, device='cuda', dtype=torch.float16)
     b.uniform_(0, 1, generator=gen)
-    return (a, b)
+    c = torch.empty(m, n, device='cuda', dtype=torch.float16)
+    return (a, b, c)
 
 
 def ref_kernel(data: input_t) -> output_t:
