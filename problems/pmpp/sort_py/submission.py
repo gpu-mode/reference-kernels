@@ -1,6 +1,7 @@
 import torch
 from task import input_t, output_t
 
+
 def _custom_kernel(data: input_t) -> output_t:
     """
     Implements sort using PyTorch.
@@ -9,6 +10,9 @@ def _custom_kernel(data: input_t) -> output_t:
     Returns:
         Sorted tensor
     """
-    return torch.sort(data)[0]
+    data, output = data
+    output = torch.sort(data)[0]
+    return output
+
 
 custom_kernel = torch.compile(_custom_kernel, mode="reduce-overhead")

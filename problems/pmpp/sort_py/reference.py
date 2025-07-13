@@ -11,7 +11,9 @@ def ref_kernel(data: input_t) -> output_t:
     Returns:
         Sorted tensor
     """
-    return torch.sort(data)[0]
+    data, output = data
+    output = torch.sort(data)[0]
+    return output
 
 
 def generate_input(size: int, seed: int) -> torch.Tensor:
