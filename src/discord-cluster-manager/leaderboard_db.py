@@ -393,8 +393,14 @@ class LeaderboardDB:
             self.connection.rollback()  # Ensure rollback if error occurs
             raise KernelBotError("Could not create leaderboard submission entry in database") from e
 
-    def get_leaderboard_names(self) -> list[str]:
-        self.cursor.execute("SELECT name FROM leaderboard.leaderboard")
+    def get_leaderboard_names(self, active_only: bool = False) -> list[str]:
+        if active_only:
+            self.cursor.execute(
+                "SELECT name FROM leaderboard.leaderboard WHERE leaderboard.deadline < %s",
+                (datetime.datetime.now().astimezone(datetime.timezone.utc),),
+            )
+        else:
+            self.cursor.execute("SELECT name FROM leaderboard.leaderboard")
         return [x[0] for x in self.cursor.fetchall()]
 
     def get_leaderboards(self) -> list["LeaderboardItem"]:

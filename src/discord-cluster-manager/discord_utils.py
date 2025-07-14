@@ -94,7 +94,7 @@ async def leaderboard_name_autocomplete(
             return cached_value
 
         with bot.leaderboard_db as db:
-            leaderboards = db.get_leaderboard_names()
+            leaderboards = db.get_leaderboard_names(active_only=True)
         filtered = [lb for lb in leaderboards if current.lower() in lb.lower()]
         name_cache[current] = [
             discord.app_commands.Choice(name=name, value=name) for name in filtered[:25]
