@@ -1,0 +1,57 @@
+# name: prefixsum-cuda-inline
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement an inclusive prefix sum (scan) kernel that matches the reference implementation.
+  The kernel should compute the cumulative sum of all elements up to each position.
+  Because of numerical instability, the tolerance is scaled by the square root of the input size.
+
+  Input:
+  - `data`: A 1D tensor of size `n`
+  Output:
+  - `output`: A 1D tensor of size `n`
+
+config:
+  main: "eval.py" 
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"size": 1023, "seed": 4242}
+  - {"size": 1024, "seed": 5236}
+  - {"size": 1025, "seed": 1001}
+  - {"size": 2048, "seed": 5531}
+  - {"size": 4096, "seed": 9173}
+
+benchmarks:
+  # - {"size": 8192, "seed": 54352}
+  # - {"size": 16384, "seed": 93246}
+  # - {"size": 32768, "seed": 6256}
+  # - {"size": 65536, "seed": 8841}
+  # - {"size": 131072, "seed": 6252} 
+  - {"size": 262144, "seed": 12345}
+  - {"size": 524288, "seed": 67890}
+  - {"size": 1048576, "seed": 13579}
+  - {"size": 2097152, "seed": 24680}
+  - {"size": 4194304, "seed": 35791}
+  - {"size": 8388608, "seed": 46802}
+  - {"size": 16777216, "seed": 57913}
+  - {"size": 33554432, "seed": 68024}
+  - {"size": 67108864, "seed": 79135}
+  - {"size": 134217728, "seed": 80246} # fits on T4
+  - {"size": 268435456, "seed": 91357}
+  # - {"size": 536870912, "seed": 102468}
+  # - {"size": 1073741824, "seed": 113579}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 180
