@@ -40,8 +40,8 @@ def _custom_kernel(data: input_t) -> output_t:
     Returns:
         Tensor containing the sum of all elements
     """
+    data, output = data
     n_elements = data.numel()
-    output = torch.zeros(1, device=data.device, dtype=data.dtype)
 
     # Configure kernel
     BLOCK_SIZE = 1024
