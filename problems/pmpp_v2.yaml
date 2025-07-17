@@ -1,0 +1,63 @@
+name: pmpp_v2 Practice Problems
+# when does this end (individual problems might close earlier)
+deadline: ""
+# A description for this particular competition
+description: ""
+# the list of problems
+problems:
+  - directory: pmpp_v2/conv2d_py
+    name: conv2d
+    deadline: "2025-12-30"
+    gpus:
+      - H100
+      - A100
+      - L4
+  - directory: pmpp_v2/grayscale_py
+    name: grayscale
+    deadline: "2025-12-30"
+    gpus:
+      - H100
+      - A100
+      - L4
+  - directory: pmpp_v2/histogram_py
+    name: histogram
+    deadline: "2025-12-30"
+    gpus:
+      - H100
+      - A100
+      - L4
+  - directory: pmpp_v2/matmul_py
+    name: matmul
+    deadline: "2025-12-30"
+    gpus:
+      - H100
+      - A100
+      - L4
+  - directory: pmpp_v2/prefixsum_py
+    name: prefixsum
+    deadline: "2025-12-30"
+    gpus:
+      - H100
+      - A100
+      - L4
+  - directory: pmpp_v2/sort_py
+    name: sort
+    deadline: "2025-12-30"
+    gpus:
+      - H100
+      - A100
+      - L4
+  - directory: pmpp_v2/vectoradd_py
+    name: vectoradd
+    deadline: "2025-12-30"
+    gpus:
+      - H100
+      - A100
+      - L4
+  - directory: pmpp_v2/vectorsum_py
+    name: vectorsum
+    deadline: "2025-12-30"
+    gpus:
+      - H100
+      - A100
+      - L4

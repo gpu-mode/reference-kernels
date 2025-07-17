@@ -1,0 +1,41 @@
+# name: vectoradd-cuda-inline
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a float16 vector addition kernel.
+
+  Input: tuple(torch.Tensor, torch.Tensor) with tensors of shape (N, N) and type torch.float16. These tensors are from
+  a normal distribution with mean 0 and variance 1.
+  Output: torch.Tensor of shape (N, N) and type torch.float16
+
+config:
+  main: "eval.py" 
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"size": 127, "seed": 4242}
+  - {"size": 128, "seed": 5236}
+  - {"size": 129, "seed": 1001}
+  - {"size": 256, "seed": 5531}
+  - {"size": 512, "seed": 9173}
+
+benchmarks:
+  - {"size": 1024, "seed": 31232}
+  - {"size": 2048, "seed": 4052}
+  - {"size": 4096, "seed": 2146}
+  - {"size": 8192, "seed": 3129}
+  - {"size": 16384, "seed": 54352}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 180

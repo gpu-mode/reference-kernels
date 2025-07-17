@@ -1,0 +1,41 @@
+# name: mergesort-cuda-inline
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a sort kernel that matches the reference implementation.
+  The kernel should sort the input array in ascending order using a sort algorithm of your choice.
+  
+  Input arrays are generated as random floating-point numbers, where each row of a roughly square matrix
+  is drawn from a normal distribution with a different mean value per row based on the seed and then flattened into a 1D array.
+  
+
+config:
+  main: "eval.py" 
+
+templates:
+  Python: "../template.py"
+tests:
+  - {"size": 1023, "seed": 4242}
+  - {"size": 1024, "seed": 5236}
+  - {"size": 1025, "seed": 1001}
+  - {"size": 2048, "seed": 5531}
+  - {"size": 4096, "seed": 9173}
+
+benchmarks:
+  - {"size": 100000, "seed": 54352}
+  - {"size": 500000, "seed": 93246}
+  - {"size": 1000000, "seed": 6256}
+  - {"size": 10000000, "seed": 8841}
+  - {"size": 100000000, "seed": 6252} 
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 180

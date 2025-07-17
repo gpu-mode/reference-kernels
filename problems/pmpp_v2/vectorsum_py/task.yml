@@ -1,0 +1,41 @@
+# name: vectorsum-cuda-inline
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a vector sum reduction kernel. This kernel computes the sum of all elements in the input tensor.
+
+  Input: A tensor of shape `(N,)` with values from a normal distribution with mean 0 and variance 1.
+  Output: A scalar value equal to the sum of all elements in the input tensor.
+
+config:
+  main: "eval.py" 
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"size": 1023, "seed": 4242}
+  - {"size": 1024, "seed": 5236}
+  - {"size": 1025, "seed": 1001}
+  - {"size": 2048, "seed": 5531}
+  - {"size": 4096, "seed": 9173}
+
+benchmarks:
+  - {"size": 1638400, "seed": 93246}
+  - {"size": 3276800, "seed": 6256}
+  - {"size": 6553600, "seed": 8841}
+  - {"size": 13107200, "seed": 6252}
+  - {"size": 26214400, "seed": 82135}
+  - {"size": 52428800, "seed": 12345}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 180
