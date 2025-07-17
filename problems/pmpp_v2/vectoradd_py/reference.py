@@ -11,8 +11,9 @@ def ref_kernel(data: input_t) -> output_t:
     Returns:
         Tensor containing element-wise sums.
     """
-    A, B = data
-    return A + B
+    A, B, output = data
+    output[...] = A + B
+    return output
 
 
 def generate_input(size: int, seed: int) -> input_t:
@@ -21,11 +22,16 @@ def generate_input(size: int, seed: int) -> input_t:
     Returns:
         Tuple of tensors [A, B] to be added.
     """
-    gen = torch.Generator(device='cuda')
+    gen = torch.Generator(device="cuda")
     gen.manual_seed(seed)
-    A = torch.randn(size, size, device='cuda', dtype=torch.float16, generator=gen).contiguous()
-    B = torch.randn(size, size, device='cuda', dtype=torch.float16, generator=gen).contiguous()
-    return (A, B)
+    A = torch.randn(
+        size, size, device="cuda", dtype=torch.float16, generator=gen
+    ).contiguous()
+    B = torch.randn(
+        size, size, device="cuda", dtype=torch.float16, generator=gen
+    ).contiguous()
+    C = torch.empty(size, size, device="cuda", dtype=torch.float16).contiguous()
+    return A, B, C
 
 
 check_implementation = make_match_reference(ref_kernel)
