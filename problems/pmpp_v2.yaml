@@ -6,56 +6,56 @@ description: ""
 # the list of problems
 problems:
   - directory: pmpp_v2/conv2d_py
-    name: conv2d
+    name: pmpp-conv2d
     deadline: "2025-12-30"
     gpus:
       - H100
       - A100
       - L4
   - directory: pmpp_v2/grayscale_py
-    name: grayscale
+    name: pmpp-grayscale
     deadline: "2025-12-30"
     gpus:
       - H100
       - A100
       - L4
   - directory: pmpp_v2/histogram_py
-    name: histogram
+    name: pmpp-histogram
     deadline: "2025-12-30"
     gpus:
       - H100
       - A100
       - L4
   - directory: pmpp_v2/matmul_py
-    name: matmul
+    name: pmpp-matmul
     deadline: "2025-12-30"
     gpus:
       - H100
       - A100
       - L4
   - directory: pmpp_v2/prefixsum_py
-    name: prefixsum
+    name: pmpp-prefixsum
     deadline: "2025-12-30"
     gpus:
       - H100
       - A100
       - L4
   - directory: pmpp_v2/sort_py
-    name: sort
+    name: pmpp-sort
     deadline: "2025-12-30"
     gpus:
       - H100
       - A100
       - L4
   - directory: pmpp_v2/vectoradd_py
-    name: vectoradd
+    name: pmpp-vectoradd
     deadline: "2025-12-30"
     gpus:
       - H100
       - A100
       - L4
   - directory: pmpp_v2/vectorsum_py
-    name: vectorsum
+    name: pmpp-vectorsum
     deadline: "2025-12-30"
     gpus:
       - H100
