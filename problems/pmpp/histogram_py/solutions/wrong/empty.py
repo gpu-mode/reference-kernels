@@ -4,4 +4,5 @@ import torch
 
 
 def custom_kernel(data: input_t) -> output_t:
+    data, _output = data
     return torch.empty(size=(256,), device=data.device, dtype=data.dtype)

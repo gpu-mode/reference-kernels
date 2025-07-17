@@ -11,8 +11,10 @@ def ref_kernel(data: input_t) -> output_t:
     Returns:
         Tensor containing bin counts
     """
+    data, output = data
     # Count values in each bin
-    return torch.bincount(data, minlength=256)
+    output = torch.bincount(data, minlength=256)
+    return output
 
 
 def generate_input(size: int, contention: float, seed: int) -> input_t:
@@ -37,7 +39,9 @@ def generate_input(size: int, contention: float, seed: int) -> input_t:
     evil_loc = torch.rand((size,), device='cuda', dtype=torch.float32, generator=gen) < (contention / 100.0)
     data[evil_loc] = evil_value
 
-    return data.contiguous()
+    output = torch.empty(256, device='cuda', dtype=torch.int64).contiguous()
+
+    return data.contiguous(), output
 
 
 def check_implementation(data, output):
