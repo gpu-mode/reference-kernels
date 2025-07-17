@@ -1,0 +1,43 @@
+# name: histogram-cuda-inline
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a histogram kernel that counts the number of elements falling into each bin across the specified range.
+  The minimum and maximum values of the range are fixed to 0 and 100 respectively.
+  All sizes are multiples of 16 and the number of bins is set to the size of the input tensor divided by 16.
+
+  Input:
+    - data: a tensor of shape (size,)
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"size": 5120,   "seed": 9991, "contention": 10}
+  - {"size": 7840,   "seed": 2105, "contention": 10}
+  - {"size": 30080,  "seed": 9999, "contention": 10}
+  - {"size": 30080,  "seed": 4254, "contention": 90}
+  - {"size": 100000, "seed": 1212, "contention": 10}
+
+benchmarks:
+  - {"size": 1310720, "seed": 6252, "contention": 10}
+  - {"size": 2621440, "seed": 8841, "contention": 10}
+  - {"size": 2621440, "seed": 3411, "contention": 40}
+  - {"size": 2621440, "seed": 8753, "contention": 90}
+  - {"size": 5242880, "seed": 6252, "contention": 10}
+  - {"size": 10485760, "seed": 8841, "contention": 10}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 180

@@ -1,0 +1,47 @@
+# name: conv2d-py
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a 2D convolution kernel that matches the reference implementation.
+  The kernel should perform 2D convolution with the given specifications
+  We will benchmark different sizes, kernel sizes, channels and batch sizes but they will all 
+  be even numbers with the exception of batch size which can sometimes be 1
+  We assume no padding and striding and instead vary the size of the input and kernel,
+  number of channels, and batch size.
+
+  Input: Tuple of (input_tensor, kernel)
+    - input_tensor: 4D tensor of shape (batch, channels, height, width) with arbitrary values
+    - kernel: 4D tensor of shape (channels, channels, kernelsize, kernelsize) with arbitrary values
+  Output: 4D tensor of shape (batch, channels, height-kernelsize+1, width-kernelsize+1) with convolved values
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"size": 32, "kernelsize": 4, "channels": 16, "batch": 1, "seed": 4242}
+  - {"size": 32, "kernelsize": 4, "channels": 16, "batch": 2, "seed": 5236}
+  - {"size": 64, "kernelsize": 4, "channels": 32, "batch": 1, "seed": 1001}
+  - {"size": 64, "kernelsize": 8, "channels": 32, "batch": 2, "seed": 5531}
+  - {"size": 128, "kernelsize": 8, "channels": 64, "batch": 1, "seed": 9173}
+
+benchmarks:
+  - {"size": 128, "kernelsize": 8, "channels": 64, "batch": 4, "seed": 54352}
+  - {"size": 128, "kernelsize": 16, "channels": 64, "batch": 4, "seed": 93246}
+  - {"size": 256, "kernelsize": 16, "channels": 128, "batch": 2, "seed": 6256}
+  - {"size": 256, "kernelsize": 16, "channels": 128, "batch": 2, "seed": 8841}
+  - {"size": 256, "kernelsize": 32, "channels": 128, "batch": 1, "seed": 6252}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 180

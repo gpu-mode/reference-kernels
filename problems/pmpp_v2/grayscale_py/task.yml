@@ -1,0 +1,41 @@
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement an RGB to grayscale conversion kernel that matches the reference implementation.
+  The kernel should convert square RGB images with even sizes to grayscale using the standard coefficients:
+  Y = 0.2989 R + 0.5870 G + 0.1140 B
+  
+  Input: RGB tensor of shape (H, W, 3) with values in [0, 1]
+  Output: Grayscale tensor of shape (H, W) with values in [0, 1]
+
+config:
+  main: "eval.py" 
+
+templates:
+  Python: "../template.py"
+
+tests:
+
+  - {"size": 128, "seed": 1001}
+  - {"size": 256, "seed": 5531}
+  - {"size": 512, "seed": 9173}
+
+benchmarks:
+  
+  - {"size": 512, "seed": 54352}
+  - {"size": 1024, "seed": 93246}
+  - {"size": 2048, "seed": 6256}
+  - {"size": 4096, "seed": 8841}
+  - {"size": 8192, "seed": 6252}
+  - {"size": 16384, "seed": 54352}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 180
