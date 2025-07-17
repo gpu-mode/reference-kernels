@@ -526,6 +526,9 @@ class AdminCog(commands.Cog):
             )
             return
 
+        if "/" in branch:
+            raise KernelBotError(f"branch names with slashes (`{branch}`) are not supported.")
+
         repository_name = repository_name or env.PROBLEMS_REPO
         url = f"https://github.com/{repository_name}/archive/{branch}.zip"
         folder_name = repository_name.split("/")[-1] + "-" + branch
