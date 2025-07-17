@@ -1,4 +1,4 @@
-from utils import make_match_reference
+from utils import make_match_reference, DeterministicContext
 import torch
 from task import input_t, output_t
 
@@ -13,13 +13,14 @@ def ref_kernel(data: input_t) -> output_t:
     Returns:
         Grayscale tensor of shape (H, W) with values in [0, 1]
     """
-    data, output = data
-    # Standard RGB to Grayscale coefficients
-    weights = torch.tensor(
-        [0.2989, 0.5870, 0.1140], device=data.device, dtype=data.dtype
-    )
-    output[...] = torch.sum(data * weights, dim=-1)
-    return output
+    with DeterministicContext():
+        data, output = data
+        # Standard RGB to Grayscale coefficients
+        weights = torch.tensor(
+            [0.2989, 0.5870, 0.1140], device=data.device, dtype=data.dtype
+        )
+        output[...] = torch.sum(data * weights, dim=-1)
+        return output
 
 
 def generate_input(size: int, seed: int) -> input_t:

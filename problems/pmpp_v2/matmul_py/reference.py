@@ -1,6 +1,6 @@
 import torch
 from task import input_t, output_t
-from utils import make_match_reference
+from utils import make_match_reference, DeterministicContext
 
 
 def generate_input(m: int, n: int, k: int, seed: int) -> input_t:
@@ -15,8 +15,9 @@ def generate_input(m: int, n: int, k: int, seed: int) -> input_t:
 
 
 def ref_kernel(data: input_t) -> output_t:
-    a, b = data
-    return a @ b
+    with DeterministicContext():
+        a, b = data
+        return a @ b
 
 
 check_implementation = make_match_reference(ref_kernel)

@@ -1,23 +1,7 @@
-from utils import make_match_reference
+from utils import make_match_reference, DeterministicContext
 import torch
 import torch.nn.functional as F
 from task import input_t, output_t
-
-
-class DisableCuDNNTF32:
-    def __init__(self):
-        self.allow_tf32 = torch.backends.cudnn.allow_tf32
-        self.deterministic = torch.backends.cudnn.deterministic
-        pass
-
-    def __enter__(self):
-        torch.backends.cudnn.allow_tf32 = False
-        torch.backends.cudnn.deterministic = True
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        torch.backends.cudnn.allow_tf32 = self.allow_tf32
-        torch.backends.cudnn.deterministic = self.deterministic
 
 
 def ref_kernel(data: input_t) -> output_t:
@@ -28,7 +12,7 @@ def ref_kernel(data: input_t) -> output_t:
     Returns:
         Output tensor after convolution
     """
-    with DisableCuDNNTF32():
+    with DeterministicContext():
         input_tensor, kernel, output = data
         return F.conv2d(
             input_tensor,

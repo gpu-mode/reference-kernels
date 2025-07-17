@@ -1,4 +1,4 @@
-from utils import make_match_reference
+from utils import make_match_reference, DeterministicContext
 import torch
 from task import input_t, output_t
 
@@ -11,9 +11,10 @@ def ref_kernel(data: input_t) -> output_t:
     Returns:
         Tensor containing element-wise sums.
     """
-    A, B, output = data
-    output[...] = A + B
-    return output
+    with DeterministicContext():
+        A, B, output = data
+        output[...] = A + B
+        return output
 
 
 def generate_input(size: int, seed: int) -> input_t:

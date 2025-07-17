@@ -1,4 +1,4 @@
-from utils import match_reference
+from utils import match_reference, DeterministicContext
 import torch
 from task import input_t, output_t
 
@@ -11,9 +11,10 @@ def ref_kernel(data: input_t) -> output_t:
     Returns:
         Tensor containing the inclusive prefix sum
     """
-    data, output = data
-    output = torch.cumsum(data.to(torch.float64), dim=0).to(torch.float64)
-    return output
+    with DeterministicContext():
+        data, output = data
+        output = torch.cumsum(data.to(torch.float64), dim=0).to(torch.float64)
+        return output
 
 
 def generate_input(size: int, seed: int) -> input_t:

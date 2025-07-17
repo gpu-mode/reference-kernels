@@ -1,4 +1,4 @@
-from utils import make_match_reference
+from utils import make_match_reference, DeterministicContext
 import torch
 from task import input_t, output_t
 
@@ -11,10 +11,11 @@ def ref_kernel(data: input_t) -> output_t:
     Returns:
         Tensor containing the sum of all elements
     """
-    data, output = data
-    # Let's be on the safe side here, and do the reduction in 64 bit
-    output = data.to(torch.float64).sum().to(torch.float32)
-    return output
+    with DeterministicContext():
+        data, output = data
+        # Let's be on the safe side here, and do the reduction in 64 bit
+        output = data.to(torch.float64).sum().to(torch.float32)
+        return output
 
 
 def generate_input(size: int, seed: int) -> input_t:
