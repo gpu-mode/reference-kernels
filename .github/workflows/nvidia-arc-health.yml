@@ -1,0 +1,32 @@
+name: nvidia-arc
+
+on:
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  health-check:
+    runs-on: [gpumode-nvidia-arc]
+    timeout-minutes: 5
+    container:
+      image: nvidia/cuda:12.4.0-devel-ubuntu22.04
+    
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install PyTorch
+      run: |
+        pip install torch
+    
+    - name: GPU Health Check
+      run: python -c "import torch; torch.randn(5, device='cuda')"
+    
+    env:
+      CUDA_VISIBLE_DEVICES: 0
