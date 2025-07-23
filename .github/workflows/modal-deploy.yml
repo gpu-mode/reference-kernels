@@ -31,5 +31,6 @@ jobs:
 
       - name: Deploy job
         run: |
-          modal deploy src/runners/modal_runner_archs.py
+          # TODO: Remove pythonpath here
+          PYTHONPATH=${{ github.workspace }}/src modal deploy src/runners/modal_runner_archs.py
           
