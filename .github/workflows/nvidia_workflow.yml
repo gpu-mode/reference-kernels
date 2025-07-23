@@ -31,6 +31,11 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
     - name: Create input files
       shell: bash
       run: |
@@ -62,11 +67,12 @@ jobs:
         EOL
         uv pip install -r "requirements.txt"
         fi
+        uv pip install -e .
 
     - name: Run script
       shell: bash
       run: |
-        python .github/workflows/runner.py
+        python src/runners/github-runner.py
         cat result.json  # Debug: show output
 
     - name: Upload training artifacts

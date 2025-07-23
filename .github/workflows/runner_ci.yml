@@ -24,9 +24,21 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install pytest
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Setup Python environment
+        run: |
+          uv venv .venv
+          echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+          uv pip install pytest
+
+      - name: Install package
         shell: bash
-        run: pip install pytest
+        run: uv pip install -e .
 
       - name: Run script
         shell: bash
@@ -59,6 +71,10 @@ jobs:
           echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
           uv pip install numpy torch setuptools ninja pytest
+
+      - name: Install package
+        shell: bash
+        run: uv pip install -e .
 
       - name: Run script
         shell: bash

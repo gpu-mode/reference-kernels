@@ -1,17 +1,10 @@
-import os
-import sys
 import tempfile
 from pathlib import Path
 
 import pytest
 
-if Path().resolve().name == "scripts":
-    os.chdir("..")
-
-sys.path.append("src/discord-cluster-manager")
-
-from consts import ExitCode, SubmissionMode
-from run_eval import compile_cuda_script, run_cuda_script
+from libkernelbot.consts import ExitCode, SubmissionMode
+from libkernelbot.run_eval import compile_cuda_script, run_cuda_script
 
 ref = Path("examples/identity_cuda/reference.cuh").read_text()
 task_h = Path("examples/identity_cuda/task.h").read_text()

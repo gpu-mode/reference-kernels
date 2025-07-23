@@ -1,4 +1,4 @@
-#!POPCORN leaderboard identity_py
+#!POPCORN leaderboard identity_py-dev
 
 from task import input_t, output_t
 

@@ -1,14 +1,7 @@
-import os
-import sys
 from pathlib import Path
 
-if Path().resolve().name == "scripts":
-    os.chdir("..")
-
-sys.path.append("src/discord-cluster-manager")
-
-from consts import ExitCode, SubmissionMode
-from run_eval import run_pytorch_script
+from libkernelbot.consts import ExitCode, SubmissionMode
+from libkernelbot.run_eval import run_pytorch_script
 
 ref = Path("examples/identity_py/reference.py").read_text()
 task = Path("examples/identity_py/task.py").read_text()

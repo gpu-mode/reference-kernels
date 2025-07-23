@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "discord-cluster-manager"
+version = "0.1.0"
+description = "Discord bot for managing compute clusters and running kernel benchmarks"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PyGithub",
+    "aiohttp",
+    "discord.py",
+    "audioop-lts; python_version >= '3.13'",
+    "python-dotenv",
+    "requests",
+    "modal",
+    "psycopg2-binary",
+    "yoyo-migrations",
+    "better_profanity",
+    "PyYAML",
+    "fastapi[all]",
+    "uvicorn",
+    "jinja2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pre-commit",
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["scripts", "tests"]
+python_files = ["test_*.py", "*_test.py", "ci_test_*.py"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
