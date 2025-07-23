@@ -1,7 +1,7 @@
 # discord-cluster-manager
 
-[![nvidia-arc](https://github.com/pytorch-labs/discord-cluster-manager/actions/workflows/nvidia-arc-health.yml/badge.svg)](https://github.com/pytorch-labs/discord-cluster-manager/actions/workflows/nvidia-arc-health.yml)
-[![amd](https://github.com/pytorch-labs/discord-cluster-manager/actions/workflows/amd-health.yml/badge.svg)](https://github.com/pytorch-labs/discord-cluster-manager/actions/workflows/amd-health.yml)
+[![nvidia-arc](https://github.com/gpu-mode/discord-cluster-manager/actions/workflows/nvidia-arc-health.yml/badge.svg)](https://github.com/pytorch-labs/discord-cluster-manager/actions/workflows/nvidia-arc-health.yml)
+[![amd](https://github.com/gpu-mode/discord-cluster-manager/actions/workflows/amd-health.yml/badge.svg)](https://github.com/pytorch-labs/discord-cluster-manager/actions/workflows/amd-health.yml)
 
 This is the code for the Discord bot we'll be using to queue jobs to a cluster of GPUs that our generous sponsors have provided. Our goal is to be able to queue kernels that can run end to end in seconds that way things feel interactive and social.
 
