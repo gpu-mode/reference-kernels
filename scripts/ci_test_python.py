@@ -59,7 +59,7 @@ def custom_kernel(input):
     assert run.result["test.0.status"] == "fail"
     assert (
         run.result["test.0.error"]
-        == "mismatch found! custom implementation doesn't match reference.:"
+        == "mismatch found! custom implementation doesn't match reference:"
         " Number of mismatched elements: 256"
     )
     assert run.exit_code == ExitCode.VALIDATE_FAIL

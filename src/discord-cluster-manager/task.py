@@ -191,5 +191,4 @@ def build_task_config(
             "sources": sources,
             "headers": headers,
             "include_dirs": task.config.include_dirs,
-            **common,
         }

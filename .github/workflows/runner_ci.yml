@@ -11,25 +11,59 @@ on:
       - dev
 
 jobs:
-  check-modal:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  check-cuda:
+    runs-on: [gpumode-nvidia-arc]
+    timeout-minutes: 10
+    container:
+      image: nvidia/cuda:12.4.0-devel-ubuntu22.04
     steps:
       - uses: actions/checkout@v3
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.10'
 
-      - name: Install dependencies
-        run: |
-          pip install modal
-          pip install -r requirements.txt
+      - name: Install pytest
+        shell: bash
+        run: pip install pytest
 
-      - name: Run Modal tests
+      - name: Run script
+        shell: bash
+        run: pytest scripts/ci_test_cuda.py
+
+    env:
+      CUDA_VISIBLE_DEVICES: 0
+
+  check-pytorch:
+    runs-on: [gpumode-nvidia-arc]
+    timeout-minutes: 10
+    container:
+      image: nvidia/cuda:12.4.0-devel-ubuntu22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Setup Python environment
         run: |
-          python scripts/modal_ci_test.py
-        env:
-          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
-          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          uv venv .venv
+          echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+          uv pip install numpy torch setuptools ninja pytest
+
+      - name: Run script
+        shell: bash
+        run: pytest scripts/ci_test_python.py
+
+    env:
+      CUDA_VISIBLE_DEVICES: 0
+
