@@ -1,0 +1,5 @@
+{
+  "title": "Anthony Lins - Optimized Grayscale Kernel",
+  "description": "CUDA kernel to convert RGB input to grayscale using perceptual coefficients with block-based optimization.",
+  "author": "Anthony Lins"
+}
