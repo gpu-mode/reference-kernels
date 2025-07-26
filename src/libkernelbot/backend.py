@@ -1,11 +1,10 @@
 import asyncio
 import copy
-import math
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Optional
 
-from libkernelbot.consts import GPU, GPU_TO_SM, RankCriterion, SubmissionMode, get_gpu_by_name
+from libkernelbot.consts import GPU, GPU_TO_SM, SubmissionMode, get_gpu_by_name
 from libkernelbot.launchers import Launcher
 from libkernelbot.leaderboard_db import LeaderboardDB
 from libkernelbot.report import (
@@ -15,9 +14,9 @@ from libkernelbot.report import (
     make_short_report,
 )
 from libkernelbot.run_eval import FullResult
-from libkernelbot.submission import ProcessedSubmissionRequest
+from libkernelbot.submission import ProcessedSubmissionRequest, compute_score
 from libkernelbot.task import LeaderboardTask, build_task_config
-from libkernelbot.utils import KernelBotError, setup_logging
+from libkernelbot.utils import setup_logging
 
 logger = setup_logging(__name__)
 
@@ -145,41 +144,16 @@ class KernelBackend:
                 and result.runs["leaderboard"].run.success
                 and result.runs["leaderboard"].run.passed
             ):
-                score = 0.0
-                num_benchmarks = int(result.runs["leaderboard"].run.result["benchmark-count"])
-                if task.ranking_by == RankCriterion.LAST:
-                    if num_benchmarks != 1:
-                        logger.error(
-                            "Ranked submission error for submission %d ranking_by is `last`, "
-                            "but got %d benchmarks",
-                            submission_id,
-                            num_benchmarks,
-                        )
-                        raise KernelBotError(
-                            f"Expected submission to have exactly one benchmark,"
-                            f"got {num_benchmarks}."
-                        )
-                    score = float(result.runs["leaderboard"].run.result["benchmark.0.mean"]) / 1e9
-                else:
-                    scores = []
-                    for i in range(num_benchmarks):
-                        scores.append(
-                            float(result.runs["leaderboard"].run.result[f"benchmark.{i}.mean"])
-                            / 1e9
-                        )
-                    if task.ranking_by == RankCriterion.MEAN:
-                        score = sum(scores) / len(scores)
-                    elif task.ranking_by == RankCriterion.GEOM:
-                        score = math.pow(math.prod(scores), 1.0 / num_benchmarks)
+                score = compute_score(result, task, submission_id)
 
             # verifyruns uses a fake submission id of -1
             if submission_id != -1:
                 with self.db as db:
                     for key, value in result.runs.items():
                         db.create_submission_run(
-                            submission_id,
-                            value.start,
-                            value.end,
+                            submission=submission_id,
+                            start=value.start,
+                            end=value.end,
                             mode=key,
                             runner=gpu_type.name,
                             score=None if key != "leaderboard" else score,

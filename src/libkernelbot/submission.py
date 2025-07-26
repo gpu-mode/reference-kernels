@@ -1,17 +1,23 @@
 import copy
 import dataclasses
+import math
 import typing
 from datetime import datetime
 from typing import Optional, Union
 
 from better_profanity import profanity
 
+from libkernelbot.consts import RankCriterion
 from libkernelbot.leaderboard_db import LeaderboardDB, LeaderboardItem
+from libkernelbot.run_eval import FullResult
 from libkernelbot.task import LeaderboardTask
-from libkernelbot.utils import KernelBotError
+from libkernelbot.utils import KernelBotError, setup_logging
 
 if typing.TYPE_CHECKING:
     from backend import KernelBackend
+
+
+logger = setup_logging(__name__)
 
 
 @dataclasses.dataclass
@@ -147,3 +153,31 @@ def _get_popcorn_directives(submission: str) -> dict:
             elif arg == "leaderboard":
                 popcorn_info["leaderboard"] = args[2]
     return popcorn_info
+
+
+def compute_score(result: FullResult, task: LeaderboardTask, submission_id: int) -> float:
+    num_benchmarks = int(result.runs["leaderboard"].run.result["benchmark-count"])
+    if task.ranking_by == RankCriterion.LAST:
+        if num_benchmarks != 1:
+            logger.error(
+                "Ranked submission error for submission %d ranking_by is `last`, "
+                "but got %d benchmarks",
+                submission_id,
+                num_benchmarks,
+            )
+            raise KernelBotError(
+                f"Expected submission to have exactly one benchmark," f"got {num_benchmarks}."
+            )
+        score = float(result.runs["leaderboard"].run.result["benchmark.0.mean"]) / 1e9
+    else:
+        scores = []
+        for i in range(num_benchmarks):
+            scores.append(float(result.runs["leaderboard"].run.result[f"benchmark.{i}.mean"]) / 1e9)
+        if task.ranking_by == RankCriterion.MEAN:
+            score = sum(scores) / len(scores)
+        elif task.ranking_by == RankCriterion.GEOM:
+            score = math.pow(math.prod(scores), 1.0 / num_benchmarks)
+        else:
+            raise KernelBotError(f"Invalid submission mode {task.ranking_by}")
+
+    return score
