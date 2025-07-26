@@ -11,7 +11,8 @@ from typing import Any, Optional
 
 import torch.cuda
 
-from utils import set_seed
+from utils import set_seed, clear_l2_cache
+
 try:
     from task import TestSpec
 except ImportError:
@@ -24,16 +25,16 @@ class PopcornOutput:
     def __init__(self, fd: int):
         self.file = os.fdopen(fd, 'w')
         os.set_inheritable(fd, False)
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.file.close()
-    
+
     def print(self, *args, **kwargs):
         print(*args, **kwargs, file=self.file, flush=True)
-    
+
     def log(self, key, value):
         self.print(f"{key}: {value}")
 
@@ -52,7 +53,7 @@ def _combine(a: int, b: int) -> int:
     # so we need to make sure they don't provide any useful info for the full seed.
     # This Cantor construction ensures that if the secret seed is a large number,
     # then so is the overall seed.
-    return int(a + (a+b)*(a+b+1)//2)
+    return int(a + (a + b) * (a + b + 1) // 2)
 
 
 def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
@@ -114,7 +115,7 @@ def calculate_stats(durations: list[int]):
     worst = max(durations)
 
     avg = total / runs
-    variance = sum(map(lambda x: (x - avg)**2, durations))
+    variance = sum(map(lambda x: (x - avg) ** 2, durations))
     std = math.sqrt(variance / (runs - 1))
     err = std / math.sqrt(runs)
 
@@ -219,6 +220,7 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
     # otherwise, we repeat until we either measure at least 10 full seconds,
     # or the relative error of the mean is below 1%.
 
+    bm_start_time = time.perf_counter_ns()
     for i in range(max_repeats):
         if recheck:
             # ensure we use a different seed for every benchmark
@@ -228,10 +230,15 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
             data = generate_input(**test.args)
             check_copy = _clone_data(data)
         torch.cuda.synchronize()
-        start = time.perf_counter_ns()
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        clear_l2_cache()
+
+        start_event.record()
         output = custom_kernel(data)
+        end_event.record()
         torch.cuda.synchronize()
-        end = time.perf_counter_ns()
+        duration = start_event.elapsed_time(end_event) * 1e6  # Convert ms to ns
 
         if recheck:
             good, message = check_implementation(check_copy, output)
@@ -239,17 +246,23 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
                 return message
 
         del output
-        durations.append(end-start)
+        durations.append(duration)
 
         if i > 1:
+            total_bm_duration = time.perf_counter_ns() - bm_start_time
             stats = calculate_stats(durations)
-            if stats.err / stats.mean < 0.001 or stats.mean * stats.runs > max_time_ns:
+            # stop if either
+            # a) relative error dips below 0.1%
+            # b) we exceed the total time limit for benchmarking the kernel
+            # c) we exceed 2 minutes of total wallclock time.
+            if stats.err / stats.mean < 0.001 or stats.mean * stats.runs > max_time_ns or total_bm_duration > 120e9:
                 break
 
     return calculate_stats(durations)
 
 
-def run_single_benchmark(pool: multiprocessing.Pool, test: TestCase, recheck: bool, max_repeats: int, max_time_ns: float):
+def run_single_benchmark(pool: multiprocessing.Pool, test: TestCase, recheck: bool, max_repeats: int,
+                         max_time_ns: float):
     """
     For a particular test case, check correctness (if applicable) and grab runtime results.
 
@@ -359,7 +372,7 @@ def main():
                     else:
                         passed = False
                         logger.log(f"benchmark.{i}.status", "fail")
-                        logger.log(f"benchmark.{i}.error", str(result)) #TODO: Make sure result implements __str__?
+                        logger.log(f"benchmark.{i}.error", str(result))  # TODO: Make sure result implements __str__?
                         break
 
                 logger.log("check", "pass" if passed else "fail")

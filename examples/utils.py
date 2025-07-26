@@ -94,3 +94,11 @@ def verbose_allclose(
     return []
 
 
+def clear_l2_cache():
+    # import cupy as cp
+    # cp.cuda.runtime.deviceSetLimit(cp.cuda.runtime.cudaLimitPersistingL2CacheSize, 0)
+    # create a large dummy tensor
+    dummy = torch.empty((32, 1024, 1024), dtype=torch.int64, device="cuda")
+    # write stuff to it
+    dummy.fill_(42)
+    del dummy
