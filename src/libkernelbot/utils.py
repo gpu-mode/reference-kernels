@@ -60,9 +60,9 @@ class LRUCache:
         self._max_size = max_size
         self._q = []
 
-    def __getitem__(self, key: Any, default: Any = None) -> Any | None:
+    def __getitem__(self, key: Any) -> Any | None:
         if key not in self._cache:
-            return default
+            return None
 
         self._q.remove(key)
         self._q.append(key)
@@ -95,50 +95,51 @@ class LRUCache:
         self._q.clear()
 
 
-def format_time(value: float | str, err: Optional[float | str] = None, scale=None):  # noqa: C901
-    if value is None:
+def format_time(nanoseconds: float | str, err: Optional[float | str] = None):  # noqa: C901
+    if nanoseconds is None:
         logging.warning("Expected a number, got None", stack_info=True)
         return "–"
 
     # really ugly, but works for now
-    value = float(value)
+    nanoseconds = float(nanoseconds)
 
     scale = 1  # nanoseconds
     unit = "ns"
-    if value > 2_000_000:
+    if nanoseconds > 2_000_000:
         scale = 1000_000
         unit = "ms"
-    elif value > 2000:
+    elif nanoseconds > 2000:
         scale = 1000
         unit = "µs"
 
-    value /= scale
+    time_in_unit = nanoseconds / scale
     if err is not None:
         err = float(err)
         err /= scale
-    if value < 1:
+    if time_in_unit < 1:
         if err:
-            return f"{value} ± {err} {unit}"
+            return f"{time_in_unit} ± {err} {unit}"
         else:
-            return f"{value} {unit}"
-    elif value < 10:
+            return f"{time_in_unit} {unit}"
+    elif time_in_unit < 10:
         if err:
-            return f"{value:.2f} ± {err:.3f} {unit}"
+            return f"{time_in_unit:.2f} ± {err:.3f} {unit}"
         else:
-            return f"{value:.2f} {unit}"
-    elif value < 100:
+            return f"{time_in_unit:.2f} {unit}"
+    elif time_in_unit < 100:
         if err:
-            return f"{value:.1f} ± {err:.2f} {unit}"
+            return f"{time_in_unit:.1f} ± {err:.2f} {unit}"
         else:
-            return f"{value:.1f} {unit}"
+            return f"{time_in_unit:.1f} {unit}"
     else:
         if err:
-            return f"{value:.0f} ± {err:.1f} {unit}"
+            return f"{time_in_unit:.0f} ± {err:.1f} {unit}"
         else:
-            return f"{value:.0f} {unit}"
+            return f"{time_in_unit:.0f} {unit}"
 
 
 def limit_length(text: str, maxlen: int):
+    assert maxlen > 6
     if len(text) > maxlen:
         return text[: maxlen - 6] + " [...]"
     else:

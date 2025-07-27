@@ -62,6 +62,12 @@ class LeaderboardTask:
     ranking_by: RankCriterion = RankCriterion.LAST
     seed: Optional[int] = None
 
+    def __post_init__(self):
+        if self.lang == Language.Python and not isinstance(self.config, PythonTaskData):
+            raise TypeError("Python language requires PythonTaskData config")
+        if self.lang == Language.CUDA and not isinstance(self.config, CudaTaskData):
+            raise TypeError("CUDA language requires CudaTaskData config")
+
     @classmethod
     def from_dict(cls, data: dict):
         data_ = copy.copy(data)
@@ -147,7 +153,7 @@ def make_task_definition(yaml_file: str | Path) -> LeaderboardDefinition:
 
 
 def build_task_config(
-    task: "LeaderboardTask" = None,
+    task: LeaderboardTask = None,
     submission_content: str = None,
     arch: str = None,
     mode: SubmissionMode = None,

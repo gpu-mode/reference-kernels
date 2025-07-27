@@ -83,3 +83,11 @@ jobs:
     env:
       CUDA_VISIBLE_DEVICES: 0
 
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync --extra dev
+      - run: uv run pytest unit-tests -v

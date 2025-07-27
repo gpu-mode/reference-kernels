@@ -47,7 +47,7 @@ def prepare_submission(
         )
 
     if profanity.contains_profanity(req.file_name):
-        raise KernelBotError("Please provide a non rude filename")
+        raise KernelBotError("Please provide a non-rude filename")
 
     # check file extension
     if not req.file_name.endswith((".py", ".cu", ".cuh", ".cpp")):
@@ -137,7 +137,7 @@ def handle_popcorn_directives(req: SubmissionRequest) -> SubmissionRequest:
     return req
 
 
-def _get_popcorn_directives(submission: str) -> dict:
+def _get_popcorn_directives(submission: str) -> dict:  # noqa: C901
     popcorn_info = {"gpus": None, "leaderboard": None}
     for line in submission.splitlines():
         # only process the first comment block of the file.
@@ -148,10 +148,26 @@ def _get_popcorn_directives(submission: str) -> dict:
         args = line.split()
         if args[0] in ["//!POPCORN", "#!POPCORN"]:
             arg = args[1].strip().lower()
-            if arg in ["gpu", "gpus"]:
+            if len(args) < 3:
+                raise KernelBotError(f"!POPCORN directive missing argument: {line}")
+            #  allow both versions of the argument
+            if arg == "gpu":
+                arg = "gpus"
+
+            if arg not in popcorn_info:
+                raise KernelBotError(f"Invalid !POPCORN directive: {arg}")
+
+            if popcorn_info[arg] is not None:
+                raise KernelBotError(f"Found multiple values for !POPCORN directive {arg}")
+
+            if arg == "gpus":
                 popcorn_info["gpus"] = args[2:]
             elif arg == "leaderboard":
-                popcorn_info["leaderboard"] = args[2]
+                popcorn_info["leaderboard"] = args[2].strip()
+                if len(popcorn_info["leaderboard"]) == 0:
+                    raise KernelBotError(
+                        "No leaderboard specified in !POPCORN Leaderboard directive"
+                    )
     return popcorn_info
 
 
