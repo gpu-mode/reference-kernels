@@ -142,30 +142,20 @@ class LeaderboardDB:
     ):
         task = definition.task
         try:
+            lb_id = self.get_leaderboard_id(name)
             self.cursor.execute(
                 """
                 UPDATE leaderboard.leaderboard
                 SET deadline = %s, task = %s, description = %s
-                WHERE name = %s;
+                WHERE id = %s;
                 """,
                 (
                     deadline.astimezone(datetime.timezone.utc),
                     task.to_str(),
                     definition.description,
-                    name,
+                    lb_id,
                 ),
             )
-
-            self.cursor.execute(
-                """
-                SELECT id
-                FROM leaderboard.leaderboard
-                WHERE name = %s
-                """,
-                (name,),
-            )
-
-            lb_id = self.cursor.fetchone()[0]
 
             # replace templates
             self.cursor.execute(
@@ -237,8 +227,13 @@ class LeaderboardDB:
             self.name_cache.invalidate()  # Invalidate autocomplete cache
         except psycopg2.Error as e:
             self.connection.rollback()
+            if isinstance(e, psycopg2.errors.ForeignKeyViolation):
+                raise KernelBotError(
+                    f"Could not delete leaderboard `{leaderboard_name}` with existing submissions."
+                ) from e
+
             logger.exception("Could not delete leaderboard %s.", leaderboard_name, exc_info=e)
-            raise KernelBotError(f"Could not delete leaderboard {leaderboard_name}.") from e
+            raise KernelBotError(f"Could not delete leaderboard `{leaderboard_name}`.") from e
 
     def create_submission(
         self,
@@ -428,7 +423,7 @@ class LeaderboardDB:
     def get_leaderboards(self) -> list["LeaderboardItem"]:
         self.cursor.execute(
             """
-            SELECT id, name, deadline, task, creator_id, forum_id, description
+            SELECT id, name, deadline, task, creator_id, forum_id, description, secret_seed
             FROM leaderboard.leaderboard
             """
         )
@@ -452,6 +447,7 @@ class LeaderboardDB:
                     creator_id=lb[4],
                     forum_id=lb[5],
                     description=lb[6],
+                    secret_seed=lb[7],
                 )
             )
 
