@@ -44,6 +44,8 @@ relative_files = true
 exclude_lines = [
    "pragma: no cover",
    "raise NotImplementedError",
+    # For now, don't require coverage of db errors
+   "except psycopg2.Error"
 ]
 
 [tool.pytest.ini_options]

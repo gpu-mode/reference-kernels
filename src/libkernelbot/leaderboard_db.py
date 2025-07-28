@@ -87,6 +87,8 @@ class LeaderboardDB:
         forum_id: int,
         gpu_types: list | str,
     ) -> int:
+        # to prevent surprises, ensure we have specified a timezone
+        assert deadline.tzinfo is not None
         try:
             task = definition.task
             self.cursor.execute(
@@ -127,10 +129,10 @@ class LeaderboardDB:
             self.name_cache.invalidate()  # Invalidate autocomplete cache
             return leaderboard_id
         except psycopg2.Error as e:
-            logger.exception("Error in leaderboard creation.", e)
+            logger.exception("Error in leaderboard creation.", exc_info=e)
             if isinstance(e, psycopg2.errors.UniqueViolation):
                 raise KernelBotError(
-                    "Error: Tried to create a leaderboard " f'"{name}" that already exists.'
+                    f"Error: Tried to create a leaderboard '{name}' that already exists."
                 ) from e
             self.connection.rollback()  # Ensure rollback if error occurs
             raise KernelBotError("Error in leaderboard creation.") from e
@@ -260,7 +262,7 @@ class LeaderboardDB:
 
             code_id = None
             for candidate in self.cursor.fetchall():
-                if candidate[1] == code:
+                if bytes(candidate[1]).decode("utf-8") == code:
                     code_id = candidate[0]
                     break
 
@@ -356,6 +358,24 @@ class LeaderboardDB:
         try:
             if compilation is not None:
                 compilation = json.dumps(dataclasses.asdict(compilation))
+
+            # check validity
+            self.cursor.execute(
+                """
+            SELECT done FROM leaderboard.submission WHERE id = %s
+            """,
+                (submission,),
+            )
+            if self.cursor.fetchone()[0]:
+                logger.error(
+                    "Submission '%s' is already marked as done when trying to add %s run.",
+                    submission,
+                    mode,
+                )
+                raise KernelBotError(
+                    "Internal error: Attempted to add run, "
+                    "but submission was already marked as done."
+                )
 
             meta = {
                 k: result.__dict__[k]
@@ -461,7 +481,7 @@ class LeaderboardDB:
 
         return [x[0] for x in self.cursor.fetchall()]
 
-    def get_leaderboard_templates(self, leaderboard_name: str) -> Dict[str, str]:
+    def get_leaderboard_id(self, leaderboard_name: str) -> int:
         self.cursor.execute(
             """
             SELECT id
@@ -473,6 +493,10 @@ class LeaderboardDB:
         lb_id = self.cursor.fetchone()
         if lb_id is None:
             raise LeaderboardDoesNotExist(leaderboard_name)
+        return lb_id[0]
+
+    def get_leaderboard_templates(self, leaderboard_name: str) -> Dict[str, str]:
+        lb_id = self.get_leaderboard_id(leaderboard_name)
 
         self.cursor.execute(
             """
@@ -480,7 +504,7 @@ class LeaderboardDB:
             FROM leaderboard.templates
             WHERE leaderboard_id = %s
             """,
-            (lb_id[0],),
+            (lb_id,),
         )
 
         return {x[0]: x[1] for x in self.cursor.fetchall()}
@@ -585,7 +609,7 @@ class LeaderboardDB:
 
         self.cursor.execute(query, args)
 
-        return [
+        result = [
             LeaderboardRankedEntry(
                 submission_name=submission[0],
                 submission_id=submission[1],
@@ -599,6 +623,19 @@ class LeaderboardDB:
             )
             for submission in self.cursor.fetchall()
         ]
+        if len(result) == 0:
+            # try to diagnose why we didn't get anything
+            # this will raise if the LB does not exist at all.
+            self.get_leaderboard_id(leaderboard_name)
+
+            # did we specify a valid GPU?
+            gpus = self.get_leaderboard_gpu_types(leaderboard_name)
+            if gpu_name not in gpus:
+                raise KernelBotError(
+                    f"Invalid GPU type '{gpu_name}' for leaderboard '{leaderboard_name}'"
+                )
+
+        return result
 
     def generate_stats(self, last_day: bool):
         try:
@@ -824,7 +861,20 @@ class LeaderboardDB:
             args = (leaderboard_name, gpu_name)
 
         self.cursor.execute(query, args)
-        return self.cursor.fetchone()[0]
+        count = self.cursor.fetchone()[0]
+        if count == 0:
+            # try to diagnose why we didn't get anything
+            # this will raise if the LB does not exist at all.
+            self.get_leaderboard_id(leaderboard_name)
+
+            # did we specify a valid GPU?
+            gpus = self.get_leaderboard_gpu_types(leaderboard_name)
+            if gpu_name not in gpus:
+                raise KernelBotError(
+                    f"Invalid GPU type '{gpu_name}' for leaderboard '{leaderboard_name}'"
+                )
+
+        return count
 
     def init_user_from_cli(self, cli_id: str, auth_provider: str):
         """
