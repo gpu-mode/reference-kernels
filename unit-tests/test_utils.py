@@ -4,6 +4,7 @@ from libkernelbot import utils
 def test_format_time():
     """Test time-formatting based on examples"""
     # without error
+    assert utils.format_time(0.85) == "0.85 ns"
     assert utils.format_time(1) == "1.00 ns"
     assert utils.format_time("1") == "1.00 ns"
     assert utils.format_time(15.7) == "15.7 ns"
@@ -15,9 +16,11 @@ def test_format_time():
     assert utils.format_time(8_428_212) == "8.43 ms"
 
     # with error
+    assert utils.format_time(0.1, "0.02") == "0.1 ± 0.02 ns"
     assert utils.format_time(1, "0.01") == "1.00 ± 0.010 ns"
     assert utils.format_time(52, 5.85) == "52.0 ± 5.85 ns"
     # TODO should we enforce that nonzero error never rounds to zero?
+    assert utils.format_time(152, 0.1) == "152 ± 0.1 ns"
     assert utils.format_time(2152, 0.1) == "2.15 ± 0.000 µs"
     assert utils.format_time(3_754_123, 24_432) == "3.75 ± 0.024 ms"
 

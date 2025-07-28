@@ -61,8 +61,7 @@ def sample_run_result() -> RunResult:
     )
 
 
-@pytest.fixture
-def sample_eval_result() -> EvalResult:
+def create_eval_result() -> EvalResult:
     return EvalResult(
         start=datetime.datetime.now() - datetime.timedelta(minutes=5),
         end=datetime.datetime.now(),
@@ -72,9 +71,14 @@ def sample_eval_result() -> EvalResult:
 
 
 @pytest.fixture
-def sample_full_result(sample_eval_result: EvalResult) -> FullResult:
+def sample_eval_result() -> EvalResult:
+    return create_eval_result()
+
+
+@pytest.fixture
+def sample_full_result() -> FullResult:
     return FullResult(
-        success=True, error="", system=sample_system_info(), runs={"test": sample_eval_result}
+        success=True, error="", system=sample_system_info(), runs={"test": create_eval_result()}
     )
 
 
@@ -188,6 +192,76 @@ def test_make_short_report_compilation_failed(sample_eval_result: EvalResult):
     assert result == ["❌ Compilation failed"]
 
 
+def test_make_short_report_testing_failed(sample_eval_result: EvalResult):
+    sample_eval_result.run.success = False
+    sample_eval_result.run.exit_code = consts.ExitCode.TIMEOUT_EXPIRED
+    runs = {"test": sample_eval_result}
+
+    result = make_short_report(runs)
+    assert result == ["✅ Compilation successful", "❌ Running tests failed (timeout)"]
+
+    sample_eval_result.run.success = True
+    sample_eval_result.run.passed = False
+    sample_eval_result.run.exit_code = consts.ExitCode.VALIDATE_FAIL
+    result = make_short_report(runs)
+    assert result == ["✅ Compilation successful", "❌ Testing failed"]
+
+
+def test_make_short_report_benchmarking_failed(sample_eval_result: EvalResult):
+    sample_eval_result.run.success = False
+    sample_eval_result.compilation = None
+    sample_eval_result.run.exit_code = consts.ExitCode.CUDA_FAIL
+    runs = {"benchmark": sample_eval_result}
+
+    result = make_short_report(runs, full=False)
+    assert result == ["❌ Running benchmarks failed (cuda api error)"]
+
+    sample_eval_result.run.success = True
+    sample_eval_result.run.passed = False
+    sample_eval_result.run.exit_code = consts.ExitCode.VALIDATE_FAIL
+    result = make_short_report(runs)
+    assert result == ["❌ Tests missing", "❌ Benchmarking failed"]
+
+
+def test_make_short_report_profiling_failed(sample_eval_result: EvalResult):
+    sample_eval_result.run.success = False
+    sample_eval_result.compilation = None
+    sample_eval_result.run.exit_code = consts.ExitCode.PIPE_FAILED
+    runs = {"profile": sample_eval_result}
+
+    result = make_short_report(runs, full=False)
+    assert result == ["❌ Running profile failed (internal error 111)"]
+
+    sample_eval_result.run.success = True
+    sample_eval_result.run.passed = False
+    sample_eval_result.run.exit_code = consts.ExitCode.VALIDATE_FAIL
+    result = make_short_report(runs)
+    # TODO is this actually possible? Should profiling do **any** correctness testing?
+    assert result == ["❌ Tests missing", "❌ Benchmarks missing", "❌ Profiling failed"]
+
+
+def test_make_short_report_leaderboard_failed(sample_eval_result: EvalResult):
+    sample_eval_result.run.success = False
+    sample_eval_result.compilation = None
+    sample_eval_result.run.exit_code = consts.ExitCode.TEST_SPEC
+    runs = {"leaderboard": sample_eval_result}
+
+    result = make_short_report(runs, full=False)
+    assert result == ["❌ Running leaderboard failed (internal error 113)"]
+
+    sample_eval_result.run.success = True
+    sample_eval_result.run.passed = False
+    sample_eval_result.run.exit_code = consts.ExitCode.VALIDATE_FAIL
+    result = make_short_report(runs)
+    # TODO is this actually possible? Should profiling do **any** correctness testing?
+    assert result == ["❌ Tests missing", "❌ Benchmarks missing", "❌ Leaderboard run failed"]
+
+
+def test_make_short_report_empty():
+    result = make_short_report({})
+    assert result == ["❌ Tests missing", "❌ Benchmarks missing", "❌ Leaderboard missing"]
+
+
 def test_make_short_report_full_success():
     runs = {}
     for run_type in ["test", "benchmark", "profile", "leaderboard"]:
@@ -218,8 +292,8 @@ def test_make_short_report_full_success():
     assert result == expected
 
 
-def test_make_short_report_missing_components(sample_eval_result: EvalResult):
-    runs = {"test": sample_eval_result}
+def test_make_short_report_missing_components():
+    runs = {"test": create_eval_result()}
 
     result = make_short_report(runs, full=True)
     expected = [
@@ -382,7 +456,7 @@ def test_generate_report_test_failure(sample_full_result: FullResult):
         exit_code=consts.ExitCode.VALIDATE_FAIL,
         duration=2.1,
         stdout="Running tests...",
-        stderr="",
+        stderr="Oh no a test failed!",
         result={
             "test-count": "2",
             "test.0.status": "pass",
@@ -394,23 +468,189 @@ def test_generate_report_test_failure(sample_full_result: FullResult):
     )
 
     report = generate_report(sample_full_result)
+    from libkernelbot.report import Log, Text
 
-    # Should have system info + test failure text + test log + stdout log
-    assert len(report.data) == 4
+    assert report.data == [
+        Text(
+            text="\n"
+            "Running on:\n"
+            "* GPU: `NVIDIA RTX 4090`\n"
+            "* CPU: `Intel i9-12900K`\n"
+            "* Platform: `Linux-5.15.0`\n"
+            "* Torch: `2.0.1+cu118`\n"
+        ),
+        Text(
+            text="# Testing failed\n"
+            "Command ```bash\n"
+            "python eval.py test```\n"
+            "ran successfully in 2.10 seconds, but did not pass all tests.\n"
+        ),
+        Log(
+            header="Test log",
+            content="✅ Basic functionality\n"
+            "❌ Edge case handling\n"
+            "> Expected [1, 2, 3] but got [1, 2, 0]",
+        ),
+        Log(header="Program stderr", content="Oh no a test failed!"),
+        Log(header="Program stdout", content="Running tests..."),
+    ]
 
-    text_items = [item.text for item in report.data if hasattr(item, "text")]
-    test_text = next(text for text in text_items if "Testing failed" in text)
 
-    assert "python eval.py test" in test_text
-    assert "ran successfully in 2.10 seconds" in test_text
-    assert "did not pass all tests" in test_text
+def test_generate_report_benchmark_failure(sample_full_result: FullResult):
+    from libkernelbot.report import Log, Text
 
-    # Check test log contains failure details
-    log_items = [item for item in report.data if hasattr(item, "header")]
-    test_log = next(item for item in log_items if item.header == "Test log")
-    assert "✅ Basic functionality" in test_log.content
-    assert "❌ Edge case handling" in test_log.content
-    assert "Expected [1, 2, 3] but got [1, 2, 0]" in test_log.content
+    sample_full_result.runs["benchmark"] = create_eval_result()
+    report = generate_report(sample_full_result)
+    assert report.data == [
+        Text(
+            text="\n"
+            "Running on:\n"
+            "* GPU: `NVIDIA RTX 4090`\n"
+            "* CPU: `Intel i9-12900K`\n"
+            "* Platform: `Linux-5.15.0`\n"
+            "* Torch: `2.0.1+cu118`\n"
+        ),
+        Log(
+            header="✅ Passed 3/3 tests",
+            content="✅ Test addition\n"
+            "> Addition works correctly\n"
+            "✅ Test multiplication\n"
+            "❌ Test division\n"
+            "> Division by zero",
+        ),
+        Log(header="Benchmarks", content="❗ Could not find any benchmarks"),
+    ]
+
+    sample_full_result.runs["benchmark"].run.passed = False
+    sample_full_result.runs["benchmark"].run.result = {
+        "benchmark-count": "2",
+        "benchmark.0.status": "pass",
+        "benchmark.0.spec": "Basic functionality",
+        "benchmark.0.mean": "10.5",
+        "benchmark.0.err": "0.5",
+        "benchmark.0.best": "9.8",
+        "benchmark.0.worst": "15.2",
+        "benchmark.1.status": "fail",
+        "benchmark.1.spec": "Edge case handling",
+        "benchmark.1.error": "Expected [1, 2, 3] but got [1, 2, 0]",
+    }
+    report = generate_report(sample_full_result)
+    assert report.data == [
+        Text(
+            text="\n"
+            "Running on:\n"
+            "* GPU: `NVIDIA RTX 4090`\n"
+            "* CPU: `Intel i9-12900K`\n"
+            "* Platform: `Linux-5.15.0`\n"
+            "* Torch: `2.0.1+cu118`\n"
+        ),
+        Log(
+            header="✅ Passed 3/3 tests",
+            content="✅ Test addition\n"
+            "> Addition works correctly\n"
+            "✅ Test multiplication\n"
+            "❌ Test division\n"
+            "> Division by zero",
+        ),
+        Log(
+            header="Benchmarks",
+            content="Basic functionality\n"
+            " ⏱ 10.5 ± 0.50 ns\n"
+            " ⚡ 9.80 ns 🐌 15.2 ns\n"
+            "\n"
+            "❌ Edge case handling failed testing:\n"
+            "\n"
+            "Expected [1, 2, 3] but got [1, 2, 0]\n",
+        ),
+    ]
+
+
+def test_generate_report_leaderboard_failure(sample_full_result: FullResult):
+    from libkernelbot.report import Log, Text
+
+    sample_full_result.runs["leaderboard"] = create_eval_result()
+    report = generate_report(sample_full_result)
+    assert report.data == [
+        Text(
+            text="\n"
+            "Running on:\n"
+            "* GPU: `NVIDIA RTX 4090`\n"
+            "* CPU: `Intel i9-12900K`\n"
+            "* Platform: `Linux-5.15.0`\n"
+            "* Torch: `2.0.1+cu118`\n"
+        ),
+        Log(
+            header="✅ Passed 3/3 tests",
+            content="✅ Test addition\n"
+            "> Addition works correctly\n"
+            "✅ Test multiplication\n"
+            "❌ Test division\n"
+            "> Division by zero",
+        ),
+        Log(header="Ranked Benchmark", content="❗ Could not find any benchmarks"),
+    ]
+
+    sample_full_result.runs["leaderboard"].run.success = False
+    sample_full_result.runs["leaderboard"].run.exit_code = consts.ExitCode.TIMEOUT_EXPIRED
+    sample_full_result.runs["leaderboard"].run.duration = 10.0
+
+    report = generate_report(sample_full_result)
+    assert report.data == [
+        Text(
+            text="\n"
+            "Running on:\n"
+            "* GPU: `NVIDIA RTX 4090`\n"
+            "* CPU: `Intel i9-12900K`\n"
+            "* Platform: `Linux-5.15.0`\n"
+            "* Torch: `2.0.1+cu118`\n"
+        ),
+        Log(
+            header="✅ Passed 3/3 tests",
+            content="✅ Test addition\n"
+            "> Addition works correctly\n"
+            "✅ Test multiplication\n"
+            "❌ Test division\n"
+            "> Division by zero",
+        ),
+        Text(
+            text="# Running failed\n"
+            "Command ```bash\n"
+            "./test```\n"
+            "**timed out** after 10.00 seconds."
+        ),
+        Log(header="Program stdout", content="All tests passed"),
+    ]
+
+
+def test_generate_report_profile(sample_full_result: FullResult):
+    sample_full_result.runs["profile"] = create_eval_result()
+    sample_full_result.runs["profile"].run.result = {
+        "benchmark-count": "1",
+        "benchmark.0.spec": "Benchmark",
+        "benchmark.0.report": base64.b64encode(b"Profile report", b"+*").decode("utf-8"),
+    }
+    report = generate_report(sample_full_result)
+    from libkernelbot.report import Log, Text
+
+    assert report.data == [
+        Text(
+            text="\n"
+            "Running on:\n"
+            "* GPU: `NVIDIA RTX 4090`\n"
+            "* CPU: `Intel i9-12900K`\n"
+            "* Platform: `Linux-5.15.0`\n"
+            "* Torch: `2.0.1+cu118`\n"
+        ),
+        Log(
+            header="✅ Passed 3/3 tests",
+            content="✅ Test addition\n"
+            "> Addition works correctly\n"
+            "✅ Test multiplication\n"
+            "❌ Test division\n"
+            "> Division by zero",
+        ),
+        Log(header="Profiling", content="Benchmark\n\n  Profile report\n"),
+    ]
 
 
 def test_run_result_report():

@@ -159,6 +159,61 @@ def test_build_task_config_python(leaderboard_task):
     assert result == expected
 
 
+def test_build_task_config_cuda():
+    """Test build_task_config with CUDA task and submission content."""
+    submission_content = "print('Hello World')"
+    arch = "sm_80"
+    mode = SubmissionMode.BENCHMARK
+    task = LeaderboardTask(
+        lang=Language.CUDA,
+        files={"test.cu": "code", "submission.cu": "@SUBMISSION@", "test.cuh": "header"},
+        config=CudaTaskData(
+            sources=["test.cu", "submission.cu"],
+            include_dirs=["/usr/include"],
+            defines={"DEBUG": "1"},
+        ),
+        ranking_by=RankCriterion.GEOM,
+        test_timeout=120,
+        tests=[{"input_size": 1000, "dtype": "float32"}, {"input_size": 5000, "dtype": "float16"}],
+        benchmarks=[
+            {"input_size": 10000, "dtype": "float32"},
+            {"input_size": 50000, "dtype": "float16"},
+        ],
+    )
+    result = build_task_config(
+        task=task, submission_content=submission_content, arch=arch, mode=mode
+    )
+
+    # make sure result is serializable
+    json.dumps(result)
+
+    expected = {
+        "sources": {"submission.cu": "print('Hello World')", "test.cu": "code"},
+        "headers": {"test.cuh": "header"},
+        "include_dirs": ["/usr/include"],
+        "lang": "cu",
+        "arch": "sm_80",
+        "benchmarks": [
+            {"input_size": 10000, "dtype": "float32"},
+            {"input_size": 50000, "dtype": "float16"},
+        ],
+        "tests": [
+            {"input_size": 1000, "dtype": "float32"},
+            {"input_size": 5000, "dtype": "float16"},
+        ],
+        "mode": mode.value,
+        "test_timeout": 120,
+        "benchmark_timeout": 180,
+        "ranked_timeout": 180,
+        "ranking_by": "geom",
+        "seed": None,
+        "compile_flags": [],
+        "defines": {"DEBUG": "1"},
+    }
+
+    assert result == expected
+
+
 TASK_YAML = """
 lang: py
 description: "Test task description"

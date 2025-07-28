@@ -1,4 +1,5 @@
 import datetime
+import re
 from unittest import mock
 
 import pytest
@@ -284,6 +285,16 @@ def test_prepare_submission_checks(mock_backend):
     ):
         submission.prepare_submission(req, mock_backend)
 
+    req.file_name = "test.py"
+    req.gpus = ["A99"]
+    with pytest.raises(
+        KernelBotError,
+        match=re.escape(
+            "GPU A99 not available for `test_board`\nChoose one of:  * A100\n * V100\n"
+        ),
+    ):
+        submission.prepare_submission(req, mock_backend)
+
 
 def test_compute_score():
     mock_task = mock.Mock()
@@ -328,4 +339,8 @@ def test_compute_score():
     mock_task.ranking_by = RankCriterion.LAST
     mock_result.runs["leaderboard"].run.result["benchmark-count"] = "2"
     with pytest.raises(KernelBotError, match="exactly one benchmark"):
+        submission.compute_score(mock_result, mock_task, 1)
+
+    mock_task.ranking_by = "WRONG"
+    with pytest.raises(KernelBotError, match="Invalid ranking criterion WRONG"):
         submission.compute_score(mock_result, mock_task, 1)
