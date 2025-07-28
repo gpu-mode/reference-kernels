@@ -90,4 +90,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
       - run: uv sync --extra dev
-      - run: uv run pytest unit-tests -v
+      - run: uv run pytest --cov-report term --cov-report html --cov=src/libkernelbot unit-tests -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: htmlcov/
