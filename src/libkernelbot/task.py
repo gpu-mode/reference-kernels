@@ -196,5 +196,8 @@ def build_task_config(
         return {
             "sources": sources,
             "headers": headers,
+            "defines": task.config.defines,
+            "compile_flags": task.config.compile_flags,
             "include_dirs": task.config.include_dirs,
+            **common,
         }

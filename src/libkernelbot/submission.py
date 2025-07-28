@@ -150,6 +150,7 @@ def _get_popcorn_directives(submission: str) -> dict:  # noqa: C901
             arg = args[1].strip().lower()
             if len(args) < 3:
                 raise KernelBotError(f"!POPCORN directive missing argument: {line}")
+
             #  allow both versions of the argument
             if arg == "gpu":
                 arg = "gpus"
@@ -163,11 +164,7 @@ def _get_popcorn_directives(submission: str) -> dict:  # noqa: C901
             if arg == "gpus":
                 popcorn_info["gpus"] = args[2:]
             elif arg == "leaderboard":
-                popcorn_info["leaderboard"] = args[2].strip()
-                if len(popcorn_info["leaderboard"]) == 0:
-                    raise KernelBotError(
-                        "No leaderboard specified in !POPCORN Leaderboard directive"
-                    )
+                popcorn_info["leaderboard"] = args[2]
     return popcorn_info
 
 
@@ -194,6 +191,6 @@ def compute_score(result: FullResult, task: LeaderboardTask, submission_id: int)
         elif task.ranking_by == RankCriterion.GEOM:
             score = math.pow(math.prod(scores), 1.0 / num_benchmarks)
         else:
-            raise KernelBotError(f"Invalid submission mode {task.ranking_by}")
+            raise KernelBotError(f"Invalid ranking criterion {task.ranking_by}")
 
     return score

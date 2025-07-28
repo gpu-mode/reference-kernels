@@ -269,6 +269,18 @@ Running on:
 """
 
 
+def _handle_crash_report(report: RunResultReport, run_result: EvalResult):
+    if run_result.compilation is not None and not run_result.compilation.success:
+        _generate_compile_report(report, run_result.compilation)
+        return True
+
+    if not run_result.run.success:
+        _generate_crash_report(report, run_result.run)
+        return True
+
+    return False
+
+
 def generate_report(result: FullResult) -> RunResultReport:  # noqa: C901
     runs = result.runs
     report = RunResultReport()
@@ -276,17 +288,10 @@ def generate_report(result: FullResult) -> RunResultReport:  # noqa: C901
 
     if "test" in runs:
         test_run = runs["test"]
-
-        if test_run.compilation is not None and not test_run.compilation.success:
-            _generate_compile_report(report, test_run.compilation)
+        if _handle_crash_report(report, test_run):
             return report
 
         test_run = test_run.run
-
-        if not test_run.success:
-            _generate_crash_report(report, test_run)
-            return report
-
         if not test_run.passed:
             _generate_test_report(report, test_run)
             return report
@@ -296,47 +301,30 @@ def generate_report(result: FullResult) -> RunResultReport:  # noqa: C901
 
     if "benchmark" in runs:
         bench_run = runs["benchmark"]
-        if bench_run.compilation is not None and not bench_run.compilation.success:
-            _generate_compile_report(report, bench_run.compilation)
-            return report
-
-        bench_run = bench_run.run
-        if not bench_run.success:
-            _generate_crash_report(report, bench_run)
+        if _handle_crash_report(report, bench_run):
             return report
 
         report.add_log(
             "Benchmarks",
-            make_benchmark_log(bench_run),
+            make_benchmark_log(bench_run.run),
         )
 
     if "profile" in runs:
         prof_run = runs["profile"]
-        if prof_run.compilation is not None and not prof_run.compilation.success:
-            _generate_compile_report(report, prof_run.compilation)
-            return report
-
-        prof_run = prof_run.run
-        if not prof_run.success:
-            _generate_crash_report(report, prof_run)
+        if _handle_crash_report(report, prof_run):
             return report
 
         report.add_log(
             "Profiling",
-            make_profile_log(prof_run),
+            make_profile_log(prof_run.run),
         )
 
     if "leaderboard" in runs:
         bench_run = runs["leaderboard"]
-        if bench_run.compilation is not None and not bench_run.compilation.success:
-            _generate_compile_report(report, bench_run.compilation)
+        if _handle_crash_report(report, bench_run):
             return report
 
         bench_run = bench_run.run
-        if not bench_run.success:
-            _generate_crash_report(report, bench_run)
-            return report
-
         report.add_log(
             "Ranked Benchmark",
             make_benchmark_log(bench_run),
