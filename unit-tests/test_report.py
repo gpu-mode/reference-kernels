@@ -19,15 +19,13 @@ from libkernelbot.report import (
 from libkernelbot.run_eval import CompileResult, EvalResult, FullResult, RunResult, SystemInfo
 
 
-# define fixtures that create mock results
-@pytest.fixture
+# define helpers and  fixtures that create mock results
 def sample_system_info() -> SystemInfo:
     return SystemInfo(
         gpu="NVIDIA RTX 4090", cpu="Intel i9-12900K", platform="Linux-5.15.0", torch="2.0.1+cu118"
     )
 
 
-@pytest.fixture
 def sample_compile_result() -> CompileResult:
     return CompileResult(
         success=True,
@@ -40,7 +38,6 @@ def sample_compile_result() -> CompileResult:
     )
 
 
-@pytest.fixture
 def sample_run_result() -> RunResult:
     return RunResult(
         success=True,
@@ -65,23 +62,19 @@ def sample_run_result() -> RunResult:
 
 
 @pytest.fixture
-def sample_eval_result(
-    sample_compile_result: CompileResult, sample_run_result: RunResult
-) -> EvalResult:
+def sample_eval_result() -> EvalResult:
     return EvalResult(
         start=datetime.datetime.now() - datetime.timedelta(minutes=5),
         end=datetime.datetime.now(),
-        compilation=sample_compile_result,
-        run=sample_run_result,
+        compilation=sample_compile_result(),
+        run=sample_run_result(),
     )
 
 
 @pytest.fixture
-def sample_full_result(
-    sample_system_info: SystemInfo, sample_eval_result: EvalResult
-) -> FullResult:
+def sample_full_result(sample_eval_result: EvalResult) -> FullResult:
     return FullResult(
-        success=True, error="", system=sample_system_info, runs={"test": sample_eval_result}
+        success=True, error="", system=sample_system_info(), runs={"test": sample_eval_result}
     )
 
 
@@ -90,16 +83,17 @@ def sample_full_result(
 ################################################
 
 
-def test_generate_compile_report_nvcc_not_found(sample_compile_result: CompileResult):
-    sample_compile_result.success = False
-    sample_compile_result.nvcc_found = False
-    sample_compile_result.command = ""
-    sample_compile_result.exit_code = 127
-    sample_compile_result.stderr = "nvcc: command not found"
-    sample_compile_result.stdout = ""
+def test_generate_compile_report_nvcc_not_found():
+    compile_result = sample_compile_result()
+    compile_result.success = False
+    compile_result.nvcc_found = False
+    compile_result.command = ""
+    compile_result.exit_code = 127
+    compile_result.stderr = "nvcc: command not found"
+    compile_result.stdout = ""
 
     reporter = RunResultReport()
-    _generate_compile_report(reporter, sample_compile_result)
+    _generate_compile_report(reporter, compile_result)
 
     assert len(reporter.data) == 1
     assert hasattr(reporter.data[0], "text")
@@ -110,16 +104,17 @@ def test_generate_compile_report_nvcc_not_found(sample_compile_result: CompileRe
     assert "notify the server admins" in text
 
 
-def test_generate_compile_report_with_errors(sample_compile_result: CompileResult):
-    sample_compile_result.success = False
-    sample_compile_result.nvcc_found = True
-    sample_compile_result.command = "nvcc -o test test.cu -arch=sm_75"
-    sample_compile_result.exit_code = 1
-    sample_compile_result.stderr = 'test.cu(15): error: identifier "invalid_function" is undefined'
-    sample_compile_result.stdout = "warning: deprecated feature used"
+def test_generate_compile_report_with_errors():
+    compile_result = sample_compile_result()
+    compile_result.success = False
+    compile_result.nvcc_found = True
+    compile_result.command = "nvcc -o test test.cu -arch=sm_75"
+    compile_result.exit_code = 1
+    compile_result.stderr = 'test.cu(15): error: identifier "invalid_function" is undefined'
+    compile_result.stdout = "warning: deprecated feature used"
 
     reporter = RunResultReport()
-    _generate_compile_report(reporter, sample_compile_result)
+    _generate_compile_report(reporter, compile_result)
 
     # Should have compilation text + stderr log + stdout log
     assert len(reporter.data) == 3
@@ -141,16 +136,17 @@ def test_generate_compile_report_with_errors(sample_compile_result: CompileResul
     assert "warning: deprecated feature used" in reporter.data[2].content
 
 
-def test_generate_compile_report_no_stdout(sample_compile_result: CompileResult):
-    sample_compile_result.success = False
-    sample_compile_result.nvcc_found = True
-    sample_compile_result.command = "nvcc -o test test.cu"
-    sample_compile_result.exit_code = 1
-    sample_compile_result.stderr = "compilation error"
-    sample_compile_result.stdout = ""
+def test_generate_compile_report_no_stdout():
+    compile_result = sample_compile_result()
+    compile_result.success = False
+    compile_result.nvcc_found = True
+    compile_result.command = "nvcc -o test test.cu"
+    compile_result.exit_code = 1
+    compile_result.stderr = "compilation error"
+    compile_result.stdout = ""
 
     reporter = RunResultReport()
-    _generate_compile_report(reporter, sample_compile_result)
+    _generate_compile_report(reporter, compile_result)
 
     # Should have compilation text + stderr log (no stdout log)
     assert len(reporter.data) == 2
@@ -168,19 +164,20 @@ def test_generate_compile_report_no_stdout(sample_compile_result: CompileResult)
 ################################################
 
 
-def test_short_fail_reason(sample_run_result: RunResult):
-    sample_run_result.exit_code = consts.ExitCode.TIMEOUT_EXPIRED
-    assert _short_fail_reason(sample_run_result) == " (timeout)"
+def test_short_fail_reason():
+    run_result = sample_run_result()
+    run_result.exit_code = consts.ExitCode.TIMEOUT_EXPIRED
+    assert _short_fail_reason(run_result) == " (timeout)"
 
-    sample_run_result.exit_code = consts.ExitCode.CUDA_FAIL
-    assert _short_fail_reason(sample_run_result) == " (cuda api error)"
+    run_result.exit_code = consts.ExitCode.CUDA_FAIL
+    assert _short_fail_reason(run_result) == " (cuda api error)"
 
     # VALIDATE_FAIL means unit tests failed, which will be reported differently
-    sample_run_result.exit_code = consts.ExitCode.VALIDATE_FAIL
-    assert _short_fail_reason(sample_run_result) == ""
+    run_result.exit_code = consts.ExitCode.VALIDATE_FAIL
+    assert _short_fail_reason(run_result) == ""
 
-    sample_run_result.exit_code = 42
-    assert _short_fail_reason(sample_run_result) == " (internal error 42)"
+    run_result.exit_code = 42
+    assert _short_fail_reason(run_result) == " (internal error 42)"
 
 
 def test_make_short_report_compilation_failed(sample_eval_result: EvalResult):
@@ -191,13 +188,13 @@ def test_make_short_report_compilation_failed(sample_eval_result: EvalResult):
     assert result == ["❌ Compilation failed"]
 
 
-def test_make_short_report_full_success(sample_compile_result: CompileResult):
+def test_make_short_report_full_success():
     runs = {}
     for run_type in ["test", "benchmark", "profile", "leaderboard"]:
         runs[run_type] = EvalResult(
             start=datetime.datetime.now() - datetime.timedelta(minutes=5),
             end=datetime.datetime.now(),
-            compilation=sample_compile_result,
+            compilation=sample_compile_result(),
             run=RunResult(
                 success=True,
                 passed=True,
@@ -239,8 +236,8 @@ def test_make_short_report_missing_components(sample_eval_result: EvalResult):
 ################################################
 
 
-def test_make_test_log(sample_run_result: RunResult):
-    log = make_test_log(sample_run_result)
+def test_make_test_log():
+    log = make_test_log(sample_run_result())
     expected_lines = [
         "✅ Test addition",
         "> Addition works correctly",
@@ -316,8 +313,8 @@ def test_make_profile_log_no_data():
     assert log == "❗ Could not find any profiling data"
 
 
-def test_generate_system_info(sample_system_info: SystemInfo):
-    info = generate_system_info(sample_system_info)
+def test_generate_system_info():
+    info = generate_system_info(sample_system_info())
 
     expected_parts = ["NVIDIA RTX 4090", "Intel i9-12900K", "Linux-5.15.0", "2.0.1+cu118"]
 
