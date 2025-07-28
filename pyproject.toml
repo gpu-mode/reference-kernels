@@ -38,6 +38,7 @@ where = ["src"]
 
 [tool.coverage.run]
 omit = ["src/libkernelbot/backend.py", "src/libkernelbot/run_eval.py", "src/libkernelbot/launchers/*.py"]
+relative_files = true
 
 [tool.coverage.report]
 exclude_lines = [
