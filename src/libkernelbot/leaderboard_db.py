@@ -784,7 +784,7 @@ class LeaderboardDB:
             user_id=submission[3],
             submission_time=submission[4],
             done=submission[5],
-            code=submission[6],
+            code=bytes(submission[6]).decode("utf-8"),
             runs=runs,
         )
 
