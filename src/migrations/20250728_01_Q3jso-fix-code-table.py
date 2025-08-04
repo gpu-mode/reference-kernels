@@ -78,15 +78,16 @@ steps = [
     # run the conversion
     step(convert_code_to_bytea, convert_bytea_to_text),
     # clean up the table and reintroduce hashes
+    # ALTER TABLE leaderboard.code_files DROP COLUMN old_code;
+    # do this later, once we're confident that the migration works
     step(
         """
-       ALTER TABLE leaderboard.code_files DROP COLUMN old_code;
+       ALTER TABLE leaderboard.code_files ALTER COLUMN old_code DROP NOT NULL;
        ALTER TABLE leaderboard.code_files ADD COLUMN hash TEXT
            GENERATED ALWAYS AS (encode(sha256(code), 'hex')) STORED NOT NULL UNIQUE;
        ALTER TABLE leaderboard.code_files ALTER COLUMN code DROP DEFAULT;
        """,
         """
-         ALTER TABLE leaderboard.code_files ADD COLUMN old_code TEXT;
          ALTER TABLE leaderboard.code_files DROP COLUMN hash;
          """,
     ),
