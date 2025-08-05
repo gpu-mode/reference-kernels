@@ -21,10 +21,13 @@ def convert_code_to_bytea(conn):
     records = cursor.fetchall()
 
     existing_codes = {}
+    num_duplicates = 0
+    num_encoded = 0
 
     for record_id, code_text in records:
         # broken with the old code
         if code_text.startswith("\\x"):
+            num_encoded += 1
             code_text = bytes.fromhex(code_text[2:]).decode("utf-8")
         code_bytes = code_text.encode("utf-8")
         # with the old broken code and experimentation, it is possible that we got some
@@ -35,6 +38,7 @@ def convert_code_to_bytea(conn):
                 (existing_codes[code_bytes], record_id),
             )
             cursor.execute("DELETE FROM leaderboard.code_files WHERE id = %s", (record_id,))
+            num_duplicates += 1
             continue
 
         existing_codes[code_bytes] = record_id
@@ -43,6 +47,9 @@ def convert_code_to_bytea(conn):
         cursor.execute(
             "UPDATE leaderboard.code_files SET code = %s WHERE id = %s", (code_bytes, record_id)
         )
+
+    print(f"Found and removed {num_duplicates} duplicates")
+    print(f"Reencoded {num_encoded} code submissions")
 
 
 def convert_bytea_to_text(conn):
