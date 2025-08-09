@@ -9,6 +9,7 @@ problems:
     name: conv2d_v2
     deadline: "2025-12-30"
     gpus:
+      - B200
       - H100
       - A100
       - L4
@@ -16,6 +17,7 @@ problems:
     name: grayscale_v2
     deadline: "2025-12-30"
     gpus:
+      - B200
       - H100
       - A100
       - L4
@@ -23,6 +25,7 @@ problems:
     name: histogram_v2
     deadline: "2025-12-30"
     gpus:
+      - B200
       - H100
       - A100
       - L4
@@ -30,6 +33,7 @@ problems:
     name: matmul_v2
     deadline: "2025-12-30"
     gpus:
+      - B200
       - H100
       - A100
       - L4
@@ -37,6 +41,7 @@ problems:
     name: prefixsum_v2
     deadline: "2025-12-30"
     gpus:
+      - B200
       - H100
       - A100
       - L4
@@ -44,6 +49,7 @@ problems:
     name: sort_v2
     deadline: "2025-12-30"
     gpus:
+      - B200
       - H100
       - A100
       - L4
@@ -51,6 +57,7 @@ problems:
     name: vectoradd_v2
     deadline: "2025-12-30"
     gpus:
+      - B200
       - H100
       - A100
       - L4
@@ -58,6 +65,7 @@ problems:
     name: vectorsum_v2
     deadline: "2025-12-30"
     gpus:
+      - B200
       - H100
       - A100
       - L4
