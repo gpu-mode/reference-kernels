@@ -1,6 +1,6 @@
 import torch
 from task import input_t, output_t
-from utils import make_match_reference
+from utils import make_match_reference, DeterministicContext
 
 
 def generate_input(m: int, n: int, k: int, seed: int) -> input_t:
@@ -10,12 +10,14 @@ def generate_input(m: int, n: int, k: int, seed: int) -> input_t:
     a.uniform_(0, 1, generator=gen)
     b = torch.empty(k, n, device='cuda', dtype=torch.float16)
     b.uniform_(0, 1, generator=gen)
-    return (a, b)
+    c = torch.empty(m, n, device='cuda', dtype=torch.float16)
+    return a, b, c
 
 
 def ref_kernel(data: input_t) -> output_t:
-    a, b = data
-    return a @ b
+    with DeterministicContext():
+        a, b = data
+        return a @ b
 
 
 check_implementation = make_match_reference(ref_kernel)
