@@ -1,2 +1,2 @@
 # Procfile
-web: python src/kernelbot/main.py
+web: PYTHONPATH=/app/src python src/kernelbot/main.py
