@@ -4,20 +4,29 @@ on:
     workflows: ["UnitTests"]
     types:
       - completed
-  workflow_dispatch:
 
 jobs:
   test:
     name: Run tests & display coverage
     runs-on: ubuntu-latest
-    # This ensures it ONLY runs on PR events, not pushes to main
-    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
     permissions:
       pull-requests: write
       contents: write
       actions: read
     steps:
+      - name: Check if should run
+        id: check
+        run: |
+          if [[ "${{ github.event.workflow_run.event }}" == "pull_request" ]] && [[ "${{ github.event.workflow_run.conclusion }}" == "success" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "✅ Running coverage comment for PR"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "✅ Skipping - not a PR event (event: ${{ github.event.workflow_run.event }})"
+          fi
+
       - name: Post comment
+        if: steps.check.outputs.should_run == 'true'
         uses: py-cov-action/python-coverage-comment-action@v3
         with:
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
