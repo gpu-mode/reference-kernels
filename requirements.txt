@@ -1,0 +1,14 @@
+PyGithub
+aiohttp
+discord.py
+audioop-lts; python_version >= '3.13'
+python-dotenv
+requests
+modal
+psycopg2-binary
+yoyo-migrations
+better_profanity
+PyYAML
+fastapi[all]
+uvicorn
+jinja2
