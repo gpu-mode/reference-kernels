@@ -398,7 +398,7 @@ class LeaderboardDB:
     def get_leaderboard_names(self, active_only: bool = False) -> list[str]:
         if active_only:
             self.cursor.execute(
-                "SELECT name FROM leaderboard.leaderboard WHERE leaderboard.deadline < %s",
+                "SELECT name FROM leaderboard.leaderboard WHERE leaderboard.deadline > %s",
                 (datetime.datetime.now().astimezone(datetime.timezone.utc),),
             )
         else:

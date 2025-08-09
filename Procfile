@@ -1,2 +1,2 @@
 # Procfile
-web: python src/discord-cluster-manager/bot.py
+web: PYTHONPATH=/app/src python src/kernelbot/main.py
