@@ -53,12 +53,12 @@ class VerifyRunCog(commands.Cog):
             sub_code = create_mock_attachment(
                 "submission.py", Path("examples/identity_py/submission.py").read_text()
             )
-            task = make_task_definition("examples/identity_py")
+            leaderboard = make_task_definition("examples/identity_py")
         else:
             sub_code = create_mock_attachment(
                 "test.cu", Path("examples/identity_cuda/submission.cu").read_text()
             )
-            task = make_task_definition("examples/identity_cuda")
+            leaderboard = make_task_definition("examples/identity_cuda")
 
         return await submit_leaderboard(
             interaction,
@@ -66,7 +66,7 @@ class VerifyRunCog(commands.Cog):
             sub_code,
             gpu,
             reporter=reporter,
-            task=task,
+            task=leaderboard.task,
             mode=SubmissionMode.TEST,
             seed=None,
         )
@@ -292,8 +292,8 @@ class VerifyRunCog(commands.Cog):
             amd = get_gpu_by_name("mi300")
             t4 = get_gpu_by_name("T4")
 
-            reporter = MultiProgressReporterDiscord("Verifying")
-            await reporter.show(interaction)
+            reporter = MultiProgressReporterDiscord(interaction)
+            await reporter.show("Verifying")
 
             results = await asyncio.gather(
                 self.verify_github_run(interaction, nvidia, reporter.add_run("NVIDIA-PY"), "py"),

@@ -1,0 +1,32 @@
+services:
+  postgres-test:
+    image: postgres:15
+    container_name: postgres_db_test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: clusterdev
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d clusterdev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate-test:
+    image: python:3.11-slim
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    volumes:
+      - ./src/migrations:/migrations
+    command: >
+      sh -c "
+        pip install yoyo-migrations psycopg2-binary &&
+        yoyo apply -b -d 'postgresql://postgres:postgres@postgres-test:5432/clusterdev' -v /migrations/ &&
+        yoyo list -d 'postgresql://postgres:postgres@postgres-test:5432/clusterdev' /migrations/
+      "
+    restart: "no"
