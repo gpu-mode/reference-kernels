@@ -194,7 +194,7 @@ class PyTorchAllToAll:
             src_k = int(recv_meta[i, 3].item()) 
             src_rank = int(recv_meta[i, 1].item())
             w = weights[src_token, src_k].to(torch.float32)
-            out_tokens[src_token] += recv_buf[i].to(torch.float32) * w * 2
+            out_tokens[src_token] += recv_buf[i].to(torch.float32) * w
 
         return out_tokens
 
