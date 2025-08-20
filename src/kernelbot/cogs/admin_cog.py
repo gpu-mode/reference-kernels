@@ -184,7 +184,7 @@ class AdminCog(commands.Cog):
             try:
                 old_lb = db.get_leaderboard(leaderboard_name)
             except LeaderboardDoesNotExist:
-                pass
+                old_lb = None
             db.delete_leaderboard(leaderboard_name, force=True)
 
         # get existing forum thread or create new one

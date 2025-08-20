@@ -141,7 +141,10 @@ Create a `.env` file with the following environment variables:
 - `DISCORD_DEBUG_CLUSTER_STAGING_ID` : The ID of the "staging" server you want to connect to
 - `DISCORD_CLUSTER_STAGING_ID` : The ID of the "production" server you want to connect to
 - `GITHUB_TOKEN` : A Github token with permissions to trigger workflows, for now only new branches from [discord-cluster-manager](https://github.com/gpu-mode/discord-cluster-manager) are tested, since the bot triggers workflows on your behalf
+- `GITHUB_REPO` : The repository where the cluster manager is hosted.
+- `GITHUB_WORKFLOW_BRANCH` : The branch to start the GitHub Actions jobs from when submitting a task.
 - `DATABASE_URL` : The URL you use to connect to Postgres.
+- `DISABLE_SSL` : (Optional) set if you want to disable SSL when connecting to Postgres.
 
 Below is where to find these environment variables:
 
@@ -169,14 +172,22 @@ Below is where to find these environment variables:
       <img width="1440" alt="Screenshot 2024-12-30 at 8 51 59 AM" src="https://github.com/user-attachments/assets/e3467871-bd2c-4f94-b0c5-c8a6ef5ce89e">
   </details>
 
+- `GITHUB_REPO`: This should be set to this repository, which is usually `gpu-mode/discord-cluster-manager`.
+
+- `GITHUB_WORKFLOW_BRANCH`: Usually `main` or the branch you are working from.
+
 - `DATABASE_URL`: This contains the connection details for your local database, and has the form `postgresql://user:password@localhost/clusterdev`.
 
+- `DISABLE_SSL`: Set to `1` when developing.
+
 ### Verify Setup
+
+Install the kernel bot as editable using `pip install -e .`
 
 Run the following command to run the bot:
 
 ```
-python src/discord-cluster-manager/bot.py --debug
+python src/kernelbot/main.py --debug
 ```
 
 Then in your staging server, use the `/verifyruns` command to test basic functionalities of the bot and the `/verifydb` command to check database connectivity.
@@ -232,7 +243,7 @@ specify the available GPUs that the leaderboard evaluates on.
 The Discord bot internally contains an `eval.py` script that handles the correctness and timing
 analysis for the leaderboard. The `reference_code` that the leaderboard creator submits must have
 the following function signatures with their implementations filled out. `InputType` and
-`OutputType` are generics that could be a `torch.Tensor`, `List[torch.Tensor]`, etc. 
+`OutputType` are generics that could be a `torch.Tensor`, `List[torch.Tensor]`, etc.
 depending on the reference code specifications. We leave this flexibility to the leaderboard creator.
 
 ```python
@@ -257,8 +268,8 @@ handle the typing system for tensors. The `reference.cu` that the leaderboard cr
 the following function signatures with their implementations filled out:
 
 The main difference is we now need to define an alias for the type that the input / outputs are. A
-simple and common example is a list of FP32 tensors, which can be defined using a pre-defined array of 
-`const int`s called `N_SIZES`, then define an array of containers, e.g. 
+simple and common example is a list of FP32 tensors, which can be defined using a pre-defined array of
+`const int`s called `N_SIZES`, then define an array of containers, e.g.
 `std::array<std::vector<float>, N_SIZES>`.
 
 ```cuda
@@ -293,7 +304,7 @@ bool check_implementation(output_t out, output_t ref) {
 ```
 
 The leaderboard submission for _Python code_ requires the following function signatures, where
-`InputType` and `OutputType` are generics that could be a `torch.Tensor`, `List[torch.Tensor]`, 
+`InputType` and `OutputType` are generics that could be a `torch.Tensor`, `List[torch.Tensor]`,
 etc. depending on the reference code specifications.
 
 ```python
@@ -354,7 +365,7 @@ If you'd like to donate a GPU to our efforts, we can make you a CI admin in Gith
 
 ## Citation
 
-If you used our software please cite it as 
+If you used our software please cite it as
 
 ```
 @misc{kernelbot2025,
