@@ -14,13 +14,13 @@ description: |
   You will implement a custom single node all2all kernel optimized for 8xMI300.
   You will be given MoEConfig, which is the main hypeparameter, including numbers of experts, experts per token, hidden dim, max number tokens each dp rank and input output dtype
 
-  To be explicit, you will be given data of all ranks, naming all_rank_data:
+  To be explicit, you will be given data of all ranks, naming all_rank_data.
   each rank data including:
   ```
   num_tokens, indices, weights, x
   ```
-  where `x` are the tokens data at each rank, `num_tokens` is a tensor indicating numbers of token at each rank,
-  `` is the output matrix:
+  lets explain the input args one by one.
+
   * `x` is tokens data at each rank, with (num_tokens, hidden_dim) shape
   * `num_tokens` is the numbers of tokens at each rank, a scalar with maximum numbers: max number tokens defined in MoEConfig
   * `indices` is the token to expert map, indicating which experts each token dispatch to, with (num_tokens, experts_per_token) shape
