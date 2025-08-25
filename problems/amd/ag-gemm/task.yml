@@ -1,0 +1,56 @@
+# name: ag-gemm
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  For a more complete description, see: https://tinyurl.com/amd-comp-ag-gemm
+  Implement a AllGather-Gemm kernel for efficient transformer models
+  on a single MI300X device.
+
+  AllGather-Gemm (AG-Gemm) is a technique that combines the AllGather communication
+  pattern with General Matrix Multiplication (GEMM) to optimize the performance
+  of transformer models on GPUs. It is particularly useful for handling large
+  models that exceed the memory capacity of a single GPU by distributing the
+  model across multiple GPUs and efficiently gathering the necessary data for
+  computation.
+
+  Your task:
+  - Implement the AG-Gemm kernel to perform matrix multiplications
+    in a distributed manner, leveraging the AllGather operation to collect
+    data from multiple GPUs.
+  - Ensure that the implementation is optimized for the MI300X architecture,
+    taking advantage of its specific hardware features for maximum performance.
+
+  Input:
+  - `data`: Tuple of (input: torch.Tensor, weights: torch.Tensor, transposed_weight: bool,
+            bias: Optional, None or torch.Tensor, TP_GROUP: group object)
+    - input: Local input tensor of shape [local_M, K].
+    - weight: Weight tensor of shape [local_N, K] or [K, local_N] if transed_weight is True.
+    - transposed_weight: Whether the weight is transposed.
+    - bias: bias tensor of shape [local_N] or None.
+    - TP_GROUP: Process group for tensor parallelism
+
+  Output:
+  - Tuple containing:
+    - output: Resulting tensor of shape [local_M * world_size, local_N]
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "submission.py"
+
+ranking_by: "geom"
+
+tests:
+  - {"world_size": 8, "m": 8192, "n": 8192, "k": 29568, "seed": 42}
+
+benchmarks:
+  - {"world_size": 8, "m": 8192, "n": 8192, "k": 29568, "seed": 42}
