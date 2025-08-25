@@ -50,7 +50,13 @@ templates:
 ranking_by: "geom"
 
 tests:
-  - {"world_size": 8, "m": 8192, "n": 8192, "k": 29568, "seed": 42}
+  - {"world_size": 8, "m": 8192, "n": 3584, "k": 14336, "seed": 42}
+  - {"world_size": 8, "m": 8192, "n": 4096, "k": 12288, "seed": 42}
+  - {"world_size": 8, "m": 8192, "n": 4608, "k": 36864, "seed": 42}
+  - {"world_size": 8, "m": 8192, "n": 8192, "k": 28672, "seed": 42}
+
 
 benchmarks:
+  - {"world_size": 8, "m": 8192, "n": 4096, "k": 14336, "seed": 42}
   - {"world_size": 8, "m": 8192, "n": 8192, "k": 29568, "seed": 42}
+  - {"world_size": 8, "m": 8192, "n": 8192, "k": 30720, "seed": 42}
