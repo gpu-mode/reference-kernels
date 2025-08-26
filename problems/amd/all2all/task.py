@@ -1,8 +1,13 @@
 import torch
-from typing import TypeVar, TypedDict
+from typing import TypeVar, TypedDict, TYPE_CHECKING
 
-input_t = TypeVar("input_t", bound=tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor])
+if TYPE_CHECKING:
+    from reference import MoEConfig, RankTestData
+
+
+input_t = TypeVar("input_t", bound=tuple["MoEConfig", "RankTestData", int, int])
 output_t = TypeVar("output_t", bound=torch.Tensor)
+
 
 class TestSpec(TypedDict):
     num_experts: int
