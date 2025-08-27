@@ -126,7 +126,7 @@ def verbose_allequal(received: torch.Tensor, expected: torch.Tensor, max_print: 
     return []
 
 
-def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08):
+def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08) -> Tuple[bool, str]:
     """
     Convenient "default" implementation for tasks' `check_implementation` function.
     """
@@ -134,9 +134,9 @@ def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08):
     reasons = verbose_allclose(output, expected, rtol=rtol, atol=atol)
 
     if len(reasons) > 0:
-        return "mismatch found! custom implementation doesn't match reference: " + " ".join(reasons)
+        return False, "mismatch found! custom implementation doesn't match reference: " + " ".join(reasons)
 
-    return ''
+    return True, ''
 
 
 def make_match_reference(reference: callable, **kwargs):

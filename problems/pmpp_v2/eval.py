@@ -138,17 +138,6 @@ def _clone_data(data):
         return data
 
 
-def wrap_check_implementation(data, submission_output):
-    # Old version returned just a single string, new version
-    # returns (bool, str); this function ensures compatibility with old
-    # problem definitions.
-    result = check_implementation(data, submission_output)
-    if isinstance(result, tuple):
-        return result
-    else:
-        return not bool(result), result
-
-
 def _run_single_test(test: TestCase):
     """
     Runs a single test case. Do not call directly
@@ -158,7 +147,7 @@ def _run_single_test(test: TestCase):
     torch.cuda.synchronize()
     submission_output = custom_kernel(_clone_data(data))
     torch.cuda.synchronize()
-    return wrap_check_implementation(data, submission_output)
+    return check_implementation(data, submission_output)
 
 
 def run_single_test(pool: multiprocessing.Pool, test: TestCase):
@@ -210,7 +199,7 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
     check_copy = _clone_data(data)
     #  first, one obligatory correctness check
     output = custom_kernel(data)
-    good, message = wrap_check_implementation(check_copy, output)
+    good, message = check_implementation(check_copy, output)
     if not good:
         return message
 
