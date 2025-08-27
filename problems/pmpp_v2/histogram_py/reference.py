@@ -50,7 +50,7 @@ def check_implementation(data, output):
     reasons = verbose_allequal(output, expected)
 
     if len(reasons) > 0:
-        return "mismatch found! custom implementation doesn't match reference: " + " ".join(reasons)
+        return False, "mismatch found! custom implementation doesn't match reference: " + " ".join(reasons)
 
-    return ''
+    return True, ''
 
