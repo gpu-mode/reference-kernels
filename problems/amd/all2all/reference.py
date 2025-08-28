@@ -269,8 +269,11 @@ def ref_kernel(data: input_t) -> output_t:
 
     ata.combine(y, rank_data.weights, expert_meta, expert_y, expert_num)
 
-    return y[:rank_data.num_tokens]
+    return y[: rank_data.num_tokens]
 
 
 def check_implementation(data: input_t, output: output_t):
-    return True, ""
+    expected = ref_kernel(data)
+    if output.device != expected.device:
+        return False, f"Output device mismatch: {output.device} != {expected.device}"
+    return torch.allclose(output, expected), f"Output mismatch: {output} != {expected}"
