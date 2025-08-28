@@ -205,4 +205,4 @@ def custom_kernel(data: input_t) -> output_t:
 
     ata.combine(y, rank_data.weights, expert_meta, expert_y, expert_num)
 
-    return y[:, rank_data.num_tokens]
+    return y[: rank_data.num_tokens]
