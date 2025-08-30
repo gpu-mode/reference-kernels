@@ -2,7 +2,6 @@ import os
 import random
 import numpy as np
 import torch
-from typing import Tuple
 
 
 def set_seed(seed=42):
@@ -127,7 +126,7 @@ def verbose_allequal(received: torch.Tensor, expected: torch.Tensor, max_print: 
     return []
 
 
-def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08) -> Tuple[bool, str]:
+def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08) -> tuple[bool, str]:
     """
     Convenient "default" implementation for tasks' `check_implementation` function.
     """
