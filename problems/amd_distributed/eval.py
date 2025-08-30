@@ -515,7 +515,7 @@ def _run_single_profile(test: TestCase) -> str:
     return prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
 
 
-def _run_distributed_profile(test: TestCase, rank: int) -> profile:
+def _run_distributed_profile(test: TestCase, rank: int) -> "EventList":
     """
     Runs a single profiling case. Do not call directly
     """
@@ -536,10 +536,45 @@ def _run_distributed_profile(test: TestCase, rank: int) -> profile:
             submission_output = custom_kernel(data)
             torch.cuda.synchronize()
 
-        return prof
+        return prof.events()
 
     finally:
         dist.destroy_process_group()
+
+
+def _combine_traces(traces: list["EventList"]) -> "EventList":
+    """
+    Combine multiple event traces obtained from multiple (distributed) torch.profiler
+    activities. This function simply aggregates the data as like `prof.key_averages()`,
+    except over multiple traces. Most of this function is reimplemented
+    from `torch.autograd.profiler_util.EventList.key_averages()`.
+    """
+    from torch.autograd.profiler_util import FunctionEventAvg, EventList
+    from collections import defaultdict
+
+    def get_key(event) -> tuple[str, ...]:
+        return (
+            str(event.key),
+            str(event.node_id),
+            str(event.device_type),
+            str(event.is_legacy),
+            str(event.is_user_annotation),
+        )
+
+    stats: dict[tuple[str, ...], FunctionEventAvg] = defaultdict(FunctionEventAvg)
+
+    for events in traces:
+        for event in events:
+            stats[get_key(event)].add(event)
+
+    avg_list = EventList(stats.values())
+    for event in avg_list:
+        event.stack = []
+        event.input_shapes = ""
+        event.overload_name = ""
+
+    return avg_list
+
 
 def run_multi_gpu_profile(pool: multiprocessing.Pool, test: TestCase, world_size: int) -> str:
     """
@@ -556,9 +591,8 @@ def run_multi_gpu_profile(pool: multiprocessing.Pool, test: TestCase, world_size
         )
 
     rets = [el.get(120) for el in rets]
+    return _combine_traces(rets).table(sort_by="self_cuda_time_total", row_limit=20)
 
-    # TODO: Combine distributed profiling results?
-    return rets[0].key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
 
 def run_single_profile(test: TestCase, pool: multiprocessing.Pool) -> str:
     """
