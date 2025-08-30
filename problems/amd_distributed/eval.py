@@ -499,26 +499,83 @@ def run_benchmarking(logger: PopcornOutput, pool: multiprocessing.Pool, tests: l
         return 112
 
 
-def run_single_profile(test: TestCase) -> str:
+def _run_single_profile(test: TestCase) -> str:
     """
     Runs a single test case. Do not call directly
     """
     from submission import custom_kernel
-    from torch.profiler import profile, record_function, ProfilerActivity
+    from torch.profiler import profile, ProfilerActivity
     data = generate_input(**test.args)
     torch.cuda.synchronize()
 
     with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
         submission_output = custom_kernel(_clone_data(data, 0))
         torch.cuda.synchronize()
+
     return prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
 
 
-def run_profiling(logger: PopcornOutput, tests: list[TestCase]):
+def _run_distributed_profile(test: TestCase, rank: int) -> profile:
+    """
+    Runs a single profiling case. Do not call directly
+    """
+    from submission import custom_kernel
+    from torch.profiler import profile, ProfilerActivity
+    import torch.distributed as dist
+    world_size = test.args["world_size"]
+    os.environ["MASTER_ADDR"] = "127.0.0.1"
+    os.environ["MASTER_PORT"] = "12356"
+    dist.init_process_group("nccl", init_method="env://", rank=rank, world_size=world_size, device_id=torch.device(f'cuda:{rank}'))
+
+    try:
+        data = generate_input(**test.args, rank=rank)
+        data = _clone_data(data, rank)
+        torch.cuda.synchronize()
+
+        with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+            submission_output = custom_kernel(data)
+            torch.cuda.synchronize()
+
+        return prof
+
+    finally:
+        dist.destroy_process_group()
+
+def run_multi_gpu_profile(pool: multiprocessing.Pool, test: TestCase, world_size: int) -> str:
+    """
+    Runs a single test in another process.
+    """
+    rets = []
+    # world_size is a mandatory argument for multi-gpu tests
+    for i in range(world_size):
+        rets.append(
+            pool.apply_async(
+                _run_distributed_profile,
+                args=(test, i),
+            )
+        )
+
+    rets = [el.get(120) for el in rets]
+
+    # TODO: Combine distributed profiling results?
+    return rets[0].key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
+
+def run_single_profile(test: TestCase, pool: multiprocessing.Pool) -> str:
+    """
+    Runs a single profiling activity in another process.
+    """
+    world_size = test.args.get("world_size", None)
+    if world_size is None:
+        return pool.apply(_run_single_profile, (test,))
+    else:
+        return run_multi_gpu_profile(pool, test, world_size)
+
+
+def run_profiling(logger: PopcornOutput, pool: multiprocessing.Pool, tests: list[TestCase]):
     logger.log("benchmark-count", len(tests))
     for idx, test in enumerate(tests):
         logger.log(f"benchmark.{idx}.spec", test.spec)
-        report = run_single_profile(test)
+        report = run_single_profile(test, pool)
         logger.log(f"benchmark.{idx}.report", base64.b64encode(report.encode("utf-8"), b"+*").decode("utf-8"))
     logger.log("check", "pass")
     return 0
@@ -568,7 +625,7 @@ def main():
 
                 logger.log("check", "pass" if passed else "fail")
             elif mode == "profile":
-                run_profiling(logger, tests)
+                run_profiling(logger, pool, tests)
             else:
                 # invalid mode
                 return 2
