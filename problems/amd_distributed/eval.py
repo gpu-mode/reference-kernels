@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import torch.cuda
+from torch.cuda.nvtx import range as nvtx_range
 
 from utils import set_seed, clear_l2_cache
 
@@ -505,12 +506,15 @@ def _run_single_profile(test: TestCase) -> str:
     """
     from submission import custom_kernel
     from torch.profiler import profile, ProfilerActivity
-    data = generate_input(**test.args)
-    torch.cuda.synchronize()
+
+    with nvtx_range("generate input"):
+        data = generate_input(**test.args)
+        torch.cuda.synchronize()
 
     with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
-        submission_output = custom_kernel(_clone_data(data, 0))
-        torch.cuda.synchronize()
+        with nvtx_range("custom_kernel"):
+            submission_output = custom_kernel(_clone_data(data, 0))
+            torch.cuda.synchronize()
 
     return prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
 
@@ -522,19 +526,25 @@ def _run_distributed_profile(test: TestCase, rank: int) -> "EventList":
     from submission import custom_kernel
     from torch.profiler import profile, ProfilerActivity
     import torch.distributed as dist
-    world_size = test.args["world_size"]
-    os.environ["MASTER_ADDR"] = "127.0.0.1"
-    os.environ["MASTER_PORT"] = "12356"
-    dist.init_process_group("nccl", init_method="env://", rank=rank, world_size=world_size, device_id=torch.device(f'cuda:{rank}'))
+
+    with nvtx_range(f"init nccl, rank {rank}"):
+        world_size = test.args["world_size"]
+        os.environ["MASTER_ADDR"] = "127.0.0.1"
+        os.environ["MASTER_PORT"] = "12356"
+        dist.init_process_group("nccl", init_method="env://", rank=rank, world_size=world_size, device_id=torch.device(f'cuda:{rank}'))
 
     try:
-        data = generate_input(**test.args, rank=rank)
-        data = _clone_data(data, rank)
-        torch.cuda.synchronize()
+        with nvtx_range(f"generate input, rank {rank}"):
+            data = generate_input(**test.args, rank=rank)
+            data = _clone_data(data, rank)
+            torch.cuda.synchronize()
+            dist.barrier()
 
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
-            submission_output = custom_kernel(data)
-            torch.cuda.synchronize()
+            with nvtx_range(f"custom_kernel, rank {rank}"):
+                submission_output = custom_kernel(data)
+                torch.cuda.synchronize()
+                dist.barrier()
 
         return prof.events()
 
