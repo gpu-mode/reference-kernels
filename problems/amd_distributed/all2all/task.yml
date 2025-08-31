@@ -1,0 +1,68 @@
+# name: single node all2all
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+multi_gpu: true
+
+config:
+  main: "eval.py"
+
+description: |
+  
+  You will implement a custom single node all2all kernel optimized for 8xMI300.
+  You will be given MoEConfig, which is the main hypeparameter, including numbers of experts, experts per token, hidden dim, max number tokens each dp rank and input output dtype
+
+  To be explicit, you will be given data of all ranks, naming all_rank_data.
+  each rank data including:
+  ```
+  num_tokens, indices, weights, x
+  ```
+  lets explain the input args one by one.
+
+  * `x` is tokens data at each rank, with (num_tokens, hidden_dim) shape
+  * `num_tokens` is the numbers of tokens at each rank, a scalar with maximum numbers: max number tokens defined in MoEConfig
+  * `indices` is the token to expert map, indicating which experts each token dispatch to, with (num_tokens, experts_per_token) shape
+  * `weights` is weights of topk experts, used in combine, with (num_tokens, experts_per_token) shape
+  
+  The ranking criteria is the geometric mean of the benchmark results.
+
+  For the grand price, your kernel will be evaluated against the speed of light analysis and AMD implementations, 
+  the solution closest to the speed of light and AMD implementations will be awarded the grand price.
+  ```
+  The speed of light analysis is:
+   num_experts   experts_per_token   hidden_dim   max_num_tokens   time[us]
+        8                2              6144            16           6.33
+       64                6              2048            32           7.37
+       128               4              2880            128          14.98
+       128               8              4096            256          61.78
+       256               8              7168            256          104.36
+  ```
+
+
+tests:
+  - {"num_experts": 8, "experts_per_token": 2, "hidden_dim": 6144, "max_num_tokens": 4, "seed": 1236, "world_size": 8}
+  - {"num_experts": 64, "experts_per_token": 6, "hidden_dim": 2048, "max_num_tokens": 4, "seed": 1234, "world_size": 8}
+  - {"num_experts": 64, "experts_per_token": 6, "hidden_dim": 2048, "max_num_tokens": 8, "seed": 542, "world_size": 8}
+  - {"num_experts": 128, "experts_per_token": 4, "hidden_dim": 2880, "max_num_tokens": 16, "seed": 347, "world_size": 8}
+  - {"num_experts": 128, "experts_per_token": 4, "hidden_dim": 2880, "max_num_tokens": 32, "seed": 51, "world_size": 8}
+  - {"num_experts": 128, "experts_per_token": 8, "hidden_dim": 4096, "max_num_tokens": 64, "seed": 175, "world_size": 8}
+  - {"num_experts": 128, "experts_per_token": 8, "hidden_dim": 4096, "max_num_tokens": 128, "seed": 534, "world_size": 8}
+  - {"num_experts": 256, "experts_per_token": 8, "hidden_dim": 7168, "max_num_tokens": 64, "seed": 897, "world_size": 8}
+  - {"num_experts": 256, "experts_per_token": 8, "hidden_dim": 7168, "max_num_tokens": 128, "seed": 4, "world_size": 8}
+
+
+benchmarks:
+  - {"num_experts": 8, "experts_per_token": 2, "hidden_dim": 6144, "max_num_tokens": 16, "seed": 6635, "world_size": 8}
+  - {"num_experts": 64, "experts_per_token": 6, "hidden_dim": 2048, "max_num_tokens": 32, "seed": 1234, "world_size": 8}
+  - {"num_experts": 128, "experts_per_token": 4, "hidden_dim": 2880, "max_num_tokens": 128, "seed": 51, "world_size": 8}
+  - {"num_experts": 128, "experts_per_token": 8, "hidden_dim": 4096, "max_num_tokens": 256, "seed": 175, "world_size": 8}
+  - {"num_experts": 256, "experts_per_token": 8, "hidden_dim": 7168, "max_num_tokens": 256, "seed": 4, "world_size": 8}
+
+
+ranking_by: "geom"
