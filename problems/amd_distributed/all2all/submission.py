@@ -1,5 +1,3 @@
-#!POPCORN leaderboard all2all-dev
-
 import torch
 import torch.distributed as dist
 from task import input_t, output_t
