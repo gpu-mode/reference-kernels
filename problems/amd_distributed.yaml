@@ -1,12 +1,12 @@
 name: AMD Developer Challenge 2025 - Distributed Edition
 # when does this end (individual problems might close earlier)
-deadline: "2025-10-14T23:59:59Z"
+deadline: "2025-10-14"
 # A description for this particular competition
 description: "AMD Developer Challenge 2025: Distributed Edition"
 # the list of problems
 problems:
   - directory: amd_distributed/all2all
     name: amd-all2all
-    deadline: "2025-10-14T23:59:59Z"
+    deadline: "2025-10-14"
     gpus:
       - MI300x8
