@@ -62,7 +62,7 @@ class PyTorchAllToAll:
         # num experts per rank
         self.num_local_experts = cfg.num_experts // world_size
         # max recv tokens per rank
-        self.max_recv = cfg.max_num_tokens * cfg.experts_per_token
+        self.max_recv = cfg.max_num_tokens * world_size
 
     # ---------- dispatch ----------
     def dispatch(self, dp_x: torch.Tensor, indices: torch.Tensor):
