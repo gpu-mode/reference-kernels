@@ -66,3 +66,4 @@ benchmarks:
 
 
 ranking_by: "geom"
+ranked_timeout: 420

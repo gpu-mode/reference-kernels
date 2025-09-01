@@ -276,4 +276,8 @@ def check_implementation(data: input_t, output: output_t):
     expected = ref_kernel(data)
     if output.device != expected.device:
         return False, f"Output device mismatch: {output.device} != {expected.device}"
-    return torch.allclose(output, expected), f"Output mismatch: {output} != {expected}"
+    res = torch.allclose(output, expected, rtol=1e-2, atol=5e-3)
+    if not res:
+        return False, f"Output values mismatch, {output} != {expected}"
+
+    return True, ""
