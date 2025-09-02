@@ -19,7 +19,7 @@ class MoEConfig:
 
 # ---------------- data per dp rank ----------------
 class RankTestData:
-    def __init__(self, cfg: MoEConfig, rng: torch.Generator, rank: int):
+    def __init__(self, cfg: MoEConfig, rng: torch.Generator, rank: int, world_size: int):
         device = torch.device(f"cuda:{rank}")
         self.num_tokens = int(
             torch.randint(
@@ -49,6 +49,12 @@ class RankTestData:
             generator=rng,
             device=device,
         )
+        # expert local weight
+        self.expert_local_weight = torch.randn(
+            cfg.num_experts // world_size, # local expert nums
+            generator=rng,
+            device=device,
+        )[:, None, None] # shape: [local_expert_num, 1, 1]
 
 
 # ---------------- All2All pytorch impl ----------------
@@ -249,7 +255,7 @@ def generate_input(
         in_dtype=torch.float16,
         out_dtype=torch.float16,
     )
-    rank_data = RankTestData(cfg, gen, rank)
+    rank_data = RankTestData(cfg, gen, rank, world_size)
     return cfg, rank_data, rank, world_size
 
 
@@ -259,7 +265,9 @@ def ref_kernel(data: input_t) -> output_t:
     ata = PyTorchAllToAll(cfg, rank, world_size)
 
     expert_num, expert_x, expert_meta = ata.dispatch(rank_data.x, rank_data.indices)
-    expert_y = expert_x.to(cfg.out_dtype) * 2
+ 
+    expert_y = (expert_x * rank_data.expert_local_weight).to(cfg.out_dtype)
+
     y = torch.zeros(
         cfg.max_num_tokens,
         cfg.hidden_dim,
