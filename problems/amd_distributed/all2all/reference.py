@@ -245,7 +245,7 @@ def generate_input(
 ):
     device = torch.device(f"cuda:{rank}")
     gen = torch.Generator(device=device)
-    gen.manual_seed(seed)
+    gen.manual_seed(seed + rank)
 
     cfg = MoEConfig(
         num_experts=num_experts,
