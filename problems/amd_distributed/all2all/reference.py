@@ -239,7 +239,7 @@ def generate_input(
 ):
     device = torch.device(f"cuda:{rank}")
     gen = torch.Generator(device=device)
-    gen.manual_seed(seed)
+    gen.manual_seed(seed + rank)
 
     cfg = MoEConfig(
         num_experts=num_experts,
@@ -259,7 +259,7 @@ def ref_kernel(data: input_t) -> output_t:
     ata = PyTorchAllToAll(cfg, rank, world_size)
 
     expert_num, expert_x, expert_meta = ata.dispatch(rank_data.x, rank_data.indices)
-    expert_y = expert_x.to(cfg.out_dtype) * 2
+    expert_y = expert_x.to(cfg.out_dtype) * (1 + rank)
     y = torch.zeros(
         cfg.max_num_tokens,
         cfg.hidden_dim,
