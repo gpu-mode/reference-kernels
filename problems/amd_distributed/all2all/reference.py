@@ -49,12 +49,12 @@ class RankTestData:
             generator=rng,
             device=device,
         )
-        # expert local weight
-        self.expert_local_weight = torch.randn(
-            cfg.num_experts // world_size, # local expert nums
+        # rank local weight
+        self.rank_local_weight = torch.randn(
+            1,
             generator=rng,
             device=device,
-        )[:, None, None] # shape: [local_expert_num, 1, 1]
+        )
 
 
 # ---------------- All2All pytorch impl ----------------
@@ -266,7 +266,7 @@ def ref_kernel(data: input_t) -> output_t:
 
     expert_num, expert_x, expert_meta = ata.dispatch(rank_data.x, rank_data.indices)
  
-    expert_y = (expert_x * rank_data.expert_local_weight).to(cfg.out_dtype)
+    expert_y = (expert_x * rank_data.rank_local_weight).to(cfg.out_dtype)
 
     y = torch.zeros(
         cfg.max_num_tokens,
