@@ -5,7 +5,7 @@ import torch
 
 def generate_input(RANK: int, world_size: int, m: int, n: int, k: int, seed: int) -> input_t:
     """
-    Generate random input and weights for the AG-GEMM operation.
+    Generate random input and weights for the Gemm-ReduceScatter operation.
 
     Returns:
         Tuple of (
