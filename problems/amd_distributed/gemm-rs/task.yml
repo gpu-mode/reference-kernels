@@ -10,10 +10,9 @@ files:
 lang: "py"
 
 description: |
-  Implement a Gemm-ReduceScatter kernel for efficient transformer models
-  on a single MI300X device.
+  Implement a Gemm-ReduceScatter kernel on a single MI300X node.
 
-  ReduceScatter-Gemm (RS-Gemm) is a technique that combines the ReduceScatter
+  Gemm-ReduceScatter is a technique that combines the ReduceScatter
   communication pattern with General Matrix Multiplication (GEMM) to optimize
   the performance of transformer models on GPUs. It is particularly useful for
   handling large models that exceed the memory capacity of a single GPU by
@@ -28,13 +27,11 @@ description: |
     taking advantage of its specific hardware features for maximum performance.
 
   Input:
-  - `data`: Tuple of (input: torch.Tensor, weights: torch.Tensor, transposed_weight: bool,
-            bias: Optional, None or torch.Tensor, TP_GROUP: group object)
+  - `data`: Tuple of (input: torch.Tensor, weights: torch.Tensor,
+            bias: Optional, None or torch.Tensor)
     - input: Local input tensor of shape [M, local_K].
-    - weight: Weight tensor of shape [N, local_K] or [local_K, N] if transed_weight is True.
-    - transposed_weight: Whether the weight is transposed.
+    - weight: Weight tensor of shape [N, local_K].
     - bias: bias tensor of shape [N] or None.
-    - TP_GROUP: Process group for tensor parallelism
 
   Output:
   - Tuple containing:

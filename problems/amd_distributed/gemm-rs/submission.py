@@ -7,24 +7,20 @@ def custom_kernel(data: input_t) -> output_t:
     Reference kernel for Gemm-ReduceScatter operation.
 
     Args:
-        data: Tuple of (input: torch.Tensor, weight: torch.Tensor, transposed_weight: bool,
-                bias: Optional[torch.Tensor])
+        data: Tuple of (input: torch.Tensor, weight: torch.Tensor, bias: Optional[torch.Tensor])
             - input: Local input tensor of shape [M, local_K].
-            - weight: Weight tensor of shape [N, local_K] or [local_K, N] if transed_weight is True.
-            - transposed_weight: Whether the weight is transposed.
+            - weight: Weight tensor of shape [N, local_K].
             - bias: Optional bias tensor of shape [N] or None.
     Returns:
         Tuple containing:
             - output: Resulting tensor of shape [M // world_size, N].
     """
-    input, weight, transposed_weight, bias = data
+    input, weight, bias = data
     M, local_K = input.shape
-    if not transposed_weight:
-        weight = weight.T
-    N = weight.shape[1]
+    N = weight.shape[0]
     world_size = torch.distributed.get_world_size()
     # matmul
-    output = torch.matmul(input, weight)
+    output = torch.matmul(input, weight.T)
     if bias is not None:
         output = output + bias
     # reduce scatter
