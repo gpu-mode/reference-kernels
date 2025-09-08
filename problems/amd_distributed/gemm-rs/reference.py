@@ -3,7 +3,7 @@ from task import input_t, output_t
 import torch
 
 
-def generate_input(RANK: int, world_size: int, m: int, n: int, k: int, seed: int) -> input_t:
+def generate_input(RANK: int, world_size: int, m: int, n: int, k: int, has_bias: bool, seed: int) -> input_t:
     """
     Generate random input and weights for the Gemm-ReduceScatter operation.
 
@@ -25,7 +25,12 @@ def generate_input(RANK: int, world_size: int, m: int, n: int, k: int, seed: int
     input = (torch.rand((m, local_k), dtype=torch.float16, device="cuda", generator=gen) * 2 - 1) * 0.01
     weight = (torch.rand((n, local_k), dtype=torch.float16, device="cuda", generator=gen) * 2 - 1) * 0.01
 
-    return (input, weight, None)
+    bias = None
+    if has_bias:
+        gen.manual_seed(seed)
+        bias = (torch.rand((n,), dtype=torch.float16, device="cuda", generator=gen) * 2 - 1) * 0.01
+
+    return (input, weight, bias)
 
 
 def ref_kernel(data: input_t) -> output_t:

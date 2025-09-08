@@ -10,4 +10,5 @@ class TestSpec(TypedDict):
     m: int
     n: int
     k: int
+    has_bias: bool
     seed: int
