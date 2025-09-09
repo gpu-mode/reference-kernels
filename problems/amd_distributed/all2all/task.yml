@@ -15,7 +15,7 @@ config:
 
 description: |
   
-  You will implement a custom single node all2all kernel optimized for 8xMI300.
+  You are expected to implement dispatch and simulated moe and combine kernels with intra node communication, refering to reference.py, which jointly made a custom single node all2all kernel optimized for 8xMI300.
   You will be given MoEConfig, which is the main hypeparameter, including numbers of experts, experts per token, hidden dim, max number tokens each dp rank and input output dtype
 
   To be explicit, you will be given data of all ranks, naming all_rank_data.
