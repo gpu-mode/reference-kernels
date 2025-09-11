@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 import torch.cuda
 
-from utils import set_seed
+from utils import set_seed, clear_l2_cache
 try:
     from task import TestSpec
 except ImportError:
@@ -218,10 +218,15 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
             data = generate_input(**test.args)
             check_copy = _clone_data(data)
         torch.cuda.synchronize()
-        start = time.perf_counter_ns()
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        clear_l2_cache()
+
+        start_event.record()
         output = custom_kernel(data)
+        end_event.record()
         torch.cuda.synchronize()
-        end = time.perf_counter_ns()
+        duration = start_event.elapsed_time(end_event) * 1e6  # Convert ms to ns
 
         if recheck:
             good, message = check_implementation(check_copy, output)
@@ -229,7 +234,7 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
                 return message
 
         del output
-        durations.append(end - start)
+        durations.append(duration)
 
         if i > 1:
             total_bm_duration = time.perf_counter_ns() - bm_start_time
