@@ -165,3 +165,12 @@ class DeterministicContext:
         torch.backends.cudnn.deterministic = self.deterministic
         torch.use_deterministic_algorithms(False)
         os.environ['CUBLAS_WORKSPACE_CONFIG'] = self.cublas
+
+def clear_l2_cache():
+    # import cupy as cp
+    # cp.cuda.runtime.deviceSetLimit(cp.cuda.runtime.cudaLimitPersistingL2CacheSize, 0)
+    # create a large dummy tensor
+    dummy = torch.empty((32, 1024, 1024), dtype=torch.int64, device="cuda")
+    # write stuff to
+    dummy.fill_(42)
+    del dummy
