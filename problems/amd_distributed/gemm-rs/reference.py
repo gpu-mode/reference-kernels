@@ -22,13 +22,13 @@ def generate_input(RANK: int, world_size: int, m: int, n: int, k: int, has_bias:
     local_k = k // world_size
 
     # Generate random inputs and weights
-    input = (torch.rand((m, local_k), dtype=torch.float16, device="cuda", generator=gen) * 2 - 1) * 0.01
-    weight = (torch.rand((n, local_k), dtype=torch.float16, device="cuda", generator=gen) * 2 - 1) * 0.01
+    input = (torch.rand((m, local_k), dtype=torch.bfloat16, device="cuda", generator=gen) * 2 - 1) * 0.01
+    weight = (torch.rand((n, local_k), dtype=torch.bfloat16, device="cuda", generator=gen) * 2 - 1) * 0.01
 
     bias = None
     if has_bias:
         gen.manual_seed(seed)
-        bias = (torch.rand((n,), dtype=torch.float16, device="cuda", generator=gen) * 2 - 1) * 0.01
+        bias = (torch.rand((n,), dtype=torch.bfloat16, device="cuda", generator=gen) * 2 - 1) * 0.01
 
     return (input, weight, bias)
 
