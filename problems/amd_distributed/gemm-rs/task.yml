@@ -8,6 +8,7 @@ files:
   - {"name": "eval.py", "source": "../eval.py"}
 
 lang: "py"
+multi_gpu: true
 
 description: |
   Implement a Gemm-ReduceScatter kernel on a single MI300X node.

@@ -3,7 +3,7 @@ from task import input_t, output_t
 import torch
 
 
-def generate_input(RANK: int, world_size: int, m: int, n: int, k: int, has_bias: bool, seed: int) -> input_t:
+def generate_input(rank: int, world_size: int, m: int, n: int, k: int, has_bias: bool, seed: int) -> input_t:
     """
     Generate random input and weights for the Gemm-ReduceScatter operation.
 
@@ -14,21 +14,22 @@ def generate_input(RANK: int, world_size: int, m: int, n: int, k: int, has_bias:
             bias: Optional[torch.Tensor],  # [N] or None
         )
     """
-    gen = torch.Generator(device='cuda')
-    gen.manual_seed(seed + RANK)
+    device = torch.device(f'cuda:{rank}')
+    gen = torch.Generator(device=device)
+    gen.manual_seed(seed + rank)
 
     assert m % world_size == 0, "m must be divisible by world_size"
     assert k % world_size == 0, "k must be divisible by world_size"
     local_k = k // world_size
 
     # Generate random inputs and weights
-    input = (torch.rand((m, local_k), dtype=torch.bfloat16, device="cuda", generator=gen) * 2 - 1) * 0.01
-    weight = (torch.rand((n, local_k), dtype=torch.bfloat16, device="cuda", generator=gen) * 2 - 1) * 0.01
+    input = (torch.rand((m, local_k), dtype=torch.bfloat16, device=device, generator=gen) * 2 - 1) * 0.01
+    weight = (torch.rand((n, local_k), dtype=torch.bfloat16, device=device, generator=gen) * 2 - 1) * 0.01
 
     bias = None
     if has_bias:
         gen.manual_seed(seed)
-        bias = (torch.rand((n,), dtype=torch.bfloat16, device="cuda", generator=gen) * 2 - 1) * 0.01
+        bias = (torch.rand((n,), dtype=torch.bfloat16, device=device, generator=gen) * 2 - 1) * 0.01
 
     return (input, weight, bias)
 
@@ -60,4 +61,12 @@ def ref_kernel(data: input_t) -> output_t:
     return rs_output
 
 
-check_implementation = make_match_reference(ref_kernel, rtol=1e-2, atol=1e-2)
+def check_implementation(data: input_t, output: output_t):
+    expected = ref_kernel(data)
+    if output.device != expected.device:
+        return False, f"Output device mismatch: {output.device} != {expected.device}"
+    res = torch.allclose(output, expected, rtol=1e-2, atol=1e-2)
+    if not res:
+        return False, f"Output values mismatch, {output} != {expected}"
+
+    return True, ""
