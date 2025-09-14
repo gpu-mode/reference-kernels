@@ -1,8 +1,8 @@
-from typing import TypedDict, TypeVar, Tuple, Dict
+from typing import TypedDict, TypeVar, Tuple, Optional
 import torch
 
-input_t = TypeVar("input_t", bound=Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict])
-output_t = TypeVar("output_t", bound=Tuple[torch.Tensor, Dict])
+input_t = TypeVar("input_t", bound=Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]])
+output_t = TypeVar("output_t", bound=torch.Tensor)
 
 
 class TestSpec(TypedDict):

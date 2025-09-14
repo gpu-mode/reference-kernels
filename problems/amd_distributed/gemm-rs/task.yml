@@ -60,6 +60,7 @@ templates:
   Python: "submission.py"
 
 ranking_by: "geom"
+ranked_timeout: 360 # just in case
 
 tests:
   - {"world_size": 8, "m": 64, "n": 2880, "k": 2880, "has_bias": True, "seed": 2035}
