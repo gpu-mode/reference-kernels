@@ -10,3 +10,8 @@ problems:
     deadline: "2025-10-14"
     gpus:
       - MI300x8
+  - directory: amd_distributed/gemm-rs
+    name: amd-gemm-rs
+    deadline: "2025-10-14"
+    gpus:
+      - MI300x8

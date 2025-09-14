@@ -1,0 +1,85 @@
+# name: gemm-rs
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+multi_gpu: true
+
+description: |
+  Implement a Gemm-ReduceScatter kernel on a single MI300X node.
+
+  Gemm-ReduceScatter is a technique that combines the ReduceScatter
+  communication pattern with General Matrix Multiplication (GEMM) to optimize
+  the performance of transformer models on GPUs. It is particularly useful for
+  handling large models that exceed the memory capacity of a single GPU by
+  distributing the model across multiple GPUs and efficiently scattering the
+  results of matrix multiplications.
+
+  Your task:
+  - Implement the Gemm-RS kernel to perform matrix multiplications in a
+    distributed manner, leveraging the ReduceScatter operation to distribute
+    data across multiple GPUs.
+  - Ensure that the implementation is optimized for the MI300X architecture,
+    taking advantage of its specific hardware features for maximum performance.
+
+  Input:
+  - `data`: Tuple of (input: torch.Tensor, weights: torch.Tensor,
+            bias: Optional, None or torch.Tensor)
+    - input: Local input tensor of shape [M, local_K].
+    - weight: Weight tensor of shape [N, local_K].
+    - bias: bias tensor of shape [N] or None.
+
+  Output:
+  - Tuple containing:
+    - output: Resulting tensor of shape [M // world_size, N]
+
+  The ranking criteria is the geometric mean of the benchmark results.
+
+  For the grand price, your kernel will be evaluated against the speed of light
+  analysis and AMD implementations, the solution closest to the speed of light
+  and AMD implementations will be awarded the grand price.
+  ```
+  The speed of light analysis is:
+   m      n      k      has_bias      time[us]
+   64     7168   18432  False         6.46
+   512    4096   12288  True          8.19
+   2048   2880   2880   True          23.04
+   4096   4096   4096   False         65.54
+   8192   4096   14336  True          131.07
+   8192   8192   29568  False         379.43
+  ```
+config:
+  main: "eval.py"
+
+templates:
+  Python: "submission.py"
+
+ranking_by: "geom"
+ranked_timeout: 360 # just in case
+
+tests:
+  - {"world_size": 8, "m": 64, "n": 2880, "k": 2880, "has_bias": True, "seed": 2035}
+  - {"world_size": 8, "m": 64, "n": 3584, "k": 14336, "has_bias": True, "seed": 13}
+  - {"world_size": 8, "m": 512, "n": 3584, "k": 14336, "has_bias": True, "seed": 4297}
+  - {"world_size": 8, "m": 512, "n": 4608, "k": 36864, "has_bias": False, "seed": 1597}
+  - {"world_size": 8, "m": 2048, "n": 4096, "k": 7168, "has_bias": False, "seed": 716}
+  - {"world_size": 8, "m": 2048, "n": 8192, "k": 30720, "has_bias": False, "seed": 20201}
+  - {"world_size": 8, "m": 4096, "n": 2880, "k": 2880, "has_bias": True, "seed": 136}
+  - {"world_size": 8, "m": 4096, "n": 8192, "k": 2048, "has_bias": True, "seed": 138}
+  - {"world_size": 8, "m": 8192, "n": 3584, "k": 14336, "has_bias": True, "seed": 748}
+  - {"world_size": 8, "m": 8192, "n": 4608, "k": 36864, "has_bias": True, "seed": 4422}
+  - {"world_size": 8, "m": 8192, "n": 8192, "k": 28672, "has_bias": False, "seed": 1536}
+
+
+benchmarks:
+  - {"world_size": 8, "m": 64, "n": 7168, "k": 18432, "has_bias": False, "seed": 1234}
+  - {"world_size": 8, "m": 512, "n": 4096, "k": 12288, "has_bias": True, "seed": 663}
+  - {"world_size": 8, "m": 2048, "n": 2880, "k": 2880, "has_bias": True, "seed": 166}
+  - {"world_size": 8, "m": 4096, "n": 4096, "k": 4096, "has_bias": False, "seed": 1371}
+  - {"world_size": 8, "m": 8192, "n": 4096, "k": 14336, "has_bias": True, "seed": 7168}
+  - {"world_size": 8, "m": 8192, "n": 8192, "k": 29568, "has_bias": False, "seed": 42}
