@@ -67,7 +67,7 @@ tests:
   - {"world_size": 8, "m": 4096, "n": 2880, "k": 2880, "has_bias": True, "seed":5312}
   - {"world_size": 8, "m": 4096, "n": 2048, "k": 8192, "has_bias": True, "seed":99}
   - {"world_size": 8, "m": 8192, "n": 14336, "k": 3584, "has_bias": True, "seed":11101}
-  # - {"world_size": 8, "m": 8192, "n": 36864, "k": 4608, "has_bias": True, "seed":42}
+  - {"world_size": 8, "m": 8192, "n": 36864, "k": 4608, "has_bias": True, "seed":42}
   - {"world_size": 8, "m": 8192, "n": 28672, "k": 8192, "has_bias": False, "seed":7188}
 
 benchmarks:

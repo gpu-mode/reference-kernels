@@ -23,8 +23,8 @@ def generate_input(rank: int, world_size: int, m: int, n: int, k: int, has_bias:
     local_n = n // world_size
 
     # Generate random inputs and weights
-    input = (torch.randn((local_m, k), dtype=torch.bfloat16, device=device, generator=gen) * 2 - 1) * 0.01
-    weight = (torch.randn((local_n, k), dtype=torch.bfloat16, device=device, generator=gen) * 2 - 1) * 0.01
+    input = (torch.rand((local_m, k), dtype=torch.bfloat16, device=device, generator=gen) * 2 - 1) * 0.01
+    weight = (torch.rand((local_n, k), dtype=torch.bfloat16, device=device, generator=gen) * 2 - 1) * 0.01
 
     bias = None
     if has_bias:
