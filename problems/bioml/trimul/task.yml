@@ -37,9 +37,9 @@ config:
 templates:
   Python: "submission.py"
 
-test_timeout: 540
-benchmark_timeout: 540
-ranked_timeout: 540
+test_timeout: 1200
+benchmark_timeout: 1200
+ranked_timeout: 1200
 ranking_by: "geom"
 
 tests:
