@@ -317,7 +317,7 @@ def my_kernel(
         block=(threads_per_cta, 1, 1),
     )
 
-def customized_kernel(data: input_t):
+def customized_kernel(data: input_t) -> output_t:
     # Get input tensors
     a, b, c = data
     k = a.shape[1]
@@ -339,4 +339,5 @@ def customized_kernel(data: input_t):
         .mark_compact_shape_dynamic(mode=1, divisibility=n)
     )
     my_kernel(a_tensor, b_tensor, c_tensor)
+    return c
 

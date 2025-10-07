@@ -1,5 +1,5 @@
 
-# name: fp8-matmul
+# name: fp16-gemm
 
 files:
   - {"name": "submission.py", "source": "@SUBMISSION@"}
@@ -12,7 +12,7 @@ lang: "py"
 
 description: |
   
-  You will implement a fp16 matmul kernel optimized for NVIDIA B200.
+  You will implement a fp16 matrix multiplication kernel optimized for NVIDIA B200.
   The shapes of tensors are from DeepSeek-R1.
   To be explicit, you will be given a tuple of tensors:
   ```
@@ -42,7 +42,6 @@ config:
 
 templates:
   Python: "template.py"
-  HIP: "template-hip.py"
 
 tests:
   - {"m": 128, "n": 256, "k": 64, "seed": 1111}
