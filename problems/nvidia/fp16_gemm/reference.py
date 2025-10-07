@@ -6,10 +6,10 @@ from utils import make_match_reference
 def ref_kernel(
     data: input_t,
 )->output_t:
-    a, b, _ = data
+    a, b, c = data
     # call torch matmul operation
-    ref = torch.einsum("mk,nk->mn", a, b).cpu()
-    return ref
+    c[...] = a @ b
+    return c
 
 
 def generate_input(

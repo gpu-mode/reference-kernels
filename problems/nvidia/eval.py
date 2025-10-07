@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 import torch.cuda
 
-from utils import set_seed
+from utils import set_seed, clear_l2_cache
 try:
     from task import TestSpec
 except ImportError:
@@ -138,17 +138,6 @@ def _clone_data(data):
         return data
 
 
-def wrap_check_implementation(data, submission_output):
-    # Old version returned just a single string, new version
-    # returns (bool, str); this function ensures compatibility with old
-    # problem definitions.
-    result = check_implementation(data, submission_output)
-    if isinstance(result, tuple):
-        return result
-    else:
-        return not bool(result), result
-
-
 def _run_single_test(test: TestCase):
     """
     Runs a single test case. Do not call directly
@@ -158,7 +147,7 @@ def _run_single_test(test: TestCase):
     torch.cuda.synchronize()
     submission_output = custom_kernel(_clone_data(data))
     torch.cuda.synchronize()
-    return wrap_check_implementation(data, submission_output)
+    return check_implementation(data, submission_output)
 
 
 def run_single_test(pool: multiprocessing.Pool, test: TestCase):
@@ -210,7 +199,7 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
     check_copy = _clone_data(data)
     #  first, one obligatory correctness check
     output = custom_kernel(data)
-    good, message = wrap_check_implementation(check_copy, output)
+    good, message = check_implementation(check_copy, output)
     if not good:
         return message
 
@@ -229,10 +218,15 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
             data = generate_input(**test.args)
             check_copy = _clone_data(data)
         torch.cuda.synchronize()
-        start = time.perf_counter_ns()
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        clear_l2_cache()
+
+        start_event.record()
         output = custom_kernel(data)
+        end_event.record()
         torch.cuda.synchronize()
-        end = time.perf_counter_ns()
+        duration = start_event.elapsed_time(end_event) * 1e6  # Convert ms to ns
 
         if recheck:
             good, message = check_implementation(check_copy, output)
@@ -240,7 +234,7 @@ def _run_single_benchmark(test: TestCase, recheck: bool, max_repeats: int, max_t
                 return message
 
         del output
-        durations.append(end - start)
+        durations.append(duration)
 
         if i > 1:
             total_bm_duration = time.perf_counter_ns() - bm_start_time

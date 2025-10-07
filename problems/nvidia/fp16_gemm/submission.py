@@ -1,7 +1,6 @@
 import argparse
 import torch
 from task import input_t, output_t
-from utils import make_match_reference
 from typing import Tuple
 
 import cutlass
@@ -319,7 +318,11 @@ def my_kernel(
 
 def customized_kernel(data: input_t) -> output_t:
     # Get input tensors
-    a, b, c = data
+    a, b, ref = data
+
+    # Clone ref to avoid modifying the original tensor
+    c = ref.clone()
+
     k = a.shape[1]
     n = b.shape[1]
     # Convert torch tensors to CuTe tensors via dlpack protocol
@@ -339,5 +342,6 @@ def customized_kernel(data: input_t) -> output_t:
         .mark_compact_shape_dynamic(mode=1, divisibility=n)
     )
     my_kernel(a_tensor, b_tensor, c_tensor)
+    torch.cuda.synchronize()
     return c
 
