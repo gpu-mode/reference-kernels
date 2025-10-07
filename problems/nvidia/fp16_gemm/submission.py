@@ -23,6 +23,7 @@ threads_per_cta = 128
 ab_stages = 4
 acc_stage = 1
 
+
 @cute.struct
 class SharedStorage:
     ab_mbar_ptr: cute.struct.MemRange[cutlass.Int64, ab_stages * 2]
@@ -316,7 +317,8 @@ def my_kernel(
         block=(threads_per_cta, 1, 1),
     )
 
-def customized_kernel(data: input_t) -> output_t:
+
+def custom_kernel(data: input_t) -> output_t:
     # Get input tensors
     a, b, ref = data
 
@@ -344,4 +346,3 @@ def customized_kernel(data: input_t) -> output_t:
     my_kernel(a_tensor, b_tensor, c_tensor)
     torch.cuda.synchronize()
     return c
-
