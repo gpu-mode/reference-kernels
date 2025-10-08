@@ -8,7 +8,8 @@ def ref_kernel(
 )->output_t:
     a, b, c = data
     # call torch matmul operation
-    c[...] = a @ b
+    # b is N x K in column-major order, need to transpose b before matmul
+    c[...] = a @ b.t()
     return c
 
 

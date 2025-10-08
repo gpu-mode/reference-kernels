@@ -15,8 +15,8 @@ from cutlass.cute.runtime import from_dlpack
 # Kernel configuration
 io_dtype = cutlass.Float16
 acc_dtype = cutlass.Float32
-mma_inst_shape_mnk = (128, 256, 16)
-mma_tiler_mnk = (128, 256, 64)
+mma_inst_shape_mnk = (128, 128, 16)
+mma_tiler_mnk = (128, 128, 64)
 threads_per_cta = 128
 
 # Pipeline stage configuration
@@ -158,9 +158,9 @@ def kernel(
     # (EpiTile, NumTiles)
     gC_epi = cute.zipped_divide(tCgC, epi_tiler)
 
-    # Every thread loads 32x128 bits
+    # Every thread loads 32x64 bits
     tmem_atom = cute.make_copy_atom(
-        tcgen05.Ld32x32bOp(tcgen05.Repetition.x64),
+        tcgen05.Ld32x32bOp(tcgen05.Repetition.x32),
         cutlass.Float32,
     )
     tmem_tiled_copy = tcgen05.make_tmem_copy(tmem_atom, tCtAcc_epi[None, 0])
@@ -320,28 +320,23 @@ def my_kernel(
 
 def custom_kernel(data: input_t) -> output_t:
     # Get input tensors
-    a, b, ref = data
+    a, b, c = data
 
-    # Clone ref to avoid modifying the original tensor
-    c = ref.clone()
-
-    k = a.shape[1]
-    n = b.shape[1]
     # Convert torch tensors to CuTe tensors via dlpack protocol
     a_tensor = (
         from_dlpack(a, assumed_align=32)
         .mark_layout_dynamic(leading_dim=1)
-        .mark_compact_shape_dynamic(mode=1, divisibility=k)
+        .mark_compact_shape_dynamic(mode=1, divisibility=32)
     )
     b_tensor = (
         from_dlpack(b, assumed_align=32)
         .mark_layout_dynamic(leading_dim=1)
-        .mark_compact_shape_dynamic(mode=1, divisibility=k)
+        .mark_compact_shape_dynamic(mode=1, divisibility=32)
     )
     c_tensor = (
         from_dlpack(c, assumed_align=32)
         .mark_layout_dynamic(leading_dim=1)
-        .mark_compact_shape_dynamic(mode=1, divisibility=n)
+        .mark_compact_shape_dynamic(mode=1, divisibility=32)
     )
     my_kernel(a_tensor, b_tensor, c_tensor)
     torch.cuda.synchronize()
