@@ -1,0 +1,53 @@
+# name: nvfp4-ffma-gemv
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  
+  You will implement a batched matrix-vector multiplication kernel optimized for NVIDIA B200.
+  To be explicit, you will be given a tuple of tensors:
+  ```
+  (a, scale_a, b, scale_b, c)
+  ```
+  where:
+  * `a` is L x M x K in row-major order in nvfp4(e2m1)
+  * `b` is L x 1 x K in nvfp4(e2m1)
+  * `scale_a` is L x M x K // 16 in row-major order in fp8(e4m3fnuz)
+  * `scale_b` is L x 1 x K // 16 in fp8(e4m3fnuz)
+  * `c` is L x M x 1 in fp16
+  
+  Matrix sizes `M` is divisible by mma_tiler_mn[0] defined in the kernel, `K` is divisible by 64.
+  The computation is using FFMA instructions to simulate NVFP4 block-scaled GEMV computation and block_size is 16.
+  The ranking criteria is the geometric mean of the benchmark results.
+  For the grand price, your kernel will be evaluated against the speed of light analysis
+  and the solution closest to the speed of light will be awarded the grand price.
+  ```
+  The speed of light analysis is (using 1.5Ghz clock):
+    M    K   L time[us]
+  7168 16384 1 8.71
+  4096 7168  1 2.18
+  7168 2048  1 1.09
+  ```
+config:
+  main: "eval.py"
+
+templates:
+  Python: "template.py"
+
+tests:
+  - {"m": 128, "k": 256, "l": 1, "seed": 1111}
+  - {"m": 2384, "k": 4608, "l": 2, "seed": 1111}
+
+benchmarks:
+  - {"m": 7168, "k": 16384, "l":1, "seed": 1111}
+  - {"m": 4096, "k": 7168, "l":1, "seed": 1111}
+  - {"m": 7168, "k": 2048, "l":1, "seed": 1111}
+
+ranking_by: "geom"
