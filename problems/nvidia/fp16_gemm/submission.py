@@ -318,9 +318,64 @@ def my_kernel(
     )
 
 
+# Global cache for compiled kernel
+_compiled_kernel_cache = None
+
+
+def compile_kernel(a, b, c):
+    """
+    Compile the kernel once and cache it.
+    This should be called before any timing measurements.
+    
+    Args:
+        a, b, c: Sample tensors with the expected shapes and types
+    
+    Returns:
+        The compiled kernel function
+    """
+    global _compiled_kernel_cache
+    
+    if _compiled_kernel_cache is not None:
+        return _compiled_kernel_cache
+    
+    # Convert torch tensors to CuTe tensors via dlpack protocol
+    a_tensor = (
+        from_dlpack(a, assumed_align=32)
+        .mark_layout_dynamic(leading_dim=1)
+        .mark_compact_shape_dynamic(mode=1, divisibility=32)
+    )
+    b_tensor = (
+        from_dlpack(b, assumed_align=32)
+        .mark_layout_dynamic(leading_dim=1)
+        .mark_compact_shape_dynamic(mode=1, divisibility=32)
+    )
+    c_tensor = (
+        from_dlpack(c, assumed_align=32)
+        .mark_layout_dynamic(leading_dim=1)
+        .mark_compact_shape_dynamic(mode=1, divisibility=32)
+    )
+    
+    # Compile the kernel
+    _compiled_kernel_cache = cute.compile(my_kernel, a_tensor, b_tensor, c_tensor)
+    
+    return _compiled_kernel_cache
+
+
 def custom_kernel(data: input_t) -> output_t:
+    """
+    Execute the kernel. If not already compiled, compile it first.
+    
+    Args:
+        data: Tuple of (a, b, c) tensors
+    
+    Returns:
+        Output tensor c
+    """
     # Get input tensors
     a, b, c = data
+
+    # Ensure kernel is compiled (will use cached version if available)
+    compiled_func = compile_kernel(a, b, c)
 
     # Convert torch tensors to CuTe tensors via dlpack protocol
     a_tensor = (
@@ -338,6 +393,8 @@ def custom_kernel(data: input_t) -> output_t:
         .mark_layout_dynamic(leading_dim=1)
         .mark_compact_shape_dynamic(mode=1, divisibility=32)
     )
-    my_kernel(a_tensor, b_tensor, c_tensor)
+    
+    # Execute the compiled kernel
+    compiled_func(a_tensor, b_tensor, c_tensor)
     torch.cuda.synchronize()
     return c

@@ -177,6 +177,16 @@ def run_testing(
     @param tests: A list of TestCase objects representing the test cases to be executed.
     @return: An integer representing the exit status: 0 if all tests pass, otherwise 112.
     """
+    # Step 1: Compile kernel once before running tests
+    logger.log("compile", "start")
+    compile_success, compile_error = pool.apply(_compile_kernel_once)
+    if not compile_success:
+        logger.log("compile", "fail")
+        logger.log("compile.error", compile_error)
+        return 112
+    logger.log("compile", "pass")
+    
+    # Step 2: Run all tests with compiled kernel
     passed = True
     logger.log("test-count", len(tests))
     for idx, test in enumerate(tests):
@@ -199,18 +209,51 @@ def run_testing(
         return 112
 
 
+def _compile_kernel_once():
+    """
+    Compile the kernel once before any benchmarking.
+    This ensures compilation time is not included in benchmark results.
+    """
+    from submission import compile_kernel
+    
+    # Use a minimal test case for compilation
+    compile_data = generate_input(m=128, n=128, k=64, seed=42)
+    a, b, c = compile_data
+    
+    try:
+        # Trigger compilation (will be cached)
+        compile_kernel(a, b, c)
+        torch.cuda.synchronize()
+        return True, None
+    except OpError as E:
+        return False, f"Compilation failed: {E}"
+    except Exception as E:
+        return False, f"Compilation failed: {E}"
+
+
 def _run_single_benchmark(
     test: TestCase, recheck: bool, max_repeats: int, max_time_ns: float
 ) -> Stats | Any:
     """
     Runs one benchmark. Do not call directly.
     """
-    from submission import custom_kernel
+    from submission import custom_kernel, compile_kernel
 
     durations = []
     # generate input data once
     data = generate_input(**test.args)
     check_copy = _clone_data(data)
+    
+    # Ensure kernel is compiled before any timing (compilation is cached)
+    try:
+        a, b, c = data
+        compile_kernel(a, b, c)
+        torch.cuda.synchronize()
+    except OpError as E:
+        return f"Compilation failed: {E}"
+    except Exception as E:
+        return f"Compilation failed: {E}"
+    
     #  first, one obligatory correctness check
     try:
         output = custom_kernel(_clone_data(data))
@@ -221,7 +264,7 @@ def _run_single_benchmark(
         return message
 
     # now, do multiple timing runs without further correctness testing
-    # there is an upper bound of 100 runs, and a lower bound of 3 runs;
+    # there is an upper bound of 200 runs, and a lower bound of 3 runs;
     # otherwise, we repeat until we either measure at least 10 full seconds,
     # or the relative error of the mean is below 1%.
 
@@ -301,14 +344,24 @@ def run_benchmarking(
     @param tests: A list of TestCase objects representing the test cases to be benchmarked.
     @return: An integer representing the exit status: 0 if all benchmarks pass, otherwise 112.
     """
-    # warm up
-    run_single_benchmark(pool, tests[0], False, 100, 10e7)
+    # Step 1: Compile kernel once (outside of timing)
+    logger.log("compile", "start")
+    compile_success, compile_error = pool.apply(_compile_kernel_once)
+    if not compile_success:
+        logger.log("compile", "fail")
+        logger.log("compile.error", compile_error)
+        return 112
+    logger.log("compile", "pass")
+    
+    # Step 2: Warm up with compiled kernel
+    run_single_benchmark(pool, tests[0], False, 200, 10e7)
 
+    # Step 3: Run benchmarks (compilation time excluded)
     passed = True
     logger.log("benchmark-count", len(tests))
     for idx, test in enumerate(tests):
         logger.log(f"benchmark.{idx}.spec", test.spec)
-        result = run_single_benchmark(pool, test, False, 100, 10e9)
+        result = run_single_benchmark(pool, test, False, 200, 10e9)
         if isinstance(result, Stats):
             for field in dataclasses.fields(Stats):
                 logger.log(f"benchmark.{idx}.{field.name}", getattr(result, field.name))
@@ -408,12 +461,23 @@ def main():
                 return run_benchmarking(logger, pool, tests)
 
             if mode == "leaderboard":
-                # warmup
-                run_single_benchmark(pool, tests[0], False, 100, 1e7)
+                # Step 1: Compile kernel once (outside of timing)
+                logger.log("compile", "start")
+                compile_success, compile_error = pool.apply(_compile_kernel_once)
+                if not compile_success:
+                    logger.log("compile", "fail")
+                    logger.log("compile.error", compile_error)
+                    return 112
+                logger.log("compile", "pass")
+                
+                # Step 2: Warmup with compiled kernel
+                run_single_benchmark(pool, tests[0], False, 200, 1e7)
+                
+                # Step 3: Run leaderboard benchmarks (compilation time excluded)
                 logger.log("benchmark-count", len(tests))
                 passed = True
                 for i in range(len(tests)):
-                    result = run_single_benchmark(pool, tests[i], True, 100, 30e9)
+                    result = run_single_benchmark(pool, tests[i], True, 200, 30e9)
                     logger.log(f"benchmark.{i}.spec", tests[i].spec)
                     if isinstance(result, Stats):
                         for field in dataclasses.fields(Stats):
