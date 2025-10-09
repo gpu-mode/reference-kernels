@@ -396,5 +396,4 @@ def custom_kernel(data: input_t) -> output_t:
     
     # Execute the compiled kernel
     compiled_func(a_tensor, b_tensor, c_tensor)
-    torch.cuda.synchronize()
     return c
