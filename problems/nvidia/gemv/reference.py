@@ -2,79 +2,66 @@ import torch
 from task import input_t, output_t
 from utils import make_match_reference
 
+def ceil_div(a, b):
+    """Helper function for ceiling division"""
+    return (a + b - 1) // b
+
 def ref_kernel(
     data: input_t,
-)->output_t:
+) -> output_t:
     """
-    Highly inefficient torch reference implementation of a FFAM simulated NVFP4 block-scaled GEMV.
+    PyTorch reference implementation of NVFP4 block-scaled GEMV.
     
-    a: [l, m, k] matrix
-    b: [l, 1, k] vector  
-    scale_a: [l, m, k//16] blockwise scales for a
-    scale_b: [l, 1, k//16] blockwise scales for b
-    c: [l, m, 1] output
+    This simulates the GEMV operation: C = A @ b
+    where A and b are block-scaled with FP4 values and FP8 scale factors.
     
-    Block size is 16 along the k dimension.
+    Tensor shapes (MxKxL layout):
+        a: [m, k, l] - Input matrix in FP4
+        b: [1, k, l] - Input vector in FP4  
+        scale_a: [m, k, l] - Expanded blockwise scales for a in FP32
+        scale_b: [1, k, l] - Expanded blockwise scales for b in FP32
+        c: [m, 1, l] - Output vector in FP16
+    
+    where:
+        m: number of rows in A
+        k: number of columns in A (must be multiple of block_size)
+        l: batch size
+    
+    The reference implementation follows the pattern:
+        res_a = einsum("mkl,mkl->mkl", a_ref, sfa_ref)
+        res_b = einsum("nkl,nkl->nkl", b_ref, sfb_ref)  # n=1 for GEMV
+        ref = einsum("mkl,nkl->mnl", res_a, res_b)
     """
     a, b, scale_a, scale_b, c = data
     
-    # Make contiguous for efficiency
-    a = a.contiguous()
-    b = b.contiguous()
+    # Get dimensions from MxKxL layout
+    m, k, l = a.shape
+    n = 1  # GEMV: N dimension is always 1
 
-    # Get dimensions
-    l, m, k = a.shape
-    block_size = 16
-    scale_k = k // block_size
-
-    #reshape makes memory contiguous
-    scale_a = (
-        scale_a.permute(2, 0, 1)
-        .unsqueeze(-1)
-        .expand(l, m, scale_k, block_size)
-        .reshape(l, m, scale_k * block_size)
-        .permute(1, 2, 0)
-    )
-    scale_a = scale_a[:, :k, :]
-    scale_b = (
-        scale_b.permute(2, 0, 1)
-        .unsqueeze(-1)
-        .expand(l, 1, scale_k, block_size)
-        .reshape(l, 1, scale_k * block_size)
-        .permute(1, 2, 0)
-    )
-    scale_b = scale_b[:, :k, :]
-    # scale_a = scale_a.contiguous()
-    # scale_b = scale_b.contiguous()
+    # Convert to f32 for reference computation
+    a_ref = a.to(torch.float32)
+    b_ref = b.to(torch.float32)
+    sfa_ref = scale_a.to(torch.float32)
+    sfb_ref = scale_b.to(torch.float32)
     
-
-    # # Apply blockwise scaling to input 'a'
-    # # scale_a shape: [l, m, scale_k] -> expand to [l, m, k]
-    # a_scale_expanded = scale_a.unsqueeze(-1).repeat(1, 1, 1, block_size)  # Shape: [l, m, scale_k, block_size]
-    # a_scale_expanded = a_scale_expanded.reshape(l, m, scale_k * block_size)
-    # a_scale_expanded = a_scale_expanded[:, :, :k]  # Handle case where k is not exactly divisible
+    # Apply blockwise scaling: elementwise multiplication
+    # This simulates NVFP4 GEMV via 2 FFMA based elementwise multiplication 
+    # and 1 FFMA based matmul computations
+    res_a = a_ref * sfa_ref  # [m, k, l]
+    res_b = b_ref * sfb_ref  # [1, k, l]
     
-    # Dequantize 'a' by applying scales, convert to float32 for computation
-    a_scaled = a.to(torch.float32) * scale_a
-    b_scaled = b.to(torch.float32) * scale_b
-    
-    # # Apply blockwise scaling to input 'b'
-    # # scale_b shape: [l, 1, scale_k] -> expand to [l, 1, k]
-    # b_scale_expanded = scale_b.unsqueeze(-1).repeat(1, 1, 1, block_size)  # Shape: [l, 1, scale_k, block_size]
-    # b_scale_expanded = b_scale_expanded.reshape(l, 1, scale_k * block_size)
-    # b_scale_expanded = b_scale_expanded[:, :, :k]  # Handle case where k is not exactly divisible
-    
-    # # Dequantize 'b' by applying scales, convert to float32 for computation
-    # b_scaled = b.to(torch.float32) * b_scale_expanded.to(torch.float32)
-    
-    # Compute GEMV using batched matmul: a_scaled [l, m, k] @ b_scaled [l, 1, k] -> [l, m, 1]
-    # For each batch l: a[i, :, :] @ b[i, 0, :].T
-    result = torch.zeros((l, m, 1), dtype=torch.float32, device=a.device)
+    # Compute batched GEMV: C[m, n, l] = A[m, k, l] @ B[n, k, l]
+    # For each batch: c[:, :, i] = a[:, :, i] @ b[0, :, i].T
+    result = torch.zeros((m, n, l), dtype=torch.float32, device=a.device)
     for i in range(l):
-        result[i, :, 0] = (a_scaled[i, :, :] @ b_scaled[i, 0, :]).to(c.dtype)
-    c[...] = result.to(c.dtype)
+        # res_a[:, :, i] is [m, k], res_b[0, :, i] is [k]
+        # matmul gives [m], reshape to [m, 1]
+        result[:, 0, i] = res_a[:, :, i] @ res_b[0, :, i]
     
+    # Store result in output tensor
+    c[...] = result.to(c.dtype)
     return c
+
 
 def generate_input(
     m: int,
@@ -82,37 +69,81 @@ def generate_input(
     l: int,
     seed: int,
 ):
+    """
+    Generate input tensors for NVFP4 block-scaled GEMV.
+    
+    This follows the pattern from nvfp4_gemv_cute_layout.py for tensor preparation.
+    
+    Args:
+        m: Number of rows in matrix A
+        k: Number of columns in A (and length of vector b)
+        l: Batch size
+        seed: Random seed for reproducibility
+    
+    Returns:
+        Tuple of (a, b, scale_a, scale_b, c) where:
+            a: [m, k, l] - Input matrix in FP4 (simulated with uint8)
+            b: [1, k, l] - Input vector in FP4 (simulated with uint8)
+            scale_a: [m, k, l] - Expanded scale factors for a in FP32
+            scale_b: [1, k, l] - Expanded scale factors for b in FP32
+            c: [m, 1, l] - Output vector in FP16
+    """
     torch.manual_seed(seed)
     block_size = 16
-    scale_k = k // block_size
-
-    # Create fp4 input a, b tensors with LxMxK layout
-    # torch.float4e2m1fn is not a standard torch dtype; use torch.uint8 as a placeholder for fp4
-    a = torch.arange(l * m * k, dtype=torch.float32, device="cuda").reshape(m, k, l).to(torch.uint8)
-    b = torch.arange(l * 1 * k, dtype=torch.float32, device="cuda").reshape(1, k, l).to(torch.uint8)
-    # Create fp16 output tensor with LxMx1 layout
-    c = torch.arange(l * m * 1, dtype=torch.float32, device="cuda").reshape(m, 1, l).to(torch.float16)
-
-    # Create scales factor with f32 data type
-    def ceil_div(a, b):
-        return (a + b - 1) // b
-    
-    # every 16 k elements share the same scale factor
-    # Set the block size for blockwise scaling
-    block_size = 16
-    # Compute the number of scale factors needed along k (ceil division)
+    n = 1  # GEMV: N dimension is always 1
     scale_k = ceil_div(k, block_size)
-    # Define the shape for scale_a: [l, m, scale_k]
-    scale_a_shape = (l, m, scale_k)
-    # Define the shape for scale_b: [l, 1, scale_k]
-    scale_b_shape = (l, 1, scale_k)
-    # Permute order to match expected layout: (m, scale_k, l)
-    scale_permute_order = (1, 2, 0)
-    # Generate random scale factors for a, then permute to (m, scale_k, l)
-    scale_a_f32 = torch.randint(1, 3, scale_a_shape, dtype=torch.float32, device="cuda").permute(scale_permute_order)
-    # Generate random scale factors for b, then permute to (1, scale_k, l)
-    scale_b_f32 = torch.randint(1, 3, scale_b_shape, dtype=torch.float32, device="cuda").permute(scale_permute_order)
-    
-    return (a, b, scale_a_f32, scale_b_f32, c)
 
-check_implementation = make_match_reference(ref_kernel, rtol=1e-01, atol=1e-02)
+    # Create input tensors A, b following the MxKxL memory layout
+    # This matches: cutlass_torch.matrix(l, m, k, False, cutlass.Float32)
+    # which creates tensors with contiguous k dimension (stride-1)
+    
+    # Generate random FP32 values, then convert to uint8 (FP4 placeholder)
+    # Shape transformations: (l, m, k) -> permute to (m, k, l) for MxKxL layout
+    a = torch.randn(l, m, k, dtype=torch.float32, device="cuda")
+    a = a.permute(1, 2, 0).contiguous().to(torch.uint8)  # [m, k, l]
+    
+    b = torch.randn(l, n, k, dtype=torch.float32, device="cuda")
+    b = b.permute(1, 2, 0).contiguous().to(torch.uint8)  # [1, k, l]
+    
+    # Create output tensor C in FP16 with MxNxL layout (N=1 for GEMV)
+    c = torch.zeros(l, m, n, dtype=torch.float32, device="cuda")
+    c = c.permute(1, 2, 0).contiguous().to(torch.float16)  # [m, 1, l]
+    
+    # Create scale factors with FP32 data type
+    # Original ref_shape is (l, mn, sf_k), then permuted to (mn, sf_k, l)
+    ref_shape = (l, m, scale_k)
+    ref_permute_order = (1, 2, 0)  # Permute from LxMxScaleK to MxScaleKxL
+    
+    # Generate random scale factors in range [1, 3) for better numerical stability
+    scale_a_sf = torch.randint(1, 3, ref_shape, dtype=torch.float32, device="cuda")  # [1, 3)
+    scale_a_sf = scale_a_sf.permute(ref_permute_order).contiguous()  # [m, scale_k, l]
+    
+    ref_shape_b = (l, n, scale_k)
+    scale_b_sf = torch.randint(1, 3, ref_shape_b, dtype=torch.float32, device="cuda")  # [1, 3)
+    scale_b_sf = scale_b_sf.permute(ref_permute_order).contiguous()  # [n, scale_k, l]
+    
+    # Expand scale factors from [m, scale_k, l] to [m, k, l]
+    # This matches the expansion done in nvfp4_gemv_cute_layout.py lines 320-328
+    # The pattern: permute -> unsqueeze -> expand -> reshape -> permute -> prune
+    scale_a_expanded = (
+        scale_a_sf.permute(2, 0, 1)  # [l, m, scale_k]
+        .unsqueeze(-1)  # [l, m, scale_k, 1]
+        .expand(l, m, scale_k, block_size)  # [l, m, scale_k, block_size]
+        .reshape(l, m, scale_k * block_size)  # [l, m, k]
+        .permute(*ref_permute_order)  # [m, k, l]
+    )
+    scale_a_expanded = scale_a_expanded[:, :k, :]  # Prune to exact k
+    
+    scale_b_expanded = (
+        scale_b_sf.permute(2, 0, 1)  # [l, n, scale_k]
+        .unsqueeze(-1)  # [l, n, scale_k, 1]
+        .expand(l, n, scale_k, block_size)  # [l, n, scale_k, block_size]
+        .reshape(l, n, scale_k * block_size)  # [l, n, k]
+        .permute(*ref_permute_order)  # [n, k, l]
+    )
+    scale_b_expanded = scale_b_expanded[:, :k, :]  # Prune to exact k
+    
+    return (a, b, scale_a_expanded, scale_b_expanded, c)
+
+
+check_implementation = make_match_reference(ref_kernel, rtol=1e-02, atol=1e-01)
