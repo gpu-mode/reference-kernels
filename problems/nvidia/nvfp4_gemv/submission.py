@@ -220,6 +220,72 @@ def create_scale_factor_cute_tensor(ref_tensor, l, mn, k, block_size, dtype):
     return cute_tensor, cute_torch_tensor
 
 
+# Global cache for compiled kernel
+_compiled_kernel_cache = None
+
+
+def compile_kernel(data: input_t):
+    """
+    Compile the kernel once and cache it.
+    This should be called before any timing measurements.
+    
+    Args:
+        a, b, scale_a, scale_b, c: Sample tensors with the expected shapes and types
+    
+    Returns:
+        The compiled kernel function
+    """
+    global _compiled_kernel_cache
+    
+    a, b, scale_a, scale_b, c = data
+    if _compiled_kernel_cache is not None:
+        return _compiled_kernel_cache
+    
+    # Get dimensions from MxKxL layout
+    m, k, l = a.shape
+
+    # Create CuTe tensors for A, B, C
+    a_tensor, a_torch = cutlass_torch.cute_tensor_like(
+        a, ab_dtype, is_dynamic_layout=True, assumed_align=16
+    )
+    b_tensor, b_torch = cutlass_torch.cute_tensor_like(
+        b, ab_dtype, is_dynamic_layout=True, assumed_align=16
+    )
+    c_tensor, c_torch = cutlass_torch.cute_tensor_like(
+        c, c_dtype, is_dynamic_layout=True, assumed_align=16
+    )
+    
+    # Mark tensor with element divisibility for 16B alignment
+    a_tensor.mark_compact_shape_dynamic(
+        mode=1,
+        stride_order=(2, 0, 1),
+        divisibility=32,
+    )
+    b_tensor.mark_compact_shape_dynamic(
+        mode=1,
+        stride_order=(2, 0, 1),
+        divisibility=32,
+    )
+    c_tensor.mark_compact_shape_dynamic(
+        0,
+        (2, 1, 0),
+        divisibility=16,
+    )
+
+    # Create cute tensors from reference tensors
+    sfa_tensor, sfa_torch = create_scale_factor_cute_tensor(
+        scale_a, l, m, k, block_size, sf_dtype
+    )
+    sfb_tensor, sfb_torch = create_scale_factor_cute_tensor(
+        scale_b, l, 1, k, block_size, sf_dtype
+    )
+
+    # Compile the kernel
+    _compiled_kernel_cache = cute.compile(my_kernel, a_tensor, b_tensor, sfa_tensor, sfb_tensor, c_tensor)
+    
+    return _compiled_kernel_cache
+
+
 def custom_kernel(data: input_t) -> output_t:
     """
     Execute the block-scaled GEMV kernel.
@@ -232,14 +298,17 @@ def custom_kernel(data: input_t) -> output_t:
         data: Tuple of (a, b, scale_a, scale_b, c) PyTorch tensors
             a: [m, k, l] - Input matrix in float4e2m1fn (simulated with uint8)
             b: [1, k, l] - Input vector in float4e2m1fn (simulated with uint8)
-            scale_a: [m, k, l] - Scale factors in float8_e4m3fnuz (simulated with FP32)
-            scale_b: [1, k, l] - Scale factors in float8_e4m3fnuz (simulated with FP32)
-            c: [m, 1, l] - Output vector in float32
+            scale_a: [m, k, l] - Scale factors in float8_e8m0fnu (simulated with FP32)
+            scale_b: [1, k, l] - Scale factors in float8_e8m0fnu (simulated with FP32)
+            c: [m, 1, l] - Output vector in float16
     
     Returns:
         Output tensor c with computed GEMV results
     """
     a, b, scale_a, scale_b, c = data
+    
+    # Ensure kernel is compiled (will use cached version if available)
+    compiled_func = compile_kernel(data)
     
     # Get dimensions from MxKxL layout
     m, k, l = a.shape
@@ -279,8 +348,7 @@ def custom_kernel(data: input_t) -> output_t:
         scale_b, l, 1, k, block_size, sf_dtype
     )
 
-    # Run the compiled kernel
-    # INSERT_YOUR_CODE
-    my_kernel(a_tensor, b_tensor, sfa_tensor, sfb_tensor, c_tensor)
+    # Execute the compiled kernel
+    compiled_func(a_tensor, b_tensor, sfa_tensor, sfb_tensor, c_tensor)
     
     return c_torch

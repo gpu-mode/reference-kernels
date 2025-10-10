@@ -13,6 +13,8 @@ def ref_kernel(
 ) -> output_t:
     """
     PyTorch reference implementation of NVFP4 block-scaled GEMV.
+    This is a very slow reference implementation to show the computation details
+    of a block-scaled GEMV.
     
     This simulates the GEMV operation: C = A @ b
     where A and b are block-scaled with FP4 values and FP8 scale factors.
@@ -47,7 +49,7 @@ def ref_kernel(
     # prune to mkl for reference check.
     scale_b = scale_b[:, :k, :]
 
-    # Convert to f32 for reference computation
+    # Convert to f32 for computation
     # Apply blockwise scaling: elementwise multiplication
     # This simulates NVFP4 GEMV via 2 FFMA based elementwise multiplication 
     # and 1 FFMA based matmul computations
@@ -71,7 +73,6 @@ def create_scale_factor_tensor(l, mn, k, block_size):
     ref_permute_order = (1, 2, 0)
 
     # Create f32 ref torch tensor (cpu)
-    # After this line, ref_f32_torch_tensor_cpu has shape (mn, scale_k, l)
     ref_f32_torch_tensor_cpu = torch.randint(
         1, 3, ref_shape, dtype=torch.float32
     ).permute(*ref_permute_order)
