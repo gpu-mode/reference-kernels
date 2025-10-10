@@ -1,0 +1,15 @@
+============================================================
+Launching Blackwell NVFP4 GEMV Test
+------------------------------------------------------------
+Input dimensions:
+  A: (1, 512, 256) [l: batch size, m: rows, k: cols]
+  b: (1, 256) [l: batch size, k: length]
+  c: (1, 512) [l: batch size, m: length]
+Data types:
+  A/b dtype: Float4E2M1FN
+  Scaling factor dtype: Float8E8M0FNU (vector size: 16)
+  Output C dtype: Float16
+Validation tolerance: 0.1
+============================================================
+c_ref and ref are close within tolerance.
+PASS
