@@ -7,6 +7,6 @@ description: "AMD Developer Challenge 2025: Distributed Edition"
 problems:
   - directory: amd_distributed/ag-gemm
     name: amd-ag-gemm
-    deadline: "2025-10-15 00:00"
+    deadline: "2025-10-15 07:00"
     gpus:
       - MI300x8
