@@ -5,16 +5,6 @@ deadline: "2025-10-14"
 description: "AMD Developer Challenge 2025: Distributed Edition"
 # the list of problems
 problems:
-  - directory: amd_distributed/all2all
-    name: amd-all2all
-    deadline: "2025-10-15"
-    gpus:
-      - MI300x8
-  - directory: amd_distributed/gemm-rs
-    name: amd-gemm-rs
-    deadline: "2025-10-15"
-    gpus:
-      - MI300x8
   - directory: amd_distributed/ag-gemm
     name: amd-ag-gemm
     deadline: "2025-10-15 00:00"
