@@ -6,45 +6,49 @@ from task import input_t, output_t
 
 import cutlass
 import cutlass.cute as cute
-import cutlass.torch as cutlass_torch
-from cutlass.cute.runtime import from_dlpack
+from cutlass.cute.runtime import make_ptr
 import cutlass.utils.blockscaled_layout as blockscaled_utils
 
 # Kernel configuration parameters
 mma_tiler_mnk = (128, 1, 64)  # Tile sizes for M, N, K dimensions
 ab_dtype = cutlass.Float4E2M1FN  # FP4 data type for A and B
-sf_dtype = cutlass.Float8E8M0FNU  # FP8 data type for scale factors
+sf_dtype = cutlass.Float8E4M3FN  # FP8 data type for scale factors
 c_dtype = cutlass.Float16  # FP16 output type
-block_size = 16  # Scale factor block size (16 elements share one scale)
+sf_vec_size = 16  # Scale factor block size (16 elements share one scale)
 threads_per_cta = 128  # Number of threads per CUDA thread block
 
+# Helper function for ceiling division
 def ceil_div(a, b):
-    """Helper function for ceiling division"""
     return (a + b - 1) // b
 
 
+# Helper function to reorder the scale factor tensor to match the layout defined in
+# https://docs.nvidia.com/cuda/cublas/index.html?highlight=fp4#d-block-scaling-factors-layout
 @cute.jit
 def cvt_sf_MKL_to_M32x4xrm_K4xrk_L(
-    sf_ref_tensor: cute.Tensor,
-    sf_mma_tensor: cute.Tensor,
+    sf_ref_ptr: cute.Pointer,
+    sf_mma_ptr: cute.Pointer,
+    mn: int,
+    sf_k: int,
+    l: int,
+    mma_shape: tuple,
 ):
-    """
-    Convert scale factor tensor from reference MxKxL layout to MMA layout.
-    
-    This follows the cuBLAS block-scaling factors layout specification:
-    https://docs.nvidia.com/cuda/cublas/index.html?highlight=fp4#d-block-scaling-factors-layout
+    mma_permute_order = (3, 4, 1, 5, 2, 0)
+    permuted_shape = tuple(mma_shape[i] for i in mma_permute_order)
+    cute_layout = cute.make_ordered_layout(permuted_shape, order=(2, 1, 4, 0, 3, 5))
 
-    """
-    # sf_mma_tensor has flattened shape (32, 4, rest_m, 4, rest_k, l)
-    # Group modes to ((32, 4, rest_m), (4, rest_k), l) for hierarchical indexing
+    sf_ref_tensor = cute.make_tensor(
+        sf_ref_ptr, cute.make_layout((mn, sf_k, l), stride=(sf_k, 1, mn * sf_k))
+    )
+    sf_mma_tensor = cute.make_tensor(sf_mma_ptr, cute_layout)
     sf_mma_tensor = cute.group_modes(sf_mma_tensor, 0, 3)
     sf_mma_tensor = cute.group_modes(sf_mma_tensor, 1, 3)
-    # Copy data from reference layout to MMA layout
     for i in cutlass.range(cute.size(sf_ref_tensor)):
         mkl_coord = sf_ref_tensor.layout.get_hier_coord(i)
         sf_mma_tensor[mkl_coord] = sf_ref_tensor[mkl_coord]
 
 
+# The CuTe reference implementation for NVFP4 block-scaled GEMV
 @cute.kernel
 def kernel(
     mA_mkl: cute.Tensor,
@@ -53,36 +57,38 @@ def kernel(
     mSFB_nkl: cute.Tensor,
     mC_mnl: cute.Tensor,
 ):
+    # Get CUDA block and thread indices
     bidx, bidy, bidz = cute.arch.block_idx()
     tidx, _, _ = cute.arch.thread_idx()
 
-    # (bM, bK, RestM, RestK, RestL)
+    # Extract the local tile for input matrix A (shape: [block_M, block_K, rest_M, rest_K, rest_L])
     gA_mkl = cute.local_tile(
         mA_mkl, cute.slice_(mma_tiler_mnk, (None, 0, None)), (None, None, None)
     )
-    # (bM, bK, RestM, RestK, RestL)
-    # bM = (32, 4)
-    # bK = (16, 4)
+    # Extract the local tile for scale factor tensor for A (same shape as gA_mkl)
+    # Here, block_M = (32, 4); block_K = (16, 4)
     gSFA_mkl = cute.local_tile(
         mSFA_mkl, cute.slice_(mma_tiler_mnk, (None, 0, None)), (None, None, None)
     )
-    # (bN, bK, RestN, RestK, RestL)
+    # Extract the local tile for input matrix B (shape: [block_N, block_K, rest_N, rest_K, rest_L])
     gB_nkl = cute.local_tile(
         mB_nkl, cute.slice_(mma_tiler_mnk, (0, None, None)), (None, None, None)
     )
-    # (bN, bK, RestN, RestK, RestL)
+    # Extract the local tile for scale factor tensor for B (same shape as gB_nkl)
     gSFB_nkl = cute.local_tile(
         mSFB_nkl, cute.slice_(mma_tiler_mnk, (0, None, None)), (None, None, None)
     )
-    # (bM, bN, RestM, RestN, RestL)
+    # Extract the local tile for output matrix C (shape: [block_M, block_N, rest_M, rest_N, rest_L])
     gC_mnl = cute.local_tile(
         mC_mnl, cute.slice_(mma_tiler_mnk, (None, None, 0)), (None, None, None)
     )
 
+    # Select output element corresponding to this thread and block indices
     tCgC = gC_mnl[tidx, None, bidx, bidy, bidz]
     tCgC = cute.make_tensor(tCgC.iterator, 1)
     res = cute.zeros_like(tCgC, cutlass.Float32)
 
+    # Get the number of k tiles (depth dimension) for the reduction loop
     k_tile_cnt = gA_mkl.layout[3].shape
     for k_tile in range(k_tile_cnt):
         tAgA = gA_mkl[tidx, None, bidx, k_tile, bidz]
@@ -90,64 +96,79 @@ def kernel(
         tAgSFA = gSFA_mkl[tidx, None, bidx, k_tile, bidz]
         tBgSFB = gSFB_nkl[None, None, bidy, k_tile, bidz]
 
-        # Load A/B/SFA/SFB tile from global memory
+        # Load NVFP4 or FP8 values from global memory
         a_val_nvfp4 = tAgA.load()
         b_val_nvfp4 = tBgB.load()
         sfa_val_fp8 = tAgSFA.load()
         sfb_val_fp8 = tBgSFB.load()
 
-        # Convert to f32 for FFMA computation
+        # Convert loaded values to float32 for computation (FFMA)
         a_val = a_val_nvfp4.to(cutlass.Float32)
         b_val = b_val_nvfp4.to(cutlass.Float32)
         sfa_val = sfa_val_fp8.to(cutlass.Float32)
         sfb_val = sfb_val_fp8.to(cutlass.Float32)
 
-        for i in cutlass.range_constexpr(mma_tiler_mnk[2] // block_size):
-            for j in cutlass.range_constexpr(block_size):
+        # Iterate over SF vector tiles and compute the scale&matmul accumulation
+        for i in cutlass.range_constexpr(mma_tiler_mnk[2] // sf_vec_size):
+            for j in cutlass.range_constexpr(sf_vec_size):
+                # Accumulate: (A * scaleA * B * scaleB), where scaling is per-vector
                 res += (
-                    a_val[i * block_size + j]
+                    a_val[i * sf_vec_size + j]
                     * sfa_val[i]
-                    * b_val[i * block_size + j]
+                    * b_val[i * sf_vec_size + j]
                     * sfb_val[i]
                 )
+    # Store the final float16 result back to global memory
     tCgC.store(res.to(cutlass.Float16))
     return
 
 
 @cute.jit
 def my_kernel(
-    a_tensor: cute.Tensor,
-    b_tensor: cute.Tensor,
-    sfa_tensor: cute.Tensor,
-    sfb_tensor: cute.Tensor,
-    c_tensor: cute.Tensor,
+    a_ptr: cute.Pointer,
+    b_ptr: cute.Pointer,
+    sfa_ptr: cute.Pointer,
+    sfb_ptr: cute.Pointer,
+    c_ptr: cute.Pointer,
+    problem_size: tuple,
 ):
     """
     Host-side JIT function to prepare tensors and launch GPU kernel.
-    
-    This function:
-    1. Converts scale factor tensors to the correct MMA layout
-    2. Computes grid dimensions based on tensor shapes
-    3. Launches the CUDA kernel
-    
-    Args:
-        a_tensor: Input matrix A (CuTe tensor)
-        b_tensor: Input vector b (CuTe tensor)
-        sfa_tensor: Scale factors for A (CuTe tensor)
-        sfb_tensor: Scale factors for B (CuTe tensor)
-        c_tensor: Output vector c (CuTe tensor)
     """
+    m, _, k, l = problem_size
+    # Create CuTe Tensor via pointer and problem size.
+    a_tensor = cute.make_tensor(
+        a_ptr,
+        cute.make_layout(
+            (m, cute.assume(k, 32), l),
+            stride=(cute.assume(k, 32), 1, cute.assume(m * k, 32)),
+        ),
+    )
+    # We use n=128 to create the torch tensor to do fp4 computation via torch._scaled_mm
+    # then copy torch tensor to cute tensor for cute customize kernel computation
+    # therefore we need to ensure b_tensor has the right stride with this 128 padded size on n.
+    n_padded_128 = 128
+    b_tensor = cute.make_tensor(
+        b_ptr,
+        cute.make_layout(
+            (n_padded_128, cute.assume(k, 32), l),
+            stride=(cute.assume(k, 32), 1, cute.assume(n_padded_128 * k, 32)),
+        ),
+    )
+    c_tensor = cute.make_tensor(
+        c_ptr, cute.make_layout((cute.assume(m, 32), 1, l), stride=(1, 1, m))
+    )
     # Convert scale factor tensors to MMA layout
     # The layout matches Tensor Core requirements: (((32, 4), REST_M), ((SF_K, 4), REST_K), (1, REST_L))
     sfa_layout = blockscaled_utils.tile_atom_to_shape_SF(
-        a_tensor.shape, block_size
+        a_tensor.shape, sf_vec_size
     )
-    sfa_tensor = cute.make_tensor(sfa_tensor.iterator, sfa_layout)
+    sfa_tensor = cute.make_tensor(sfa_ptr, sfa_layout)
     
     sfb_layout = blockscaled_utils.tile_atom_to_shape_SF(
-        b_tensor.shape, block_size
+        b_tensor.shape, sf_vec_size
     )
-    sfb_tensor = cute.make_tensor(sfb_tensor.iterator, sfb_layout)
+    sfb_tensor = cute.make_tensor(sfb_ptr, sfb_layout)
     
     # Compute grid dimensions
     # Grid is (M_blocks, 1, L) where:
@@ -165,66 +186,56 @@ def my_kernel(
         block=[threads_per_cta, 1, 1],
         cluster=(1, 1, 1),
     )
+    return
 
 
-# Helper function for ceiling division
-def ceil_div(a, b):
-    return (a + b - 1) // b
-
-
-# Helper function to convert reference tensor to cute tensor
-def create_scale_factor_cute_tensor(ref_tensor, l, mn, k, block_size, dtype):
-    
-    scale_k = ceil_div(k, block_size)
-    
+# Reorder scale factor from (mn, l, sf_k) to (32, 4, rest_m, 4, rest_k, l) layout
+def create_reordered_scale_factor_tensor(l, mn, k, ref_f8_tensor):
+    sf_k = ceil_div(k, sf_vec_size)
     atom_m = (32, 4)
     atom_k = 4
     mma_shape = (
         l,  # batch size
         ceil_div(mn, atom_m[0] * atom_m[1]),
-        ceil_div(scale_k, atom_k),
+        ceil_div(sf_k, atom_k),
         atom_m[0],
         atom_m[1],
         atom_k,
     )
-
+    # Create the reordered scale factor tensor (32, 4, rest_m, 4, rest_k, l) on CPU.
     mma_permute_order = (3, 4, 1, 5, 2, 0)
+    # Generate a random int8 tensor, then convert to float8_e4m3fn
+    rand_int_tensor = torch.randint(0, 2, mma_shape, dtype=torch.int8)
+    reordered_f8_tensor = rand_int_tensor.to(dtype=torch.float8_e4m3fn)
+    # Permute according to mma_permute_order
+    reordered_f8_tensor = reordered_f8_tensor.permute(*mma_permute_order)
 
-    # Create f32 cute torch tensor (cpu)
-    cute_f32_torch_tensor_cpu = torch.randint(
-        1, 3, mma_shape, dtype=torch.float32
-    ).permute(*mma_permute_order)
-
-    # Copy reference tensor to cute tensor in the customized data layout
+    # Helper function to convert scale factor tensor to CUTE-format scale factor tensor
     cvt_sf_MKL_to_M32x4xrm_K4xrk_L(
-        from_dlpack(ref_tensor),
-        from_dlpack(cute_f32_torch_tensor_cpu),
+        make_ptr(
+            cutlass.Float8E4M3FN,
+            ref_f8_tensor.data_ptr(),
+            cute.AddressSpace.gmem,
+            assumed_align=32,
+        ),
+        make_ptr(
+            cutlass.Float8E4M3FN,
+            reordered_f8_tensor.data_ptr(),
+            cute.AddressSpace.gmem,
+            assumed_align=32,
+        ),
+        mn,
+        sf_k,
+        l,
+        mma_shape,
     )
-    cute_f32_torch_tensor = cute_f32_torch_tensor_cpu.cuda()
-
-    # Create the desired data type cute torch tensor (cpu)
-    cute_tensor, cute_torch_tensor = cutlass_torch.cute_tensor_like(
-        cute_f32_torch_tensor_cpu,
-        dtype,
-        is_dynamic_layout=True,
-        assumed_align=16,
-    )
-
-    # Convert f32 cute tensor to the desired data type cute tensor
-    cute_tensor = cutlass_torch.convert_cute_tensor(
-        cute_f32_torch_tensor,
-        cute_tensor,
-        dtype,
-        is_dynamic_layout=True,
-    )
-    return cute_tensor, cute_torch_tensor
+    return reordered_f8_tensor.cuda()
 
 
 # Global cache for compiled kernel
 _compiled_kernel_cache = None
 
-
-def compile_kernel(data: input_t):
+def compile_kernel():
     """
     Compile the kernel once and cache it.
     This should be called before any timing measurements.
@@ -237,51 +248,29 @@ def compile_kernel(data: input_t):
     """
     global _compiled_kernel_cache
     
-    a, b, scale_a, scale_b, c = data
     if _compiled_kernel_cache is not None:
         return _compiled_kernel_cache
     
-    # Get dimensions from MxKxL layout
-    m, k, l = a.shape
 
-    # Create CuTe tensors for A, B, C
-    a_tensor, a_torch = cutlass_torch.cute_tensor_like(
-        a, ab_dtype, is_dynamic_layout=True, assumed_align=16
+    # Create CuTe pointers for A/B/C/SFA/SFB via torch tensor data pointer
+    a_ptr = make_ptr(
+        ab_dtype, 0, cute.AddressSpace.gmem, assumed_align=16
     )
-    b_tensor, b_torch = cutlass_torch.cute_tensor_like(
-        b, ab_dtype, is_dynamic_layout=True, assumed_align=16
+    b_ptr = make_ptr(
+        ab_dtype, 0, cute.AddressSpace.gmem, assumed_align=16
     )
-    c_tensor, c_torch = cutlass_torch.cute_tensor_like(
-        c, c_dtype, is_dynamic_layout=True, assumed_align=16
+    c_ptr = make_ptr(
+        c_dtype, 0, cute.AddressSpace.gmem, assumed_align=16
     )
-    
-    # Mark tensor with element divisibility for 16B alignment
-    a_tensor.mark_compact_shape_dynamic(
-        mode=1,
-        stride_order=(2, 0, 1),
-        divisibility=32,
+    sfa_ptr = make_ptr(
+        sf_dtype, 0, cute.AddressSpace.gmem, assumed_align=32
     )
-    b_tensor.mark_compact_shape_dynamic(
-        mode=1,
-        stride_order=(2, 0, 1),
-        divisibility=32,
-    )
-    c_tensor.mark_compact_shape_dynamic(
-        0,
-        (2, 1, 0),
-        divisibility=16,
-    )
-
-    # Create cute tensors from reference tensors
-    sfa_tensor, sfa_torch = create_scale_factor_cute_tensor(
-        scale_a, l, m, k, block_size, sf_dtype
-    )
-    sfb_tensor, sfb_torch = create_scale_factor_cute_tensor(
-        scale_b, l, 1, k, block_size, sf_dtype
+    sfb_ptr = make_ptr(
+        sf_dtype, 0, cute.AddressSpace.gmem, assumed_align=32
     )
 
     # Compile the kernel
-    _compiled_kernel_cache = cute.compile(my_kernel, a_tensor, b_tensor, sfa_tensor, sfb_tensor, c_tensor)
+    _compiled_kernel_cache = cute.compile(my_kernel, a_ptr, b_ptr, sfa_ptr, sfb_ptr, c_ptr, (0, 0, 0, 0))
     
     return _compiled_kernel_cache
 
@@ -295,60 +284,51 @@ def custom_kernel(data: input_t) -> output_t:
     and returns the result.
     
     Args:
-        data: Tuple of (a, b, scale_a, scale_b, c) PyTorch tensors
-            a: [m, k, l] - Input matrix in float4e2m1fn (simulated with uint8)
-            b: [1, k, l] - Input vector in float4e2m1fn (simulated with uint8)
-            scale_a: [m, k, l] - Scale factors in float8_e8m0fnu (simulated with FP32)
-            scale_b: [1, k, l] - Scale factors in float8_e8m0fnu (simulated with FP32)
+        data: Tuple of (a, b, sfa_cpu, sfb_cpu, c) PyTorch tensors
+            a: [m, k, l] - Input matrix in float4e2m1fn 
+            b: [1, k, l] - Input vector in float4e2m1fn 
+            sfa_cpu: [m, k, l] - Scale factors in float8_e4m3fn 
+            sfb_cpu: [1, k, l] - Scale factors in float8_e4m3fn 
             c: [m, 1, l] - Output vector in float16
     
     Returns:
         Output tensor c with computed GEMV results
     """
-    a, b, scale_a, scale_b, c = data
+    a, b, sfa_cpu, sfb_cpu, c = data
     
     # Ensure kernel is compiled (will use cached version if available)
-    compiled_func = compile_kernel(data)
-    
+    compiled_func = compile_kernel()
     # Get dimensions from MxKxL layout
     m, k, l = a.shape
+    # Torch use e2m1_x2 data type, thus k is halved
+    k = k * 2 
+    # GEMV N dimension is always 1
+    n = 1
+    # Scaling factor needs to pad the N size to 128
+    n_padded_128 = 128
 
-    # Create CuTe tensors for A, B, C
-    a_tensor, a_torch = cutlass_torch.cute_tensor_like(
-        a, ab_dtype, is_dynamic_layout=True, assumed_align=16
-    )
-    b_tensor, b_torch = cutlass_torch.cute_tensor_like(
-        b, ab_dtype, is_dynamic_layout=True, assumed_align=16
-    )
-    c_tensor, c_torch = cutlass_torch.cute_tensor_like(
-        c, c_dtype, is_dynamic_layout=True, assumed_align=16
-    )
-    # Mark tensor with element divisibility for 16B alignment
-    a_tensor.mark_compact_shape_dynamic(
-        mode=1,
-        stride_order=(2, 0, 1),
-        divisibility=32,
-    )
-    b_tensor.mark_compact_shape_dynamic(
-        mode=1,
-        stride_order=(2, 0, 1),
-        divisibility=32,
-    )
-    c_tensor.mark_compact_shape_dynamic(
-        0,
-        (2, 1, 0),
-        divisibility=16,
-    )
+    # Create the reordered scale factor tensors from the reference scale factor tensors via CuTe function.
+    sfa_reordered = create_reordered_scale_factor_tensor(l, m, k, sfa_cpu)
+    sfb_reordered = create_reordered_scale_factor_tensor(l, n_padded_128, k, sfb_cpu)
 
-    # Create cute tensors from reference tensors
-    sfa_tensor, sfa_torch = create_scale_factor_cute_tensor(
-        scale_a, l, m, k, block_size, sf_dtype
+    # Create CuTe pointers for A/B/C/SFA/SFB via torch tensor data pointer
+    a_ptr = make_ptr(
+        ab_dtype, a.data_ptr(), cute.AddressSpace.gmem, assumed_align=16
     )
-    sfb_tensor, sfb_torch = create_scale_factor_cute_tensor(
-        scale_b, l, 1, k, block_size, sf_dtype
+    b_ptr = make_ptr(
+        ab_dtype, b.data_ptr(), cute.AddressSpace.gmem, assumed_align=16
+    )
+    c_ptr = make_ptr(
+        c_dtype, c.data_ptr(), cute.AddressSpace.gmem, assumed_align=16
+    )
+    sfa_ptr = make_ptr(
+        sf_dtype, sfa_reordered.data_ptr(), cute.AddressSpace.gmem, assumed_align=32
+    )
+    sfb_ptr = make_ptr(
+        sf_dtype, sfb_reordered.data_ptr(), cute.AddressSpace.gmem, assumed_align=32
     )
 
     # Execute the compiled kernel
-    compiled_func(a_tensor, b_tensor, sfa_tensor, sfb_tensor, c_tensor)
-    
-    return c_torch
+    compiled_func(a_ptr, b_ptr, sfa_ptr, sfb_ptr, c_ptr, (m, n, k, l))
+
+    return c

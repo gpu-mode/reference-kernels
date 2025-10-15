@@ -2,81 +2,55 @@ import torch
 from task import input_t, output_t
 from utils import make_match_reference
 
-block_size = 16
+# Scaling factor vector size
+sf_vec_size = 16
 
+# Helper function for ceiling division
 def ceil_div(a, b):
-    """Helper function for ceiling division"""
     return (a + b - 1) // b
+
+# Helper function to convert scale factor tensor to blocked format
+def to_blocked(input_matrix):
+    rows, cols = input_matrix.shape
+
+    # Please ensure rows and cols are multiples of 128 and 4 respectively
+    n_row_blocks = ceil_div(rows, 128)
+    n_col_blocks = ceil_div(cols, 4)
+
+    padded = input_matrix
+    blocks = padded.view(n_row_blocks, 128, n_col_blocks, 4).permute(0, 2, 1, 3)
+    rearranged = blocks.reshape(-1, 4, 32, 4).transpose(1, 2).reshape(-1, 32, 16)
+
+    return rearranged.flatten()
 
 def ref_kernel(
     data: input_t,
 ) -> output_t:
     """
     PyTorch reference implementation of NVFP4 block-scaled GEMV.
-    This is a very slow reference implementation to show the computation details
-    of a block-scaled GEMV.
-    
-    This simulates the GEMV operation: C = A @ b
-    where A and b are block-scaled with FP4 values and FP8 scale factors.
     """
-    a, b, scale_a, scale_b, c = data
+    a_ref, b_ref, sfa_ref_cpu, sfb_ref_cpu, c_ref = data
     
     # Get dimensions from MxKxL layout
-    m, k, l = a.shape
-    n = 1  # GEMV: N dimension is always 1
+    _, _, l = a_ref.shape
 
-    scale_k = ceil_div(k, block_size)
+    # Call torch._scaled_mm to compute the GEMV result
+    for l_idx in range(l):
+        # Convert the scale factor tensor to blocked format
+        scale_a = to_blocked(sfa_ref_cpu[:, :, l_idx])
+        scale_b = to_blocked(sfb_ref_cpu[:, :, l_idx])
+        # (m, k) @ (n, k).T -> (m, n)
+        res = torch._scaled_mm(
+            a_ref[:, :, l_idx],
+            b_ref[:, :, l_idx].transpose(0, 1),
+            scale_a.cuda(),
+            scale_b.cuda(),
+            bias=None,
+            out_dtype=torch.float16,
+        )
+        c_ref[:, 0, l_idx] = res[:, 0]
+    return c_ref
 
-    # Extend scale factor tensor from [m, scale_k, l] to [m, k, l]
-    ref_permute_order = (1, 2, 0)
-    scale_a = (
-        scale_a.permute(2, 0, 1)
-        .unsqueeze(-1)
-        .expand(l, m, scale_k, block_size)
-        .reshape(l, m, scale_k * block_size)
-        .permute(*ref_permute_order)
-    )
-    # prune to mkl for reference check.
-    scale_a = scale_a[:, :k, :]
-
-    scale_b = (
-        scale_b.permute(2, 0, 1)
-        .unsqueeze(-1)
-        .expand(l, n, scale_k, block_size)
-        .reshape(l, n, scale_k * block_size)
-        .permute(*ref_permute_order)
-    )
-    # prune to mkl for reference check.
-    scale_b = scale_b[:, :k, :]
-
-    # Convert to f32 for computation
-    # Apply blockwise scaling: elementwise multiplication
-    # This simulates NVFP4 GEMV via 2 FFMA based elementwise multiplication 
-    # and 1 FFMA based matmul computations
-    res_a = a.to(torch.float32) * scale_a.cuda()  # [m, k, l]
-    res_b = b.to(torch.float32) * scale_b.cuda()  # [1, k, l]
-    
-    # Compute batched GEMV: C[m, n, l] = A[m, k, l] @ B[n, k, l]
-    for i in range(c.shape[2]):
-        # matmul gives [m], convert to c.dtype then assign to [m, 1]
-        acc = res_a[:, :, i] @ res_b[0, :, i]
-        c[:, 0, i] = acc.to(torch.float16)
-    return c
-
-
-# Helper function to create reference scale factor tensor SFA/SFB
-# for 1x16 block scaled wise use case and follow the layout requirement
-# defined in https://docs.nvidia.com/cuda/cublas/index.html?highlight=fp4#d-block-scaling-factors-layout
-def create_scale_factor_tensor(l, mn, k, block_size):
-    scale_k = ceil_div(k, block_size)
-    ref_shape = (l, mn, scale_k)
-    ref_permute_order = (1, 2, 0)
-
-    # Create f32 ref torch tensor (cpu)
-    ref_f32_torch_tensor_cpu = torch.randint(
-        1, 3, ref_shape, dtype=torch.float32
-    ).permute(*ref_permute_order)
-    return ref_f32_torch_tensor_cpu
 
 def generate_input(
     m: int,
@@ -97,25 +71,54 @@ def generate_input(
     
     Returns:
         Tuple of (a, b, scale_a, scale_b, c) where:
-            a: [m, k, l] - Input matrix in FP4 (simulated with uint8)
-            b: [1, k, l] - Input vector in FP4 (simulated with uint8)
-            scale_a: [m, k, l] - Expanded scale factors for a in FP32
-            scale_b: [1, k, l] - Expanded scale factors for b in FP32
-            c: [m, 1, l] - Output vector in FP16
+            a: [m, k, l] - Input matrix in torch.float4e2m1fn_x2 data type
+            b: [1, k, l] - Input vector in torch.float4e2m1fn_x2 data type
+            scale_a: [m, k, l] - Input scale factors in torch.float8e4m3fn data type
+            scale_b: [1, k, l] - Input scale factors in torch.float8e4m3fn data type
+            c: [m, 1, l] - Output vector in torch.float16 data type
     """
     torch.manual_seed(seed)
-    n = 1  # GEMV: N dimension is always 1
-    
-    # Generate random FP32 values, then convert to uint8 (FP4 placeholder)
-    a = torch.randint(0, 2, (l, m, k), dtype=torch.uint8, device="cuda").permute(1, 2, 0)
-    b = torch.randint(1, 3, (l, n, k), dtype=torch.uint8, device="cuda").permute(1, 2, 0)
-    c = torch.randn((l, n, m), dtype=torch.float16, device="cuda").permute(2, 1, 0)
-    
-    # Create scale factors with FP32 data type
-    scale_a = create_scale_factor_tensor(l, m, k, block_size)
-    scale_b = create_scale_factor_tensor(l, 1, k, block_size)
-    
-    return (a, b, scale_a, scale_b, c)
 
+    # GEMV N dimension is always 1
+    n = 1
+    # Scaling factor needs to pad the N size to 128
+    n_padded_128 = 128
+    
+    # Generate uint8 tensor, then convert to float4e2m1fn_x2 data type
+    a_ref = torch.randint(
+        0, 2, (l, m, k // 2), dtype=torch.uint8, device="cuda"
+    ).permute(1, 2, 0)
+    # Pad b tensor's N dimension to 128 to call torch._scaled_mm for nvfp4 dot product computation
+    b_ref = torch.randint(
+        0, 2, (l, n_padded_128, k // 2), dtype=torch.uint8, device="cuda"
+    ).permute(1, 2, 0)
+    a_ref = a_ref.view(torch.float4_e2m1fn_x2)
+    b_ref = b_ref.view(torch.float4_e2m1fn_x2)
+
+    # Create float16 output tensor
+    c_ref = torch.randn((l, m, n), dtype=torch.float16, device="cuda").permute(
+        1, 2, 0
+    )
+    
+    # Helper function to prepare the scale factor tensors
+    def create_scale_factor_tensors(l, mn, sf_k):
+        # Create the reference scale factor tensor (mn, l, sf_k) on CPU.
+        ref_shape = (l, mn, sf_k)
+        ref_permute_order = (1, 2, 0)
+        # Init with uint8 tensor, then convert to float8_e4m3fn
+        ref_f8_random_int = torch.randint(1, 3, ref_shape, dtype=torch.int8)
+        ref_f8_torch_tensor_cpu = ref_f8_random_int.to(dtype=torch.float8_e4m3fn)
+        # permute to match ref_permute_order
+        ref_f8_torch_tensor_cpu_permuted = ref_f8_torch_tensor_cpu.permute(
+            *ref_permute_order
+        )
+        return ref_f8_torch_tensor_cpu_permuted
+
+
+    sf_k = ceil_div(k, sf_vec_size)
+    sfa_ref_cpu = create_scale_factor_tensors(l, m, sf_k)
+    sfb_ref_cpu = create_scale_factor_tensors(l, n_padded_128, sf_k)
+    
+    return (a_ref, b_ref, sfa_ref_cpu, sfb_ref_cpu, c_ref)
 
 check_implementation = make_match_reference(ref_kernel, rtol=1e-01, atol=1e-02)
