@@ -29,7 +29,7 @@ description: |
   For the grand price, your kernel will be evaluated against the speed of light analysis
   and the solution closest to the speed of light will be awarded the grand price.
   ```
-  The speed of light analysis is:
+  The speed of light analysis is (using 1.5Ghz clock):
    M       N       K     time[us]
   7168    128    16384    17.38
   4096    128    7168     4.34
