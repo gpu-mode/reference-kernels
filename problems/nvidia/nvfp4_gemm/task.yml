@@ -1,4 +1,4 @@
-# name: nvfp4-ffma-gemm
+# name: nvfp4-block-scaled-gemm
 
 files:
   - {"name": "submission.py", "source": "@SUBMISSION@"}
@@ -11,7 +11,7 @@ lang: "py"
 
 description: |
   
-  You will implement a batched matrix-matrix multiplication kernel optimized for NVIDIA B200.
+  You will implement a block scaled matrix-matrix multiplication kernel optimized for NVIDIA B200.
   To be explicit, you will be given a tuple of tensors:
   ```
   (a, b, sfa, sfb, c)

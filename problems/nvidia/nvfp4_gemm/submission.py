@@ -15,17 +15,26 @@ import cutlass.utils.blockscaled_layout as blockscaled_utils
 from cutlass.cute.runtime import make_ptr
 
 # Kernel configuration parameters
-mma_tiler_mnk = (128, 128, 256)  # Tile sizes for M, N, K dimensions
+# Tile sizes for M, N, K dimensions
+mma_tiler_mnk = (128, 128, 256)  
+# Shape of the K dimension for the MMA instruction
 mma_inst_shape_k = 64
-ab_dtype = cutlass.Float4E2M1FN  # FP4 data type for A and B
-sf_dtype = cutlass.Float8E4M3FN  # FP8 data type for scale factors
-c_dtype = cutlass.Float16  # FP16 output type
-sf_vec_size = 16  # Scale factor block size (16 elements share one scale)
-threads_per_cta = 128  # Number of threads per CUDA thread block
-# stage numbers of shared memory and tmem
+# FP4 data type for A and B
+ab_dtype = cutlass.Float4E2M1FN  
+# FP8 data type for scale factors
+sf_dtype = cutlass.Float8E4M3FN  
+# FP16 output type
+c_dtype = cutlass.Float16  
+# Scale factor block size (16 elements share one scale)
+sf_vec_size = 16  
+# Number of threads per CUDA thread block
+threads_per_cta = 128  
+# Stage numbers of shared memory and tmem
 num_acc_stage = 1
 num_ab_stage = 1
+# Total number of columns in tmem
 num_tmem_alloc_cols = 512
+
 
 # Helper function for ceiling division
 def ceil_div(a, b):
@@ -58,7 +67,7 @@ def cvt_sf_MKL_to_M32x4xrm_K4xrk_L(
         sf_mma_tensor[mkl_coord] = sf_ref_tensor[mkl_coord]
 
 
-# The CuTe reference implementation for NVFP4 block-scaled GEMV
+# The CuTe reference implementation for NVFP4 block-scaled GEMM
 @cute.kernel
 def kernel(
     tiled_mma: cute.TiledMma,
@@ -781,7 +790,7 @@ def custom_kernel(data: input_t) -> output_t:
             c: [m, n, l] - Output vector in float16
     
     Returns:
-        Output tensor c with computed GEMV results
+        Output tensor c with computed results
     """
     a, b, sfa_cpu, sfb_cpu, c = data
     

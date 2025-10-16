@@ -3,7 +3,7 @@ from task import input_t, output_t
 
 def custom_kernel(data: input_t) -> output_t:
     """
-    Reference implementation of block-scale fp8 gemm
+    Reference implementation of block-scale fp4 gemm
     Args:
         data: Tuple that expands to:
             a: torch.Tensor[float4e2m1fn] of shape [m, k, l],

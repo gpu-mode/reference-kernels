@@ -31,8 +31,8 @@ def ref_kernel(
     """
     a_ref, b_ref, sfa_ref_cpu, sfb_ref_cpu, c_ref = data
     
-    # Get dimensions from MxKxL layout
-    _, _, l = a_ref.shape
+    # Get dimensions from MxNxL layout
+    _, _, l = c_ref.shape
 
     # Call torch._scaled_mm to compute the GEMV result
     for l_idx in range(l):
@@ -60,8 +60,6 @@ def generate_input(
 ):
     """
     Generate input tensors for NVFP4 block-scaled GEMV.
-    
-    This follows the pattern from nvfp4_gemv_cute_layout.py for tensor preparation.
     
     Args:
         m: Number of rows in matrix A

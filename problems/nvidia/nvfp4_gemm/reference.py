@@ -31,10 +31,10 @@ def ref_kernel(
     """
     a_ref, b_ref, sfa_ref_cpu, sfb_ref_cpu, c_ref = data
     
-    # Get dimensions from MxKxL layout
-    _, _, l = a_ref.shape
+    # Get dimensions from MxNxL layout
+    _, _, l = c_ref.shape
 
-    # Call torch._scaled_mm to compute the GEMV result
+    # Call torch._scaled_mm to compute the GEMM result
     for l_idx in range(l):
         # Convert the scale factor tensor to blocked format
         scale_a = to_blocked(sfa_ref_cpu[:, :, l_idx])
@@ -60,23 +60,22 @@ def generate_input(
     seed: int,
 ):
     """
-    Generate input tensors for NVFP4 block-scaled GEMV.
-    
-    This follows the pattern from nvfp4_gemv_cute_layout.py for tensor preparation.
+    Generate input tensors for NVFP4 block-scaled GEMM.
     
     Args:
         m: Number of rows in matrix A
-        k: Number of columns in A (and length of vector b)
+        n: Number of columns in matrix B
+        k: Number of columns in A and rows of B
         l: Batch size
         seed: Random seed for reproducibility
     
     Returns:
         Tuple of (a, b, scale_a, scale_b, c) where:
             a: [m, k, l] - Input matrix in torch.float4e2m1fn_x2 data type
-            b: [1, k, l] - Input vector in torch.float4e2m1fn_x2 data type
+            b: [n, k, l] - Input matrix in torch.float4e2m1fn_x2 data type
             scale_a: [m, k, l] - Input scale factors in torch.float8e4m3fn data type
-            scale_b: [1, k, l] - Input scale factors in torch.float8e4m3fn data type
-            c: [m, 1, l] - Output vector in torch.float16 data type
+            scale_b: [n, k, l] - Input scale factors in torch.float8e4m3fn data type
+            c: [m, n, l] - Output matrix in torch.float16 data type
     """
     torch.manual_seed(seed)
     
@@ -84,7 +83,6 @@ def generate_input(
     a_ref = torch.randint(
         0, 2, (l, m, k // 2), dtype=torch.uint8, device="cuda"
     ).permute(1, 2, 0)
-    # Pad b tensor's N dimension to 128 to call torch._scaled_mm for nvfp4 dot product computation
     b_ref = torch.randint(
         0, 2, (l, n, k // 2), dtype=torch.uint8, device="cuda"
     ).permute(1, 2, 0)
