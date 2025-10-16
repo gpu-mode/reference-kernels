@@ -36,7 +36,7 @@ def generate_input(size: int, seed: int) -> input_t:
 # The tolerance is scaled by the square root of the input size
 def check_implementation(data: input_t, output: output_t) -> str:
     # Then get the size for scaling the tolerance
-    n = data.numel()
+    n = data[0].numel()
 
     scale_factor = n ** 0.5  # Square root of input size
     rtol = 1e-5 * scale_factor
