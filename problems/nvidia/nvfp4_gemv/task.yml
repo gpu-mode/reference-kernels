@@ -30,9 +30,9 @@ description: |
   ```
   The speed of light analysis is (using 1.5Ghz clock):
     M    K   L time[us]
-  7168 16384 1 8.71
-  4096 7168  1 2.18
-  7168 2048  1 1.09
+  7168 16384 1 7.65
+  4096 7168  1 1.91
+  7168 2048  1 0.96
   ```
 config:
   main: "eval.py"

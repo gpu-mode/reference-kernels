@@ -29,10 +29,10 @@ description: |
   and the solution closest to the speed of light will be awarded the grand price.
   ```
   The speed of light analysis is (using 1.5Ghz clock):
-    M  N  K   L time[us]
-  7168 128 16384 1 8.71
-  4096 128 7168  1 2.18
-  7168 128 2048  1 1.09
+    M   N    K   L time[us]
+  128 7168 16384 1 4.36
+  128 4096 7168  1 1.09
+  128 7168 2048  1 0.55
   ```
 config:
   main: "eval.py"
