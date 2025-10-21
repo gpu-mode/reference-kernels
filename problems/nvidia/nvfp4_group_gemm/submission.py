@@ -48,32 +48,6 @@ def ceil_div(a, b):
     return (a + b - 1) // b
 
 
-# Helper function to reorder the scale factor tensor to match the layout defined in
-# https://docs.nvidia.com/cuda/cublas/index.html?highlight=fp4#d-block-scaling-factors-layout
-@cute.jit
-def cvt_sf_MKL_to_M32x4xrm_K4xrk_L(
-    sf_ref_ptr: cute.Pointer,
-    sf_mma_ptr: cute.Pointer,
-    mn: int,
-    sf_k: int,
-    l: int,
-    mma_shape: tuple,
-):
-    mma_permute_order = (3, 4, 1, 5, 2, 0)
-    permuted_shape = tuple(mma_shape[i] for i in mma_permute_order)
-    cute_layout = cute.make_ordered_layout(permuted_shape, order=(2, 1, 4, 0, 3, 5))
-
-    sf_ref_tensor = cute.make_tensor(
-        sf_ref_ptr, cute.make_layout((mn, sf_k, l), stride=(sf_k, 1, mn * sf_k))
-    )
-    sf_mma_tensor = cute.make_tensor(sf_mma_ptr, cute_layout)
-    sf_mma_tensor = cute.group_modes(sf_mma_tensor, 0, 3)
-    sf_mma_tensor = cute.group_modes(sf_mma_tensor, 1, 3)
-    for i in cutlass.range(cute.size(sf_ref_tensor)):
-        mkl_coord = sf_ref_tensor.layout.get_hier_coord(i)
-        sf_mma_tensor[mkl_coord] = sf_ref_tensor[mkl_coord]
-
-
 # The CuTe reference implementation for NVFP4 block-scaled GEMM
 @cute.kernel
 def kernel(
@@ -902,48 +876,6 @@ def my_kernel(
     return
 
 
-# Reorder scale factor from (mn, l, sf_k) to (32, 4, rest_m, 4, rest_k, l) layout
-def create_reordered_scale_factor_tensor(l, mn, k, ref_f8_tensor):
-    sf_k = ceil_div(k, sf_vec_size)
-    atom_m = (32, 4)
-    atom_k = 4
-    mma_shape = (
-        l,  # batch size
-        ceil_div(mn, atom_m[0] * atom_m[1]),
-        ceil_div(sf_k, atom_k),
-        atom_m[0],
-        atom_m[1],
-        atom_k,
-    )
-    # Create the reordered scale factor tensor (32, 4, rest_m, 4, rest_k, l) on CPU.
-    mma_permute_order = (3, 4, 1, 5, 2, 0)
-    # Generate a random int8 tensor, then convert to float8_e4m3fn
-    rand_int_tensor = torch.randint(0, 2, mma_shape, dtype=torch.int8)
-    reordered_f8_tensor = rand_int_tensor.to(dtype=torch.float8_e4m3fn)
-    # Permute according to mma_permute_order
-    reordered_f8_tensor = reordered_f8_tensor.permute(*mma_permute_order)
-
-    # Helper function to convert scale factor tensor to CUTE-format scale factor tensor
-    cvt_sf_MKL_to_M32x4xrm_K4xrk_L(
-        make_ptr(
-            cutlass.Float8E4M3FN,
-            ref_f8_tensor.data_ptr(),
-            cute.AddressSpace.gmem,
-            assumed_align=32,
-        ),
-        make_ptr(
-            cutlass.Float8E4M3FN,
-            reordered_f8_tensor.data_ptr(),
-            cute.AddressSpace.gmem,
-            assumed_align=32,
-        ),
-        mn,
-        sf_k,
-        l,
-        mma_shape,
-    )
-    return reordered_f8_tensor.cuda()
-
 _compiled_kernel_cache = None
 
 def compile_kernel():
@@ -974,7 +906,7 @@ def custom_kernel(data: input_t) -> output_t:
     Returns:
         list of c tensors where c is torch.Tensor[float16] of shape [m, n, l] for each group
     """
-    abc_tensors, sfasfb_tensors, problem_sizes = data
+    abc_tensors, _, sfasfb_reordered_tensors, problem_sizes = data
 
     # Choose A, B, C, SFA, SFB with the smallest size to create initial tensormaps
     key_size_a = lambda item: item[1][0] * item[1][2]
@@ -985,14 +917,9 @@ def custom_kernel(data: input_t) -> output_t:
     min_b_idx, _ = min(enumerate(problem_sizes), key=key_size_b)
     min_c_idx, _ = min(enumerate(problem_sizes), key=key_size_c)
 
-    sfasfb_reordered_tensors = []
     abc_ptrs = []
     sfasfb_ptrs = []
-    for i, ((a, b, c), (sfa_cpu, sfb_cpu), (m, n, k, l)) in enumerate(zip(abc_tensors, sfasfb_tensors, problem_sizes)):
-        sf_k = ceil_div(k, sf_vec_size)
-        sfa_reordered = create_reordered_scale_factor_tensor(l, m, k, sfa_cpu)
-        sfb_reordered = create_reordered_scale_factor_tensor(l, n, k, sfb_cpu)
-        sfasfb_reordered_tensors.append((sfa_reordered, sfb_reordered))
+    for i, ((a, b, c), (sfa_reordered, sfb_reordered), (m, n, k, l)) in enumerate(zip(abc_tensors, sfasfb_reordered_tensors, problem_sizes)):
         abc_ptrs.append((a.data_ptr(), b.data_ptr(), c.data_ptr()))
         sfasfb_ptrs.append((sfa_reordered.data_ptr(), sfb_reordered.data_ptr()))
 
