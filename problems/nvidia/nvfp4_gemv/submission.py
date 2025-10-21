@@ -22,32 +22,6 @@ def ceil_div(a, b):
     return (a + b - 1) // b
 
 
-# Helper function to reorder the scale factor tensor to match the layout defined in
-# https://docs.nvidia.com/cuda/cublas/index.html?highlight=fp4#d-block-scaling-factors-layout
-@cute.jit
-def cvt_sf_MKL_to_M32x4xrm_K4xrk_L(
-    sf_ref_ptr: cute.Pointer,
-    sf_mma_ptr: cute.Pointer,
-    mn: int,
-    sf_k: int,
-    l: int,
-    mma_shape: tuple,
-):
-    mma_permute_order = (3, 4, 1, 5, 2, 0)
-    permuted_shape = tuple(mma_shape[i] for i in mma_permute_order)
-    cute_layout = cute.make_ordered_layout(permuted_shape, order=(2, 1, 4, 0, 3, 5))
-
-    sf_ref_tensor = cute.make_tensor(
-        sf_ref_ptr, cute.make_layout((mn, sf_k, l), stride=(sf_k, 1, mn * sf_k))
-    )
-    sf_mma_tensor = cute.make_tensor(sf_mma_ptr, cute_layout)
-    sf_mma_tensor = cute.group_modes(sf_mma_tensor, 0, 3)
-    sf_mma_tensor = cute.group_modes(sf_mma_tensor, 1, 3)
-    for i in cutlass.range(cute.size(sf_ref_tensor)):
-        mkl_coord = sf_ref_tensor.layout.get_hier_coord(i)
-        sf_mma_tensor[mkl_coord] = sf_ref_tensor[mkl_coord]
-
-
 # The CuTe reference implementation for NVFP4 block-scaled GEMV
 @cute.kernel
 def kernel(
@@ -189,49 +163,6 @@ def my_kernel(
     return
 
 
-# Reorder scale factor from (mn, l, sf_k) to (32, 4, rest_m, 4, rest_k, l) layout
-def create_reordered_scale_factor_tensor(l, mn, k, ref_f8_tensor):
-    sf_k = ceil_div(k, sf_vec_size)
-    atom_m = (32, 4)
-    atom_k = 4
-    mma_shape = (
-        l,  # batch size
-        ceil_div(mn, atom_m[0] * atom_m[1]),
-        ceil_div(sf_k, atom_k),
-        atom_m[0],
-        atom_m[1],
-        atom_k,
-    )
-    # Create the reordered scale factor tensor (32, 4, rest_m, 4, rest_k, l) on CPU.
-    mma_permute_order = (3, 4, 1, 5, 2, 0)
-    # Generate a random int8 tensor, then convert to float8_e4m3fn
-    rand_int_tensor = torch.randint(0, 2, mma_shape, dtype=torch.int8)
-    reordered_f8_tensor = rand_int_tensor.to(dtype=torch.float8_e4m3fn)
-    # Permute according to mma_permute_order
-    reordered_f8_tensor = reordered_f8_tensor.permute(*mma_permute_order)
-
-    # Helper function to convert scale factor tensor to CUTE-format scale factor tensor
-    cvt_sf_MKL_to_M32x4xrm_K4xrk_L(
-        make_ptr(
-            cutlass.Float8E4M3FN,
-            ref_f8_tensor.data_ptr(),
-            cute.AddressSpace.gmem,
-            assumed_align=32,
-        ),
-        make_ptr(
-            cutlass.Float8E4M3FN,
-            reordered_f8_tensor.data_ptr(),
-            cute.AddressSpace.gmem,
-            assumed_align=32,
-        ),
-        mn,
-        sf_k,
-        l,
-        mma_shape,
-    )
-    return reordered_f8_tensor.cuda()
-
-
 # Global cache for compiled kernel
 _compiled_kernel_cache = None
 
@@ -289,12 +220,14 @@ def custom_kernel(data: input_t) -> output_t:
             b: [1, k, l] - Input vector in float4e2m1fn 
             sfa_cpu: [m, k, l] - Scale factors in float8_e4m3fn 
             sfb_cpu: [1, k, l] - Scale factors in float8_e4m3fn 
+            sfa_permuted: [32, 4, rest_m, 4, rest_k, l] - Scale factors in float8_e4m3fn
+            sfb_permuted: [32, 4, rest_n, 4, rest_k, l] - Scale factors in float8_e4m3fn
             c: [m, 1, l] - Output vector in float16
-    
+
     Returns:
         Output tensor c with computed GEMV results
     """
-    a, b, sfa_cpu, sfb_cpu, c = data
+    a, b, _, _, sfa_permuted, sfb_permuted, c = data
     
     # Ensure kernel is compiled (will use cached version if available)
     compiled_func = compile_kernel()
@@ -304,12 +237,6 @@ def custom_kernel(data: input_t) -> output_t:
     k = k * 2 
     # GEMV N dimension is always 1
     n = 1
-    # Scaling factor needs to pad the N size to 128
-    n_padded_128 = 128
-
-    # Create the reordered scale factor tensors from the reference scale factor tensors via CuTe function.
-    sfa_reordered = create_reordered_scale_factor_tensor(l, m, k, sfa_cpu)
-    sfb_reordered = create_reordered_scale_factor_tensor(l, n_padded_128, k, sfb_cpu)
 
     # Create CuTe pointers for A/B/C/SFA/SFB via torch tensor data pointer
     a_ptr = make_ptr(
@@ -322,10 +249,10 @@ def custom_kernel(data: input_t) -> output_t:
         c_dtype, c.data_ptr(), cute.AddressSpace.gmem, assumed_align=16
     )
     sfa_ptr = make_ptr(
-        sf_dtype, sfa_reordered.data_ptr(), cute.AddressSpace.gmem, assumed_align=32
+        sf_dtype, sfa_permuted.data_ptr(), cute.AddressSpace.gmem, assumed_align=32
     )
     sfb_ptr = make_ptr(
-        sf_dtype, sfb_reordered.data_ptr(), cute.AddressSpace.gmem, assumed_align=32
+        sf_dtype, sfb_permuted.data_ptr(), cute.AddressSpace.gmem, assumed_align=32
     )
 
     # Execute the compiled kernel

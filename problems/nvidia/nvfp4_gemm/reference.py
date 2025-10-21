@@ -76,6 +76,8 @@ def generate_input(
             b: [n, k, l] - Input matrix in torch.float4e2m1fn_x2 data type
             scale_a: [m, k, l] - Input scale factors in torch.float8e4m3fn data type
             scale_b: [n, k, l] - Input scale factors in torch.float8e4m3fn data type
+            scale_a_permuted: [32, 4, rest_m, 4, rest_k, l] - Input scale factors in torch.float8e4m3fn data type
+            scale_b_permuted: [32, 4, rest_n, 4, rest_k, l] - Input scale factors in torch.float8e4m3fn data type
             c: [m, n, l] - Output matrix in torch.float16 data type
     """
     torch.manual_seed(seed)
