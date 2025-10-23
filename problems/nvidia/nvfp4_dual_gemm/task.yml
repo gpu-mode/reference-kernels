@@ -30,12 +30,12 @@ description: |
   For the grand price, your kernel will be evaluated against the speed of light analysis
   and the solution closest to the speed of light will be awarded the grand price.
   ```
-  The speed of light analysis is (using 1.5Ghz clock):
+  The speed of light analysis based on the max(FP4 Tensor Core math throughput, DRAM memory throughput) of B200 and tested under 1.5Ghz clock:
     M   N   K   L time[us] 
-  128 4096 7168 1 1.09
-  512 4096 7168 1 4.36
-  128 3072 4096 1 0.47
-  512 3072 7168 1 3.27
+  128 4096 7168 1 4.505
+  512 4096 7168 1 8.714
+  128 3072 4096 1 1.984
+  512 3072 7168 1 6.535
   ```
 config:
   main: "eval.py"

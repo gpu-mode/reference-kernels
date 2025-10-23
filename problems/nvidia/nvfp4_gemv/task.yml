@@ -28,11 +28,11 @@ description: |
   For the grand price, your kernel will be evaluated against the speed of light analysis
   and the solution closest to the speed of light will be awarded the grand price.
   ```
-  The speed of light analysis is (using 1.5Ghz clock):
-    M    K   L time[us]
-  7168 16384 1 7.65
-  4096 7168  1 1.91
-  7168 2048  1 0.96
+  The speed of light analysis based on the max(FFMA math throughput, DRAM memory throughput) of B200 and tested under 1.5Ghz clock:
+  M    K     L time[us]
+  7168 16384 1 8.622
+  4096 7168  8 17.275
+  7168 2048  4 4.317
   ```
 config:
   main: "eval.py"
@@ -55,7 +55,7 @@ tests:
 
 benchmarks:
   - {"m": 7168, "k": 16384, "l":1, "seed": 1111}
-  - {"m": 4096, "k": 7168, "l":1, "seed": 1111}
-  - {"m": 7168, "k": 2048, "l":1, "seed": 1111}
+  - {"m": 4096, "k": 7168, "l":8, "seed": 1111}
+  - {"m": 7168, "k": 2048, "l":4, "seed": 1111}
 
 ranking_by: "geom"
