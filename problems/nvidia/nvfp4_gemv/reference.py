@@ -102,7 +102,10 @@ def generate_input(
         1, 2, 0
     )
     
-    # Helper function to prepare the scale factor tensors
+    # Helper function to prepare the scale factor tensors for both reference
+    # kernel and customize kernel. Please note this data reordering function 
+    # is very slow, and the customized data layout can be found in the following link:
+    # https://docs.nvidia.com/cuda/cublas/index.html?highlight=fp4#d-block-scaling-factors-layout
     def create_scale_factor_tensors(l, mn, sf_k):
         # Create the reference scale factor tensor (mn, l, sf_k) on CPU.
         ref_shape = (l, mn, sf_k)
@@ -136,7 +139,6 @@ def generate_input(
         reordered_f8_torch_tensor_cpu = reordered_f8_torch_tensor_cpu.permute(
             *mma_permute_order
         )
-
         for i in range(mn):
             for j in range(sf_k):
                 for b in range(l):
@@ -154,5 +156,6 @@ def generate_input(
     sfb_ref_cpu, sfb_permuted = create_scale_factor_tensors(l, n_padded_128, sf_k)
     
     return (a_ref, b_ref, sfa_ref_cpu, sfb_ref_cpu, sfa_permuted, sfb_permuted, c_ref)
+
 
 check_implementation = make_match_reference(ref_kernel, rtol=1e-01, atol=1e-02)

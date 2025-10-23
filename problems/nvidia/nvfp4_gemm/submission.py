@@ -636,23 +636,38 @@ def my_kernel(
         c_tensor.shape[2],
     )
 
-    # Launch the kernel synchronously
+    # Launch the kernel
     kernel(
-        tiled_mma,
-        tma_atom_a,
-        tma_tensor_a,
-        tma_atom_b,
-        tma_tensor_b,
-        tma_atom_sfa,
-        tma_tensor_sfa,
-        tma_atom_sfb,
-        tma_tensor_sfb,
-        c_tensor,
-        a_smem_layout_staged,
-        b_smem_layout_staged,
-        sfa_smem_layout_staged,
-        sfb_smem_layout_staged,
-        num_tma_load_bytes,
+        # MMA (Matrix Multiply-Accumulate) configuration
+        tiled_mma,                  # Tiled MMA object defining NVFP4 GEMM compute pattern
+        
+        # TMA (Tensor Memory Accelerator) atoms and tensors for input matrix A
+        tma_atom_a,                 # TMA copy atom defining how to load A from global memory
+        tma_tensor_a,               # Tensor descriptor for A matrix (m, k, l)
+        
+        # TMA atoms and tensors for input matrix B
+        tma_atom_b,                 # TMA copy atom defining how to load B from global memory
+        tma_tensor_b,               # Tensor descriptor for B matrix (n, k, l)
+        
+        # TMA atoms and tensors for scale factor A
+        tma_atom_sfa,               # TMA copy atom for loading scale factors for A
+        tma_tensor_sfa,             # Tensor descriptor for SFA (block scale factors for A)
+        
+        # TMA atoms and tensors for scale factor B
+        tma_atom_sfb,               # TMA copy atom for loading scale factors for B
+        tma_tensor_sfb,             # Tensor descriptor for SFB (block scale factors for B)
+        
+        # Output tensor C
+        c_tensor,                   # Output tensor C where result will be stored (m, n, l)
+        
+        # Shared memory layouts with staging for pipelined execution
+        a_smem_layout_staged,       # Staged shared memory layout for A (includes stage dimension)
+        b_smem_layout_staged,       # Staged shared memory layout for B (includes stage dimension)
+        sfa_smem_layout_staged,     # Staged shared memory layout for SFA (includes stage dimension)
+        sfb_smem_layout_staged,     # Staged shared memory layout for SFB (includes stage dimension)
+        
+        # Pipeline synchronization parameter
+        num_tma_load_bytes,         # Total bytes to load per TMA transaction (for barrier setup)
     ).launch(
         grid=grid,
         block=[threads_per_cta, 1, 1],
@@ -668,10 +683,7 @@ def compile_kernel():
     """
     Compile the kernel once and cache it.
     This should be called before any timing measurements.
-    
-    Args:
-        a, b, scale_a, scale_b, c: Sample tensors with the expected shapes and types
-    
+
     Returns:
         The compiled kernel function
     """

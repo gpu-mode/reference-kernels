@@ -63,7 +63,10 @@ def ref_kernel(
     return result_tensors
 
 
-# Reorder scale factor from (mn, l, sf_k) to (32, 4, rest_m, 4, rest_k, l) layout
+# Helper function to prepare the scale factor tensors for both reference
+# kernel and customize kernel. Please note this data reordering function 
+# is very slow, and the customized data layout can be found in the following link:
+# https://docs.nvidia.com/cuda/cublas/index.html?highlight=fp4#d-block-scaling-factors-layout
 def create_reordered_scale_factor_tensor(l, mn, k, ref_f8_tensor):
     sf_k = ceil_div(k, sf_vec_size)
     atom_m = (32, 4)

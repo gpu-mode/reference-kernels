@@ -28,7 +28,8 @@ def ref_kernel(
     data: input_t,
 ) -> output_t:
     """
-    PyTorch reference implementation of NVFP4 block-scaled GEMM.
+    PyTorch reference implementation of NVFP4 block-scaled dual GEMM with silu activation,
+    C = silu(A @ B1) * (A @ B2).
     """
     a_ref, b1_ref, b2_ref, sfa_ref_cpu, sfb1_ref_cpu, sfb2_ref_cpu, _, _, _, c_ref = data
     
@@ -130,7 +131,8 @@ def generate_input(
     
     # Helper function to prepare the scale factor tensors for both reference
     # kernel and customize kernel. Please note this data reordering function 
-    # is very slow.
+    # is very slow, and the customized data layout can be found in the following link:
+    # https://docs.nvidia.com/cuda/cublas/index.html?highlight=fp4#d-block-scaling-factors-layout
     def create_scale_factor_tensors(l, mn, sf_k):
         # Create the reference scale factor tensor (mn, l, sf_k) on CPU.
         ref_shape = (l, mn, sf_k)
@@ -183,5 +185,6 @@ def generate_input(
     sfb2_ref_cpu, sfb2_ref_permuted = create_scale_factor_tensors(l, n, sf_k)
 
     return (a_ref, b1_ref, b2_ref, sfa_ref_cpu, sfb1_ref_cpu, sfb2_ref_cpu, sfa_ref_permuted, sfb1_ref_permuted, sfb2_ref_permuted, c_ref)
+
 
 check_implementation = make_match_reference(ref_kernel, rtol=1e-01, atol=1e-02)

@@ -17,7 +17,6 @@ import cutlass.utils.blockscaled_layout as blockscaled_utils
 from cutlass.cute.runtime import make_ptr
 
 # Kernel configuration parameters
-
 # Size of tma descriptor in bytes
 bytes_per_tensormap = 128
 # Number of tensormaps: a, b, sfa, sfb
@@ -288,8 +287,8 @@ def kernel(
             cute.assume(n * k, 32),
         ),
     )
-    # SFA, SFB follows specialized layout defined
-    # here: TODO add linke
+    # SFA, SFB follows specialized layout defined in the following link:
+    # https://docs.nvidia.com/cuda/cublas/index.html?highlight=fp4#d-block-scaling-factors-layout
     atom_shape = ((32, 4), (sf_vec_size, 4))
     atom_stride = ((16, 4), (0, 1))
     sfa_layout = cute.tile_to_shape(
@@ -847,27 +846,44 @@ def my_kernel(
     # Compute grid size
     grid = (1, 1, total_num_clusters)
 
-    # Launch the kernel synchronously
+    # Launch the kernel
     kernel(
-        tiled_mma,
-        tma_atom_a,
-        tma_tensor_a,
-        tma_atom_b,
-        tma_tensor_b,
-        tma_atom_sfa,
-        tma_tensor_sfa,
-        tma_atom_sfb,
-        tma_tensor_sfb,
-        tensor_of_abc_ptrs,
-        tensor_of_sfasfb_ptrs,
-        tensor_of_tensormap,
-        tensor_of_problem_sizes,
-        a_smem_layout_staged,
-        b_smem_layout_staged,
-        sfa_smem_layout_staged,
-        sfb_smem_layout_staged,
-        cta_mn_list,
-        num_tma_load_bytes,
+        # MMA (Matrix Multiply-Accumulate) configuration
+        tiled_mma,                  # Tiled MMA object defining NVFP4 GEMM compute pattern
+        
+        # TMA (Tensor Memory Accelerator) atoms and tensors for input matrix A
+        tma_atom_a,                 # TMA copy atom defining how to load A from global memory
+        tma_tensor_a,               # Tensor descriptor for A (created from smallest A tensor)
+        
+        # TMA atoms and tensors for input matrix B
+        tma_atom_b,                 # TMA copy atom defining how to load B from global memory
+        tma_tensor_b,               # Tensor descriptor for B (created from smallest B tensor)
+        
+        # TMA atoms and tensors for scale factor A
+        tma_atom_sfa,               # TMA copy atom for loading scale factors for A
+        tma_tensor_sfa,             # Tensor descriptor for SFA (block scale factors for A)
+        
+        # TMA atoms and tensors for scale factor B
+        tma_atom_sfb,               # TMA copy atom for loading scale factors for B
+        tma_tensor_sfb,             # Tensor descriptor for SFB (block scale factors for B)
+        
+        # Runtime tensor metadata for dynamic group access
+        tensor_of_abc_ptrs,         # Device tensor containing pointers to A, B, C for all groups
+        tensor_of_sfasfb_ptrs,      # Device tensor containing pointers to SFA, SFB for all groups
+        tensor_of_tensormap,        # Pre-allocated buffer for tensormap descriptors per CTA
+        tensor_of_problem_sizes,    # Device tensor containing (m, n, k, l) for each group
+        
+        # Shared memory layouts with staging for pipelined execution
+        a_smem_layout_staged,       # Staged shared memory layout for A (includes stage dimension)
+        b_smem_layout_staged,       # Staged shared memory layout for B (includes stage dimension)
+        sfa_smem_layout_staged,     # Staged shared memory layout for SFA (includes stage dimension)
+        sfb_smem_layout_staged,     # Staged shared memory layout for SFB (includes stage dimension)
+        
+        # CTA grid configuration per group
+        cta_mn_list,                # List of (M_tiles, N_tiles) for each group
+        
+        # Pipeline synchronization parameter
+        num_tma_load_bytes,         # Total bytes to load per TMA transaction (for barrier setup)
     ).launch(
         grid=grid,
         block=[threads_per_cta, 1, 1],
@@ -917,26 +933,35 @@ def custom_kernel(data: input_t) -> output_t:
     min_b_idx, _ = min(enumerate(problem_sizes), key=key_size_b)
     min_c_idx, _ = min(enumerate(problem_sizes), key=key_size_c)
 
+    # Extract raw data pointers from all input tensors for each group
+    # These will be passed to the GPU kernel to access the actual tensor data
     abc_ptrs = []
     sfasfb_ptrs = []
     for i, ((a, b, c), (sfa_reordered, sfb_reordered), (m, n, k, l)) in enumerate(zip(abc_tensors, sfasfb_reordered_tensors, problem_sizes)):
+        # Store pointers to A, B, and C matrices for this group
         abc_ptrs.append((a.data_ptr(), b.data_ptr(), c.data_ptr()))
+        # Store pointers to scale factor tensors for this group
         sfasfb_ptrs.append((sfa_reordered.data_ptr(), sfb_reordered.data_ptr()))
 
-    # Pick the tensor with the smallest size to create initial tensormaps
+    # Create initial CuTe pointers from the smallest tensors for tensormap initialization
+    # Using smallest tensors helps with efficient TMA (Tensor Memory Accelerator) setup
+    # These will be used as templates to create tensormaps for all other tensors
     initial_cute_abc_ptrs = (
+        # Pointer to the smallest A matrix (FP4 type)
         make_ptr(
             ab_dtype,
             abc_tensors[min_a_idx][0].data_ptr(),
             cute.AddressSpace.gmem,
             assumed_align=16,
         ),
+        # Pointer to the smallest B matrix (FP4 type)
         make_ptr(
             ab_dtype,
             abc_tensors[min_b_idx][1].data_ptr(),
             cute.AddressSpace.gmem,
             assumed_align=16,
         ),
+        # Pointer to the smallest C matrix (FP16 type, output)
         make_ptr(
             c_dtype,
             abc_tensors[min_c_idx][2].data_ptr(),
@@ -945,12 +970,14 @@ def custom_kernel(data: input_t) -> output_t:
         ),
     )
     initial_cute_sfasfb_ptrs = (
+        # Pointer to the smallest scale factor A tensor (FP8 type)
         make_ptr(
             sf_dtype,
             sfasfb_reordered_tensors[min_a_idx][0].data_ptr(),
             cute.AddressSpace.gmem,
             assumed_align=16,
         ),
+        # Pointer to the smallest scale factor B tensor (FP8 type)
         make_ptr(
             sf_dtype,
             sfasfb_reordered_tensors[min_b_idx][1].data_ptr(),
@@ -959,32 +986,45 @@ def custom_kernel(data: input_t) -> output_t:
         ),
     )
 
-    # Create torch tensor to store problem sizes
-    # layout (num_groups, 4):(4, 1)
+    # Create torch tensor to store problem sizes for all groups
+    # Shape: (num_groups, 4) where each row contains (m, n, k, l) for that group
+    # Layout: (num_groups, 4):(4, 1) means row-major storage
     tensor_of_problem_sizes = torch.tensor(
         problem_sizes, dtype=torch.int32, device="cuda"
     )
 
-    # Create torch tensors to store abc_ptrs and sfasfb_ptrs 
-    # layout (num_groups,3):(3, 1)
+    # Create torch tensors to store data pointers for all groups
+    # These allow the GPU kernel to dynamically access different tensors per group
+    # tensor_of_abc_ptrs: Shape (num_groups, 3) containing (a_ptr, b_ptr, c_ptr) per group
+    # tensor_of_sfasfb_ptrs: Shape (num_groups, 2) containing (sfa_ptr, sfb_ptr) per group
     tensor_of_abc_ptrs = torch.tensor(abc_ptrs, dtype=torch.int64, device="cuda")
     tensor_of_sfasfb_ptrs = torch.tensor(sfasfb_ptrs, dtype=torch.int64, device="cuda")
 
-    # Compute cluster tile shape
+    # Compute the tile shape for each CUDA Thread Block (CTA)
+    # cta_tile_shape_mn: [M_tile, N_tile] = [128, 128] for this kernel
     cta_tile_shape_mn = [128, mma_tiler_mnk[1]]
+    # cluster_tile_shape_mn: Total tile shape per cluster (same as CTA since cluster is 1x1)
     cluster_tile_shape_mn = tuple(
         x * y for x, y in zip(cta_tile_shape_mn, (1, 1))
     )
-    # Compute total number of cluster tiles we need to compute for given grouped GEMM problem
+    
+    # Compute total number of cluster tiles needed across all groups
+    # Each group's (m, n) dimensions are divided into tiles of size cluster_tile_shape_mn
+    # This determines the total grid size (bidz dimension) for kernel launch
     total_num_clusters = 0
     num_groups = len(problem_sizes)
     for m, n, _, _ in problem_sizes:
+        # Calculate number of tiles needed in M and N dimensions for this group
         num_clusters_mn = tuple(
             (x + y - 1) // y for x, y in zip((m, n), cluster_tile_shape_mn)
         )
+        # Multiply M_tiles * N_tiles to get total tiles for this group
         total_num_clusters += functools.reduce(lambda x, y: x * y, num_clusters_mn)
 
-    # Preserved buffers for each cluster to update its tma descriptor in device memory
+    # Allocate device memory for tensormap descriptors
+    # Each cluster needs its own set of tensormaps (one for A, B, SFA, SFB)
+    # Shape: (total_num_clusters, num_tensormaps=4, bytes_per_tensormap/8=16)
+    # Tensormaps are hardware descriptors used by TMA for efficient memory transfers
     tensormap_shape = (
         total_num_clusters,
         num_tensormaps,
@@ -992,6 +1032,8 @@ def custom_kernel(data: input_t) -> output_t:
     )
     tensor_of_tensormap = torch.empty(tensormap_shape, dtype=torch.int64, device="cuda")
 
+    # Create CuTe pointers to the metadata tensors that will be passed to the kernel
+    # These allow the GPU kernel to read problem sizes and tensor pointers
     cute_ptr_of_tensor_of_abc_ptrs = make_ptr(
         cutlass.Int64,
         tensor_of_abc_ptrs.data_ptr(),
@@ -1011,18 +1053,19 @@ def custom_kernel(data: input_t) -> output_t:
         assumed_align=16,
     )
 
-    # Execute the compiled kernel
+    # Launch the JIT-compiled GPU kernel with all prepared data
+    # The kernel will perform block-scaled group GEMM: C = A * SFA * B * SFB for all groups
     my_kernel(
-        initial_cute_abc_ptrs,
-        initial_cute_sfasfb_ptrs,
-        (min_a_idx, min_b_idx, min_c_idx),
-        cute_ptr_of_tensor_of_problem_sizes,
-        cute_ptr_of_tensor_of_abc_ptrs,
-        cute_ptr_of_tensor_of_sfasfb_ptrs,
-        total_num_clusters,
-        problem_sizes,
-        tensor_of_tensormap,
-        num_groups,
+        initial_cute_abc_ptrs,              # Template pointers for tensormap initialization
+        initial_cute_sfasfb_ptrs,           # Template scale factor pointers
+        (min_a_idx, min_b_idx, min_c_idx),  # Indices of smallest tensors
+        cute_ptr_of_tensor_of_problem_sizes, # Pointer to problem sizes array
+        cute_ptr_of_tensor_of_abc_ptrs,     # Pointer to ABC tensor pointers array
+        cute_ptr_of_tensor_of_sfasfb_ptrs,  # Pointer to scale factor pointers array
+        total_num_clusters,                  # Total number of CTAs to launch
+        problem_sizes,                       # Problem sizes list (for host-side processing)
+        tensor_of_tensormap,                 # Pre-allocated tensormap buffer
+        num_groups,                          # Number of groups in this batch
     )
 
     res = []

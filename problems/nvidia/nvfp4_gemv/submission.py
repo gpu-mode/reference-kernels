@@ -170,10 +170,7 @@ def compile_kernel():
     """
     Compile the kernel once and cache it.
     This should be called before any timing measurements.
-    
-    Args:
-        a, b, scale_a, scale_b, c: Sample tensors with the expected shapes and types
-    
+
     Returns:
         The compiled kernel function
     """

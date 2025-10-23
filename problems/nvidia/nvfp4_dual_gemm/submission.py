@@ -803,28 +803,49 @@ def my_kernel(
         c_tensor.shape[2],
     )
 
-    # Launch the kernel synchronously
+    # Launch the kernel.
     kernel(
-        tiled_mma,
-        tma_atom_a,
-        tma_tensor_a,
-        tma_atom_b1,
-        tma_tensor_b1,
-        tma_atom_b2,
-        tma_tensor_b2,
-        tma_atom_sfa,
-        tma_tensor_sfa,
-        tma_atom_sfb1,
-        tma_tensor_sfb1,
-        tma_atom_sfb2,
-        tma_tensor_sfb2,
-        c_tensor,
-        a_smem_layout_staged,
-        b_smem_layout_staged,
-        sfa_smem_layout_staged,
-        sfb_smem_layout_staged,
-        num_tma_load_bytes,
-        epilogue_op,
+        # MMA (Matrix Multiply-Accumulate) configuration
+        tiled_mma,                  # Tiled MMA object defining NVFP4 GEMM compute pattern
+        
+        # TMA (Tensor Memory Accelerator) atoms and tensors for shared input matrix A
+        tma_atom_a,                 # TMA copy atom defining how to load A from global memory
+        tma_tensor_a,               # Tensor descriptor for A matrix (m, k, l) - shared by both GEMMs
+        
+        # TMA atoms and tensors for first B matrix (B1)
+        tma_atom_b1,                # TMA copy atom defining how to load B1 from global memory
+        tma_tensor_b1,              # Tensor descriptor for B1 matrix (n, k, l) - first GEMM
+        
+        # TMA atoms and tensors for second B matrix (B2)
+        tma_atom_b2,                # TMA copy atom defining how to load B2 from global memory
+        tma_tensor_b2,              # Tensor descriptor for B2 matrix (n, k, l) - second GEMM
+        
+        # TMA atoms and tensors for scale factor A (shared)
+        tma_atom_sfa,               # TMA copy atom for loading scale factors for A
+        tma_tensor_sfa,             # Tensor descriptor for SFA (block scale factors for A) - shared
+        
+        # TMA atoms and tensors for scale factor B1
+        tma_atom_sfb1,              # TMA copy atom for loading scale factors for B1
+        tma_tensor_sfb1,            # Tensor descriptor for SFB1 (block scale factors for B1)
+        
+        # TMA atoms and tensors for scale factor B2
+        tma_atom_sfb2,              # TMA copy atom for loading scale factors for B2
+        tma_tensor_sfb2,            # Tensor descriptor for SFB2 (block scale factors for B2)
+        
+        # Output tensor C (stores both C1 and C2 results)
+        c_tensor,                   # Output tensor where both GEMM results will be stored (m, n, l)
+        
+        # Shared memory layouts with staging for pipelined execution
+        a_smem_layout_staged,       # Staged shared memory layout for A (includes stage dimension)
+        b_smem_layout_staged,       # Staged shared memory layout for B1/B2 (includes stage dimension)
+        sfa_smem_layout_staged,     # Staged shared memory layout for SFA (includes stage dimension)
+        sfb_smem_layout_staged,     # Staged shared memory layout for SFB1/SFB2 (includes stage dimension)
+        
+        # Pipeline synchronization parameter
+        num_tma_load_bytes,         # Total bytes to load per TMA transaction (for barrier setup)
+        
+        # Epilogue operation
+        epilogue_op,                # Epilogue operation to apply to output (e.g., element-wise ops)
     ).launch(
         grid=grid,
         block=[threads_per_cta, 1, 1],
@@ -840,9 +861,6 @@ def compile_kernel():
     """
     Compile the kernel once and cache it.
     This should be called before any timing measurements.
-    
-    Args:
-        a, b1, b2, sfa, sfb1, sfb2, c: Sample tensors with the expected shapes and types
     
     Returns:
         The compiled kernel function
