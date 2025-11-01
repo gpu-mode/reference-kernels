@@ -16,7 +16,7 @@ def generate_input(m: int, n: int, k: int, seed: int) -> input_t:
 
 def ref_kernel(data: input_t) -> output_t:
     with DeterministicContext():
-        a, b = data
+        a, b, c = data
         return a @ b
 
 
