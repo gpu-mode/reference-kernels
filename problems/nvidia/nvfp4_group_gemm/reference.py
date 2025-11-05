@@ -172,4 +172,4 @@ def generate_input(
     return (abc_tensors, sfasfb_tensors, sfasfb_reordered_tensors, problem_sizes)
 
 
-check_implementation = make_match_reference(ref_kernel, rtol=1e-01, atol=1e-02)
+check_implementation = make_match_reference(ref_kernel, rtol=1e-03, atol=1e-03)

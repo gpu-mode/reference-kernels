@@ -154,4 +154,4 @@ def generate_input(
     return (a_ref, b_ref, sfa_ref_cpu, sfb_ref_cpu, sfa_ref_permuted, sfb_ref_permuted, c_ref)
 
 
-check_implementation = make_match_reference(ref_kernel, rtol=1e-01, atol=1e-02)
+check_implementation = make_match_reference(ref_kernel, rtol=1e-03, atol=1e-03)
