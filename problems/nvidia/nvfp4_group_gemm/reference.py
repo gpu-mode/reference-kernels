@@ -64,8 +64,7 @@ def ref_kernel(
 
 
 # Helper function to prepare the scale factor tensors for both reference
-# kernel and customize kernel. Please note this data reordering function 
-# is very slow, and the customized data layout can be found in the following link:
+# kernel and customize kernel. The customized data layout can be found in:
 # https://docs.nvidia.com/cuda/cublas/index.html?highlight=fp4#d-block-scaling-factors-layout
 def create_reordered_scale_factor_tensor(l, mn, k, ref_f8_tensor):
     sf_k = ceil_div(k, sf_vec_size)
@@ -79,26 +78,38 @@ def create_reordered_scale_factor_tensor(l, mn, k, ref_f8_tensor):
         atom_m[1],
         atom_k,
     )
-    # Create the reordered scale factor tensor (32, 4, rest_m, 4, rest_k, l) on CPU.
+    # Create the reordered scale factor tensor (32, 4, rest_m, 4, rest_k, l) on GPU.
     mma_permute_order = (3, 4, 1, 5, 2, 0)
     # Generate a random int8 tensor, then convert to float8_e4m3fn
-    rand_int_tensor = torch.randint(0, 2, mma_shape, dtype=torch.int8)
+    rand_int_tensor = torch.randint(0, 2, mma_shape, dtype=torch.int8, device='cuda')
     reordered_f8_tensor = rand_int_tensor.to(dtype=torch.float8_e4m3fn)
     # Permute according to mma_permute_order
     reordered_f8_tensor = reordered_f8_tensor.permute(*mma_permute_order)
 
-    # Please note this movement code is very slow.
-    for i in range(mn):
-        for j in range(sf_k):
-            for b in range(l):
-                # Calculate the location in MMA shape
-                mm = i // (atom_m[0] * atom_m[1])
-                mm32 = i % atom_m[0]
-                mm4 = (i % 128) // atom_m[0]
-                kk = j // atom_k
-                kk4 = j % atom_k
-                reordered_f8_tensor[mm32, mm4, mm, kk4, kk, b] = ref_f8_tensor[i, j, b]
-    return reordered_f8_tensor.cuda()
+    # Move ref_f8_tensor to GPU if not already there
+    if ref_f8_tensor.device.type == 'cpu':
+        ref_f8_tensor = ref_f8_tensor.cuda()
+
+    # GPU-side vectorized reordering (replaces slow CPU nested loops)
+    # Create index grids for all dimensions
+    i_idx = torch.arange(mn, device='cuda')
+    j_idx = torch.arange(sf_k, device='cuda')
+    b_idx = torch.arange(l, device='cuda')
+    
+    # Create meshgrid for all combinations of (i, j, b)
+    i_grid, j_grid, b_grid = torch.meshgrid(i_idx, j_idx, b_idx, indexing='ij')
+    
+    # Calculate target indices in vectorized manner
+    mm = i_grid // (atom_m[0] * atom_m[1])
+    mm32 = i_grid % atom_m[0]
+    mm4 = (i_grid % 128) // atom_m[0]
+    kk = j_grid // atom_k
+    kk4 = j_grid % atom_k
+    
+    # Perform the reordering with advanced indexing (all on GPU)
+    reordered_f8_tensor[mm32, mm4, mm, kk4, kk, b_grid] = ref_f8_tensor[i_grid, j_grid, b_grid]
+    
+    return reordered_f8_tensor
 
 
 def generate_input(
