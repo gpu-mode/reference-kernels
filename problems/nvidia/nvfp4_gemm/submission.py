@@ -678,7 +678,8 @@ def my_kernel(
 
 # Global cache for compiled kernel
 _compiled_kernel_cache = None
-
+# This function is used to compile the kernel once and cache it and then allow users to 
+# run the kernel multiple times to get more accurate timing results.
 def compile_kernel():
     """
     Compile the kernel once and cache it.
@@ -740,7 +741,9 @@ def custom_kernel(data: input_t) -> output_t:
     a, b, _, _, sfa_permuted, sfb_permuted, c = data
     
     # Ensure kernel is compiled (will use cached version if available)
+    # To avoid the compilation overhead, we compile the kernel once and cache it.
     compiled_func = compile_kernel()
+
     # Get dimensions from MxKxL layout
     m, k, l = a.shape
     n, _, _ = b.shape
