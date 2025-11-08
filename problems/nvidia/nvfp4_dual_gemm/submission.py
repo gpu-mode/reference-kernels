@@ -576,15 +576,15 @@ def kernel(
     # (T2R_M, T2R_N, EPI_M, EPI_N, RestM, RestN, RestL)
     tTR_gC = thr_copy_t2r.partition_D(tCgC)
     # (T2R_M, T2R_N, EPI_M, EPI_N）
-    tTR_rAcc1 = cute.make_fragment(
+    tTR_rAcc1 = cute.make_rmem_tensor(
         tTR_gC[None, None, None, None, 0, 0, 0].shape, cutlass.Float32
     )
     # (T2R_M, T2R_N, EPI_M, EPI_N）
-    tTR_rAcc2 = cute.make_fragment(
+    tTR_rAcc2 = cute.make_rmem_tensor(
         tTR_gC[None, None, None, None, 0, 0, 0].shape, cutlass.Float32
     )
     # (T2R_M, T2R_N, EPI_M, EPI_N）
-    tTR_rC = cute.make_fragment(
+    tTR_rC = cute.make_rmem_tensor(
         tTR_gC[None, None, None, None, 0, 0, 0].shape, c_dtype
     )
     # STG Atom
@@ -636,11 +636,6 @@ def my_kernel(
     m, n, k, l = problem_size
 
     # Setup attributes that depend on gemm inputs
-    cta_tile_shape_mnk = (
-        mma_tiler_mnk[0],
-        mma_tiler_mnk[1],
-        mma_tiler_mnk[2],
-    )
     a_tensor = cute.make_tensor(
         a_ptr,
         cute.make_layout(
@@ -798,8 +793,8 @@ def my_kernel(
 
     # Compute grid size
     grid = (
-        cute.ceil_div(c_tensor.shape[0], cta_tile_shape_mnk[0]),
-        cute.ceil_div(c_tensor.shape[1], cta_tile_shape_mnk[1]),
+        cute.ceil_div(c_tensor.shape[0], mma_tiler_mnk[0]),
+        cute.ceil_div(c_tensor.shape[1], mma_tiler_mnk[1]),
         c_tensor.shape[2],
     )
 
