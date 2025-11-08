@@ -66,9 +66,14 @@ def kernel(
     k_tile_cnt = gA_mkl.layout[3].shape
     for k_tile in range(k_tile_cnt):
         tAgA = gA_mkl[tidx, None, bidx, k_tile, bidz]
-        tBgB = gB_nkl[None, None, bidy, k_tile, bidz]
+        tBgB = gB_nkl[0, None, bidy, k_tile, bidz]
         tAgSFA = gSFA_mkl[tidx, None, bidx, k_tile, bidz]
-        tBgSFB = gSFB_nkl[None, None, bidy, k_tile, bidz]
+        tBgSFB = gSFB_nkl[0, None, bidy, k_tile, bidz]
+
+        tArA = cute.make_rmem_tensor(tAgA, cutlass.Float32)
+        tBrB = cute.make_rmem_tensor(tBgB, cutlass.Float32)
+        tArSFA = cute.make_rmem_tensor(tAgSFA, cutlass.Float32)
+        tBrSFB = cute.make_rmem_tensor(tBgSFB, cutlass.Float32)
 
         # Load NVFP4 or FP8 values from global memory
         a_val_nvfp4 = tAgA.load()
@@ -82,16 +87,16 @@ def kernel(
         sfa_val = sfa_val_fp8.to(cutlass.Float32)
         sfb_val = sfb_val_fp8.to(cutlass.Float32)
 
+        # Store the converted values to RMEM CuTe tensors
+        tArA.store(a_val)
+        tBrB.store(b_val)
+        tArSFA.store(sfa_val)
+        tBrSFB.store(sfb_val)
+
         # Iterate over SF vector tiles and compute the scale&matmul accumulation
-        for i in cutlass.range_constexpr(mma_tiler_mnk[2] // sf_vec_size):
-            for j in cutlass.range_constexpr(sf_vec_size):
-                # Accumulate: (A * scaleA * B * scaleB), where scaling is per-vector
-                res += (
-                    a_val[i * sf_vec_size + j]
-                    * sfa_val[i]
-                    * b_val[i * sf_vec_size + j]
-                    * sfb_val[i]
-                )
+        for i in cutlass.range_constexpr(mma_tiler_mnk[2]):
+            res += tArA[i] * tArSFA[i] * tBrB[i] * tBrSFB[i]
+
     # Store the final float16 result back to global memory
     tCgC.store(res.to(cutlass.Float16))
     return

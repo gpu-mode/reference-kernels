@@ -447,11 +447,11 @@ def kernel(
     # (T2R_M, T2R_N, EPI_M, EPI_N, RestM, RestN, RestL)
     tTR_gC = thr_copy_t2r.partition_D(tCgC)
     # (T2R_M, T2R_N, EPI_M, EPI_N）
-    tTR_rAcc = cute.make_fragment(
+    tTR_rAcc = cute.make_rmem_tensor(
         tTR_gC[None, None, None, None, 0, 0, 0].shape, cutlass.Float32
     )
     # (T2R_M, T2R_N, EPI_M, EPI_N）
-    tTR_rC = cute.make_fragment(
+    tTR_rC = cute.make_rmem_tensor(
         tTR_gC[None, None, None, None, 0, 0, 0].shape, c_dtype
     )
     # STG Atom
