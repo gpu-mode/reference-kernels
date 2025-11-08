@@ -70,10 +70,10 @@ def kernel(
         tAgSFA = gSFA_mkl[tidx, None, bidx, k_tile, bidz]
         tBgSFB = gSFB_nkl[0, None, bidy, k_tile, bidz]
 
-        tArA = cute.make_rmem_tensor(tAgA, cutlass.Float32)
-        tBrB = cute.make_rmem_tensor(tBgB, cutlass.Float32)
-        tArSFA = cute.make_rmem_tensor(tAgSFA, cutlass.Float32)
-        tBrSFB = cute.make_rmem_tensor(tBgSFB, cutlass.Float32)
+        tArA = cute.make_rmem_tensor_like(tAgA, cutlass.Float32)
+        tBrB = cute.make_rmem_tensor_like(tBgB, cutlass.Float32)
+        tArSFA = cute.make_rmem_tensor_like(tAgSFA, cutlass.Float32)
+        tBrSFB = cute.make_rmem_tensor_like(tBgSFB, cutlass.Float32)
 
         # Load NVFP4 or FP8 values from global memory
         a_val_nvfp4 = tAgA.load()
