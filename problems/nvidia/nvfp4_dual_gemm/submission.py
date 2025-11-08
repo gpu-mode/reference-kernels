@@ -217,7 +217,7 @@ def kernel(
     #
     # Partition global/shared tensor for TMA load A/B/SFA/SFB
     #
-    # TMA load A partition_S/D
+    # TMA Partition_S/D for A
     # ((atom_v, rest_v), STAGE)
     # ((atom_v, rest_v), RestM, RestK, RestL)
     tAsA, tAgA = cpasync.tma_partition(
@@ -227,7 +227,7 @@ def kernel(
         cute.group_modes(sA, 0, 3),
         cute.group_modes(tCgA, 0, 3),
     )
-    # TMA load B1 partition_S/D
+    # TMA Partition_S/D for B1
     # ((atom_v, rest_v), STAGE)
     # ((atom_v, rest_v), RestN, RestK, RestL)
     tBsB1, tBgB1 = cpasync.tma_partition(
@@ -237,7 +237,7 @@ def kernel(
         cute.group_modes(sB1, 0, 3),
         cute.group_modes(tCgB1, 0, 3),
     )
-    # TMA load B2 partition_S/D
+    # TMA Partition_S/D for B2
     # ((atom_v, rest_v), STAGE)
     # ((atom_v, rest_v), RestN, RestK, RestL)
     tBsB2, tBgB2 = cpasync.tma_partition(
@@ -248,7 +248,7 @@ def kernel(
         cute.group_modes(tCgB2, 0, 3),
     )
 
-    #  TMALDG_SFA partition_S/D
+    #  TMA Partition_S/D for SFA
     # ((atom_v, rest_v), STAGE)
     # ((atom_v, rest_v), RestM, RestK, RestL)
     tAsSFA, tAgSFA = cpasync.tma_partition(
@@ -260,8 +260,7 @@ def kernel(
     )
     tAsSFA = cute.filter_zeros(tAsSFA)
     tAgSFA = cute.filter_zeros(tAgSFA)
-
-    # TMALDG SFB1 partition_S/D
+    # TMA Partition_S/D for SFB1
     # ((atom_v, rest_v), STAGE)
     # ((atom_v, rest_v), RestN, RestK, RestL)
     tBsSFB1, tBgSFB1 = cpasync.tma_partition(
@@ -273,7 +272,7 @@ def kernel(
     )
     tBsSFB1 = cute.filter_zeros(tBsSFB1)
     tBgSFB1 = cute.filter_zeros(tBgSFB1)
-    # TMALDG SFB2 partition_S/D
+    # TMA Partition_S/D for SFB2
     # ((atom_v, rest_v), STAGE)
     # ((atom_v, rest_v), RestN, RestK, RestL)
     tBsSFB2, tBgSFB2 = cpasync.tma_partition(
@@ -451,7 +450,7 @@ def kernel(
             # Wait for AB buffer empty
             ab_empty = ab_producer.acquire_and_advance()
 
-            #  TMALDG A/B1/B2/SFA/SFB1/SFB2
+            #  TMA load A/B1/B2/SFA/SFB1/SFB2 to shared memory
             cute.copy(
                 tma_atom_a,
                 tAgA[(None, ab_empty.count)],
@@ -716,7 +715,7 @@ def my_kernel(
     )
     atom_thr_size = cute.size(tiled_mma.thr_id.shape)
 
-    # TMA load for A
+    # Setup TMA for A
     a_smem_layout = cute.slice_(a_smem_layout_staged, (None, None, None, 0))
     tma_atom_a, tma_tensor_a = cute.nvgpu.make_tiled_tma_atom_A(
         cpasync.CopyBulkTensorTileG2SOp(tcgen05.CtaGroup.ONE),
@@ -726,7 +725,7 @@ def my_kernel(
         tiled_mma,
         cluster_layout_vmnk .shape,
     )
-    # TMA load for B1
+    # Setup TMA for B1
     b_smem_layout = cute.slice_(b_smem_layout_staged, (None, None, None, 0))
     tma_atom_b1, tma_tensor_b1 = cute.nvgpu.make_tiled_tma_atom_B(
         cpasync.CopyBulkTensorTileG2SOp(tcgen05.CtaGroup.ONE),
@@ -736,7 +735,7 @@ def my_kernel(
         tiled_mma,
         cluster_layout_vmnk .shape,
     )
-    # TMA load for B2
+    # Setup TMA for B2
     tma_atom_b2, tma_tensor_b2 = cute.nvgpu.make_tiled_tma_atom_B(
         cpasync.CopyBulkTensorTileG2SOp(tcgen05.CtaGroup.ONE),
         b_tensor2,
@@ -745,7 +744,7 @@ def my_kernel(
         tiled_mma,
         cluster_layout_vmnk .shape,
     )
-    # TMA load for SFA
+    # Setup TMA for SFA
     sfa_smem_layout = cute.slice_(
         sfa_smem_layout_staged , (None, None, None, 0)
     )
@@ -758,7 +757,7 @@ def my_kernel(
         cluster_layout_vmnk .shape,
         internal_type=cutlass.Int16,
     )
-    # TMA load for SFB1
+    # Setup TMA for SFB1
     sfb_smem_layout = cute.slice_(
         sfb_smem_layout_staged , (None, None, None, 0)
     )
@@ -771,7 +770,7 @@ def my_kernel(
         cluster_layout_vmnk .shape,
         internal_type=cutlass.Int16,
     )
-    # TMA load for SFB2
+    # Setup TMA for SFB2
     tma_atom_sfb2, tma_tensor_sfb2 = cute.nvgpu.make_tiled_tma_atom_B(
         cpasync.CopyBulkTensorTileG2SOp(tcgen05.CtaGroup.ONE),
         sfb_tensor2,
