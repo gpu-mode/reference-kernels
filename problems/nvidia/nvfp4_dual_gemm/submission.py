@@ -247,7 +247,6 @@ def kernel(
         cute.group_modes(sB2, 0, 3),
         cute.group_modes(tCgB2, 0, 3),
     )
-
     #  TMA Partition_S/D for SFA
     # ((atom_v, rest_v), STAGE)
     # ((atom_v, rest_v), RestM, RestK, RestL)
@@ -590,9 +589,6 @@ def kernel(
     simt_atom = cute.make_copy_atom(cute.nvgpu.CopyUniversalOp(), c_dtype)
     tTR_gC = tTR_gC[(None, None, None, None, *mma_tile_coord_mnl)]
 
-    # Release tensor memory allocation lock
-    if warp_idx == 0:
-        cute.arch.relinquish_tmem_alloc_permit()
     # Wait for accumulator buffer full
     acc_full = acc_consumer.wait_and_advance()
 

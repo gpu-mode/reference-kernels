@@ -185,7 +185,7 @@ def kernel(
     #
     # Partition global/shared tensor for TMA load A/B/SFA/SFB
     #
-    # TMA load A partition_S/D
+    # TMA Partition_S/D for A
     # ((atom_v, rest_v), STAGE)
     # ((atom_v, rest_v), RestM, RestK, RestL)
     tAsA, tAgA = cpasync.tma_partition(
@@ -195,7 +195,7 @@ def kernel(
         cute.group_modes(sA, 0, 3),
         cute.group_modes(tCgA, 0, 3),
     )
-    # TMA load B partition_S/D
+    # TMA Partition_S/D for B
     # ((atom_v, rest_v), STAGE)
     # ((atom_v, rest_v), RestN, RestK, RestL)
     tBsB, tBgB = cpasync.tma_partition(
@@ -205,8 +205,7 @@ def kernel(
         cute.group_modes(sB, 0, 3),
         cute.group_modes(tCgB, 0, 3),
     )
-
-    #  TMALDG_SFA partition_S/D
+    #  TMA Partition_S/D for SFA
     # ((atom_v, rest_v), STAGE)
     # ((atom_v, rest_v), RestM, RestK, RestL)
     tAsSFA, tAgSFA = cpasync.tma_partition(
@@ -218,8 +217,7 @@ def kernel(
     )
     tAsSFA = cute.filter_zeros(tAsSFA)
     tAgSFA = cute.filter_zeros(tAgSFA)
-
-    # TMALDG_SFB partition_S/D
+    # TMA Partition_S/D for SFB
     # ((atom_v, rest_v), STAGE)
     # ((atom_v, rest_v), RestN, RestK, RestL)
     tBsSFB, tBgSFB = cpasync.tma_partition(
@@ -355,7 +353,7 @@ def kernel(
             # Wait for AB buffer empty
             ab_empty = ab_producer.acquire_and_advance()
 
-            #  TMALDG A/B/SFA/SFB
+            #  TMA load A/B/SFA/SFB to shared memory
             cute.copy(
                 tma_atom_a,
                 tAgA[(None, k_tile)],
@@ -384,7 +382,7 @@ def kernel(
             # Wait for AB buffer full
             ab_full = ab_consumer.wait_and_advance()
 
-            #  Copy SFA/SFB to tmem
+            # Copy SFA/SFB from shared memory to TMEM
             s2t_stage_coord = (None, None, None, None, ab_full.index)
             tCsSFA_compact_s2t_staged = tCsSFA_compact_s2t[s2t_stage_coord]
             tCsSFB_compact_s2t_staged = tCsSFB_compact_s2t[s2t_stage_coord]
@@ -458,9 +456,6 @@ def kernel(
     simt_atom = cute.make_copy_atom(cute.nvgpu.CopyUniversalOp(), c_dtype)
     tTR_gC = tTR_gC[(None, None, None, None, *mma_tile_coord_mnl)]
 
-    # Release TMEM allocation lock
-    tmem.relinquish_alloc_permit()
-
     # Wait for accumulator buffer full
     acc_full = acc_consumer.wait_and_advance()
 
@@ -495,11 +490,6 @@ def my_kernel(
     m, n, k, l = problem_size
 
     # Setup attributes that depend on gemm inputs
-    cta_tile_shape_mnk = (
-        mma_tiler_mnk[0],
-        mma_tiler_mnk[1],
-        mma_tiler_mnk[2],
-    )
     a_tensor = cute.make_tensor(
         a_ptr,
         cute.make_layout(
@@ -571,7 +561,7 @@ def my_kernel(
 
     atom_thr_size = cute.size(tiled_mma.thr_id.shape)
 
-    # TMA load for A
+    # Setup TMA for A
     a_smem_layout = cute.slice_(a_smem_layout_staged, (None, None, None, 0))
     tma_atom_a, tma_tensor_a = cute.nvgpu.make_tiled_tma_atom_A(
         cpasync.CopyBulkTensorTileG2SOp(tcgen05.CtaGroup.ONE),
@@ -581,7 +571,7 @@ def my_kernel(
         tiled_mma,
         cluster_layout_vmnk.shape,
     )
-    # TMA load for B
+    # Setup TMA for B
     b_smem_layout = cute.slice_(b_smem_layout_staged, (None, None, None, 0))
     tma_atom_b, tma_tensor_b = cute.nvgpu.make_tiled_tma_atom_B(
         cpasync.CopyBulkTensorTileG2SOp(tcgen05.CtaGroup.ONE),
@@ -591,8 +581,7 @@ def my_kernel(
         tiled_mma,
         cluster_layout_vmnk.shape,
     )
-
-    # TMA load for SFA
+    # Setup TMA for SFA
     sfa_smem_layout = cute.slice_(
         sfa_smem_layout_staged, (None, None, None, 0)
     )
@@ -605,8 +594,7 @@ def my_kernel(
         cluster_layout_vmnk.shape,
         internal_type=cutlass.Int16,
     )
-
-    # TMA load for SFB
+    # Setup TMA for SFB
     sfb_smem_layout = cute.slice_(
         sfb_smem_layout_staged, (None, None, None, 0)
     )
@@ -631,8 +619,8 @@ def my_kernel(
 
     # Compute grid size
     grid = (
-        cute.ceil_div(c_tensor.shape[0], cta_tile_shape_mnk[0]),
-        cute.ceil_div(c_tensor.shape[1], cta_tile_shape_mnk[1]),
+        cute.ceil_div(c_tensor.shape[0], mma_tiler_mnk[0]),
+        cute.ceil_div(c_tensor.shape[1], mma_tiler_mnk[1]),
         c_tensor.shape[2],
     )
 
