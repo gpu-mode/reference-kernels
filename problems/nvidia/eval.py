@@ -254,8 +254,8 @@ def _run_single_benchmark(
         del output
         durations.append(duration)
 
-        if i > 1:
-            total_bm_duration = time.perf_counter_ns() - bm_start_time
+        total_bm_duration = time.perf_counter_ns() - bm_start_time
+        if i > 1 and total_bm_duration > 1e8:       # at least 2 runs, and at least 100 ms total time
             stats = calculate_stats(durations)
             # stop if either
             # a) relative error dips below 0.1%
