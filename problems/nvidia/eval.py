@@ -12,6 +12,7 @@ import tempfile
 
 import torch.cuda
 from cutlass.cute.nvgpu.common import OpError
+from torch.cuda.nvtx import range as nvtx_range
 
 from utils import set_seed, clear_l2_cache
 
@@ -365,27 +366,98 @@ def run_benchmarking(
         return 112
 
 
-def run_single_profile(test: TestCase) -> str:
+def _run_single_profile_torch(test: TestCase) -> str:
     """
-    Runs a single test case. Do not call directly
+    Profiles a single benchmark using the torch profiler.
     """
     from submission import custom_kernel
-    from torch.profiler import profile, record_function, ProfilerActivity
+    from torch.profiler import profile, ProfilerActivity
 
-    data = generate_input(**test.args)
-    torch.cuda.synchronize()
-
-    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
-        submission_output = custom_kernel(_clone_data(data))
+    with nvtx_range("generate input"):
+        data = generate_input(**test.args)
         torch.cuda.synchronize()
+
+    cloned = _clone_data(data)
+    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+        with nvtx_range("custom_kernel"):
+            submission_output = custom_kernel(cloned)
+            torch.cuda.synchronize()
+
     return prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
 
 
-def run_profiling(logger: PopcornOutput, tests: list[TestCase]):
+def _run_single_profile_ncu(test: TestCase) -> str:
+    """
+    Profiles a single benchmark using ncu. Note: this does not
+    invoke NCU; instead, it is expected that eval is launched
+    under NCU, and this function will rurnthe kernel excactly
+    once in the 'custom_kernel' nvtx range.
+    """
+    from submission import custom_kernel
+
+    with nvtx_range("generate input"):
+        data = generate_input(**test.args)
+        torch.cuda.synchronize()
+
+    cloned = _clone_data(data)
+    with nvtx_range("custom_kernel"):
+        submission_output = custom_kernel(cloned)
+        torch.cuda.synchronize()
+
+    return ""
+
+
+def _combine_traces(traces: list["EventList"]) -> "EventList":
+    """
+    Combine multiple event traces obtained from multiple (distributed) torch.profiler
+    activities. This function simply aggregates the data as like `prof.key_averages()`,
+    except over multiple traces. Most of this function is reimplemented
+    from `torch.autograd.profiler_util.EventList.key_averages()`.
+    """
+    from torch.autograd.profiler_util import FunctionEventAvg, EventList
+    from collections import defaultdict
+
+    def get_key(event) -> tuple[str, ...]:
+        return (
+            str(event.key),
+            str(event.node_id),
+            str(event.device_type),
+            str(event.is_legacy),
+            str(event.is_user_annotation),
+        )
+
+    stats: dict[tuple[str, ...], FunctionEventAvg] = defaultdict(FunctionEventAvg)
+
+    for events in traces:
+        for event in events:
+            stats[get_key(event)].add(event)
+
+    avg_list = EventList(stats.values())
+    for event in avg_list:
+        event.stack = []
+        event.input_shapes = ""
+        event.overload_name = ""
+
+    return avg_list
+
+
+def run_single_profile(test: TestCase, pool: multiprocessing.Pool) -> str:
+    """
+    Runs a single profiling activity in another process.
+    """
+    if bool(os.getenv("POPCORN_NCU", "0")):
+        return pool.apply(_run_single_profile_ncu, (test,))
+    else:
+        return pool.apply(_run_single_profile_torch, (test,))
+
+
+def run_profiling(
+    logger: PopcornOutput, pool: multiprocessing.Pool, tests: list[TestCase]
+):
     logger.log("benchmark-count", len(tests))
     for idx, test in enumerate(tests):
         logger.log(f"benchmark.{idx}.spec", test.spec)
-        report = run_single_profile(test)
+        report = run_single_profile(test, pool)
         logger.log(
             f"benchmark.{idx}.report",
             base64.b64encode(report.encode("utf-8"), b"+*").decode("utf-8"),
@@ -407,34 +479,6 @@ def main():
     os.unsetenv("POPCORN_SEED")
     seed = int(seed) if seed else None
     set_seed(seed or 42)
-
-    # filename = None
-
-    # with tempfile.NamedTemporaryFile(delete=False) as tmp:
-
-    #     def build_test_string(tests: list[dict]):
-    #         as_str = ""
-    #         for test in tests:
-    #             kvs = []
-    #             for k, v in test.items():
-    #                 kvs.append(f"{k}: {v}")
-    #             as_str += "; ".join(kvs) + "\n"
-    #         return as_str
-
-    #     import yaml
-    #     print(sys.argv[2])
-    #     print(open(sys.argv[2], "r").read())
-
-    #     yaml_content = yaml.safe_load(open(sys.argv[2], "r"))
-    #     if mode == "test":
-    #         tests_str = build_test_string(yaml_content.get("tests", []))
-    #     elif mode in ("benchmark", "leaderboard", "profile"):
-    #         tests_str = build_test_string(yaml_content.get("benchmarks", []))
-
-    #     tmp.write(tests_str.encode("utf-8"))
-    #     tmp.flush()
-    #     filename = tmp.name
-
 
     tests = get_test_cases(sys.argv[2], seed)
 
@@ -479,7 +523,7 @@ def main():
 
                 logger.log("check", "pass" if passed else "fail")
             elif mode == "profile":
-                run_profiling(logger, tests)
+                run_profiling(logger, pool, tests)
             else:
                 # TODO: Implement script mode
                 return 2
