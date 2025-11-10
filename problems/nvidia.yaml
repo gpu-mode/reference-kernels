@@ -1,0 +1,12 @@
+name: NVIDIA Blackwell NVFP4 Kernel Hackathon
+
+deadline: "2026-02-14"
+
+description: "NVIDIA Blackwell NVFP4 Kernel Hackathon"
+
+problems:
+  - directory: nvidia/nvfp4_gemv
+    name: nvfp4_gemv
+    deadline: "2026-11-28"
+    gpus:
+      - NVIDIA
