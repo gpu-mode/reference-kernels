@@ -88,11 +88,11 @@ def generate_input(
     
     # Generate uint8 tensor, then convert to float4e2m1fn_x2 data type
     a_ref = torch.randint(
-        0, 2, (l, m, k // 2), dtype=torch.uint8, device="cuda"
+        0, 6, (l, m, k // 2), dtype=torch.uint8, device="cuda"
     ).permute(1, 2, 0)
     # Pad b tensor's N dimension to 128 to call torch._scaled_mm for nvfp4 dot product computation
     b_ref = torch.randint(
-        0, 2, (l, n_padded_128, k // 2), dtype=torch.uint8, device="cuda"
+        0, 6, (l, n_padded_128, k // 2), dtype=torch.uint8, device="cuda"
     ).permute(1, 2, 0)
     a_ref = a_ref.view(torch.float4_e2m1fn_x2)
     b_ref = b_ref.view(torch.float4_e2m1fn_x2)
@@ -110,7 +110,7 @@ def generate_input(
         ref_shape = (l, mn, sf_k)
         ref_permute_order = (1, 2, 0)
         # Init with uint8 tensor, then convert to float8_e4m3fn
-        ref_f8_random_int = torch.randint(1, 3, ref_shape, dtype=torch.int8, device='cuda')
+        ref_f8_random_int = torch.randint(0, 8, ref_shape, dtype=torch.int8, device='cuda')
         ref_f8_torch_tensor = ref_f8_random_int.to(dtype=torch.float8_e4m3fn)
         # permute to match ref_permute_order
         ref_f8_torch_tensor_permuted = ref_f8_torch_tensor.permute(*ref_permute_order)
@@ -130,7 +130,7 @@ def generate_input(
         # Which is needed by the CuTe customized kernel
         mma_permute_order = (3, 4, 1, 5, 2, 0)
         # Generate a random int8 tensor, then convert to float8_e4m3fn
-        rand_int_tensor = torch.randint(0, 2, mma_shape, dtype=torch.int8, device='cuda')
+        rand_int_tensor = torch.randint(0, 8, mma_shape, dtype=torch.int8, device='cuda')
         reordered_f8_torch_tensor = rand_int_tensor.to(dtype=torch.float8_e4m3fn)
         # Permute according to mma_permute_order
         reordered_f8_torch_tensor = reordered_f8_torch_tensor.permute(*mma_permute_order)
@@ -159,7 +159,7 @@ def generate_input(
     sf_k = ceil_div(k, sf_vec_size)
     sfa_ref_cpu, sfa_permuted = create_scale_factor_tensors(l, m, sf_k)
     sfb_ref_cpu, sfb_permuted = create_scale_factor_tensors(l, n_padded_128, sf_k)
-    
+
     return (a_ref, b_ref, sfa_ref_cpu, sfb_ref_cpu, sfa_permuted, sfb_permuted, c_ref)
 
 
