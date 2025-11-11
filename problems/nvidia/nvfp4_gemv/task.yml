@@ -37,6 +37,7 @@ config:
 
 templates:
   Python: "template.py"
+  CuteDSL: "template_cute.py"
 
 tests:
   - {"m": 128, "k": 256, "l": 1, "seed": 1111}
