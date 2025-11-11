@@ -159,8 +159,11 @@ def generate_input(
     sf_k = ceil_div(k, sf_vec_size)
     sfa_ref_cpu, sfa_permuted = create_scale_factor_tensors(l, m, sf_k)
     sfb_ref_cpu, sfb_permuted = create_scale_factor_tensors(l, n_padded_128, sf_k)
+
+    sfa_ref = sfa_ref_cpu.to("cuda")
+    sfb_ref = sfb_ref_cpu.to("cuda")
     
-    return (a_ref, b_ref, sfa_ref_cpu, sfb_ref_cpu, sfa_permuted, sfb_permuted, c_ref)
+    return (a_ref, b_ref, sfa_ref, sfb_ref, sfa_permuted, sfb_permuted, c_ref)
 
 
 check_implementation = make_match_reference(ref_kernel, rtol=1e-03, atol=1e-03)
