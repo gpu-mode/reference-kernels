@@ -17,8 +17,19 @@ def to_blocked(input_matrix):
     # Please ensure rows and cols are multiples of 128 and 4 respectively
     n_row_blocks = ceil_div(rows, 128)
     n_col_blocks = ceil_div(cols, 4)
+    padded_rows = n_row_blocks * 128
+    padded_cols = n_col_blocks * 4
 
-    padded = input_matrix
+    # Pad the input matrix if necessary
+    if padded_rows != rows or padded_cols != cols:
+        padded = torch.nn.functional.pad(
+            input_matrix,
+            (0, padded_cols - cols, 0, padded_rows - rows),
+            mode="constant",
+            value=0,
+        )
+    else:
+        padded = input_matrix
     blocks = padded.view(n_row_blocks, 128, n_col_blocks, 4).permute(0, 2, 1, 3)
     rearranged = blocks.reshape(-1, 4, 32, 4).transpose(1, 2).reshape(-1, 32, 16)
 
