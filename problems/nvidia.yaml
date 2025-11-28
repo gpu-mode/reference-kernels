@@ -30,4 +30,4 @@ problems:
     deadline: "2026-02-20"
     gpus:
       - B200
-      - NVIDIA
+      - NVIDIA/name:
