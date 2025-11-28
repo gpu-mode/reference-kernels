@@ -10,3 +10,10 @@ problems:
     deadline: "2025-11-28"
     gpus:
       - NVIDIA
+
+problems:
+  - directory: nvidia/nvfp4_gemm
+    name: nvfp4_gemm
+    deadline: "2025-12-19"
+    gpus:
+      - NVIDIA
