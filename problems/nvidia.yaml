@@ -7,6 +7,6 @@ description: "NVIDIA Blackwell NVFP4 Kernel Hackathon"
 problems:
   - directory: nvidia/nvfp4_gemv
     name: nvfp4_gemv
-    deadline: "2025-11-28"
+    deadline: "2025-11-30"
     gpus:
       - NVIDIA
