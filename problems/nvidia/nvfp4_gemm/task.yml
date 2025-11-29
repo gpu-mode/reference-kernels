@@ -1,5 +1,3 @@
-# name: nvfp4-block-scaled-gemm
-
 files:
   - {"name": "submission.py", "source": "@SUBMISSION@"}
   - {"name": "task.py", "source": "task.py"}
