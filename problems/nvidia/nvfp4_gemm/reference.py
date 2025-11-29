@@ -155,7 +155,7 @@ def generate_input(
     sfa_ref_cpu, sfa_ref_permuted = create_scale_factor_tensors(l, m, sf_k)
     sfb_ref_cpu, sfb_ref_permuted = create_scale_factor_tensors(l, n, sf_k)
 
-    return (a_ref, b_ref, sfa_ref_cpu, sfb_ref_cpu, sfa_ref_permuted, sfb_ref_permuted, c_ref)
+    return (a_ref, b_ref, sfa_ref_cpu.to("cuda"), sfb_ref_cpu.to("cuda"), sfa_ref_permuted, sfb_ref_permuted, c_ref)
 
 
 check_implementation = make_match_reference(ref_kernel, rtol=1e-03, atol=1e-03)
