@@ -229,8 +229,8 @@ def _run_single_benchmark(
             outputs.append(output)
     except OpError as E:
         return f"Encountered {E}"
-    for out_idx, output in enumerate(outputs):
-        good, message = check_implementation(check_copy[out_idx], output)
+    for reference_output, custom_output in zip(check_copy, outputs):
+        good, message = check_implementation(reference_output, custom_output)
         if not good:
             return message
 
@@ -258,8 +258,8 @@ def _run_single_benchmark(
         ) * 1e6  # Convert ms to ns
 
         if recheck:
-            for out_idx, output in enumerate(outputs):
-                good, message = check_implementation(check_copy[out_idx], output)
+            for reference_output, custom_output in zip(check_copy, outputs):
+                good, message = check_implementation(reference_output, custom_output)
             if not good:
                 return message
 
