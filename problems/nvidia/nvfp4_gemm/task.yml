@@ -3,7 +3,7 @@ files:
   - {"name": "task.py", "source": "task.py"}
   - {"name": "utils.py", "source": "../utils.py"}
   - {"name": "reference.py", "source": "reference.py"}
-  - {"name": "eval.py", "source": "../eval.py"}
+  - {"name": "eval.py", "source": "../eval_better_bench.py"}
 
 lang: "py"
 
