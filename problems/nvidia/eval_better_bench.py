@@ -22,6 +22,8 @@ except ImportError:
 
 from reference import check_implementation, generate_input
 
+NUM_ITERATIONS_PER_BENCHMARK = 50
+
 
 class PopcornOutput:
     def __init__(self, fd: int):
@@ -208,11 +210,10 @@ def _run_single_benchmark(
     from submission import custom_kernel
 
     durations = []
-    num_iterations_per_benchmark = 50
     data_list = []
     # generate input data once
 
-    for i in range(num_iterations_per_benchmark):
+    for i in range(NUM_ITERATIONS_PER_BENCHMARK):
         if "seed" in test.args:
             test.args["seed"] += 42
         data = generate_input(**test.args)
@@ -241,7 +242,7 @@ def _run_single_benchmark(
     bm_start_time = time.perf_counter_ns()
     for i in range(max_repeats):
         torch.cuda.synchronize()
-        
+
         clear_l2_cache()
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
@@ -250,7 +251,9 @@ def _run_single_benchmark(
             output = custom_kernel(data)
         end_event.record()
         torch.cuda.synchronize()
-        duration = (start_event.elapsed_time(end_event) / num_iterations_per_benchmark) * 1e6  # Convert ms to ns
+        duration = (
+            start_event.elapsed_time(end_event) / NUM_ITERATIONS_PER_BENCHMARK
+        ) * 1e6  # Convert ms to ns
 
         if recheck:
             for out_idx, output in enumerate(outputs):
@@ -261,7 +264,9 @@ def _run_single_benchmark(
         durations.append(duration)
 
         total_bm_duration = time.perf_counter_ns() - bm_start_time
-        if i > 1 and total_bm_duration > 1e8:       # at least 2 runs, and at least 100 ms total time
+        if (
+            i > 1 and total_bm_duration > 1e8
+        ):  # at least 2 runs, and at least 100 ms total time
             stats = calculate_stats(durations)
             # stop if either
             # a) relative error dips below 0.1%
