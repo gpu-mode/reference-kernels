@@ -243,12 +243,14 @@ def _run_single_benchmark(
     for i in range(max_repeats):
         torch.cuda.synchronize()
 
+        outputs = []
         clear_l2_cache()
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
         start_event.record()
         for data in data_list:
             output = custom_kernel(data)
+            outputs.append(output)
         end_event.record()
         torch.cuda.synchronize()
         duration = (
