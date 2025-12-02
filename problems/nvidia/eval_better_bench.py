@@ -13,7 +13,7 @@ import torch.cuda
 from cutlass.cute.nvgpu.common import OpError
 from torch.cuda.nvtx import range as nvtx_range
 
-from utils import set_seed, clear_l2_cache
+from utils import set_seed, clear_l2_cache_large
 
 try:
     from task import TestSpec
