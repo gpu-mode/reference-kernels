@@ -28,11 +28,7 @@ def get_device(use_cuda: bool = True) -> torch.device:
 # Adapted from https://github.com/linkedin/Liger-Kernel/blob/main/test/utils.py
 @torch.no_grad()
 def verbose_allclose(
-        received: torch.Tensor,
-        expected: torch.Tensor,
-        rtol=1e-05,
-        atol=1e-08,
-        max_print=5
+    received: torch.Tensor, expected: torch.Tensor, rtol=1e-05, atol=1e-08, max_print=5
 ) -> list[str]:
     """
     Assert that two tensors are element-wise equal within a tolerance, providing detailed information about mismatches.
@@ -64,9 +60,13 @@ def verbose_allclose(
     nan_mismatched = torch.logical_xor(torch.isnan(received), torch.isnan(expected))
 
     # Find +inf mismatched elements
-    posinf_mismatched = torch.logical_xor(torch.isposinf(received), torch.isposinf(expected))
+    posinf_mismatched = torch.logical_xor(
+        torch.isposinf(received), torch.isposinf(expected)
+    )
     # Find -inf mismatched elements
-    neginf_mismatched = torch.logical_xor(torch.isneginf(received), torch.isneginf(expected))
+    neginf_mismatched = torch.logical_xor(
+        torch.isneginf(received), torch.isneginf(expected)
+    )
 
     # Find all mismatched elements
     mismatched = torch.logical_or(
@@ -87,14 +87,18 @@ def verbose_allclose(
             i = tuple(index.tolist())
             mismatch_details.append(f"ERROR AT {i}: {received[i]} {expected[i]}")
         if num_mismatched > max_print:
-            mismatch_details.append(f"... and {num_mismatched - max_print} more mismatched elements.")
+            mismatch_details.append(
+                f"... and {num_mismatched - max_print} more mismatched elements."
+            )
         return mismatch_details
 
     return []
 
 
 @torch.no_grad()
-def verbose_allequal(received: torch.Tensor, expected: torch.Tensor, max_print: int=5):
+def verbose_allequal(
+    received: torch.Tensor, expected: torch.Tensor, max_print: int = 5
+):
     """
     Assert that two tensors are element-wise perfectly equal, providing detailed information about mismatches.
 
@@ -120,13 +124,17 @@ def verbose_allequal(received: torch.Tensor, expected: torch.Tensor, max_print: 
             i = tuple(index.tolist())
             mismatch_details.append(f"ERROR AT {i}: {received[i]} {expected[i]}")
         if num_mismatched > max_print:
-            mismatch_details.append(f"... and {num_mismatched - max_print} more mismatched elements.")
+            mismatch_details.append(
+                f"... and {num_mismatched - max_print} more mismatched elements."
+            )
         return mismatch_details
 
     return []
 
 
-def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08) -> tuple[bool, str]:
+def match_reference(
+    data, output, reference: callable, rtol=1e-05, atol=1e-08
+) -> tuple[bool, str]:
     """
     Convenient "default" implementation for tasks' `check_implementation` function.
     """
@@ -134,14 +142,19 @@ def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08) -
     reasons = verbose_allclose(output, expected, rtol=rtol, atol=atol)
 
     if len(reasons) > 0:
-        return False, "mismatch found! custom implementation doesn't match reference: " + " ".join(reasons)
+        return (
+            False,
+            "mismatch found! custom implementation doesn't match reference: "
+            + " ".join(reasons),
+        )
 
-    return True, ''
+    return True, ""
 
 
 def make_match_reference(reference: callable, **kwargs):
     def wrapped(data, output):
         return match_reference(data, output, reference=reference, **kwargs)
+
     return wrapped
 
 
@@ -152,7 +165,7 @@ class DeterministicContext:
         self.cublas = None
 
     def __enter__(self):
-        self.cublas = os.environ.get('CUBLAS_WORKSPACE_CONFIG', '')
+        self.cublas = os.environ.get("CUBLAS_WORKSPACE_CONFIG", "")
         self.allow_tf32 = torch.backends.cudnn.allow_tf32
         self.deterministic = torch.backends.cudnn.deterministic
         torch.backends.cudnn.allow_tf32 = False
@@ -164,11 +177,20 @@ class DeterministicContext:
         torch.backends.cudnn.allow_tf32 = self.allow_tf32
         torch.backends.cudnn.deterministic = self.deterministic
         torch.use_deterministic_algorithms(False)
-        os.environ['CUBLAS_WORKSPACE_CONFIG'] = self.cublas
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = self.cublas
+
 
 def clear_l2_cache():
     # import cupy as cp
     # cp.cuda.runtime.deviceSetLimit(cp.cuda.runtime.cudaLimitPersistingL2CacheSize, 0)
     # create a large dummy tensor
     dummy = torch.randn((1024, 1024, 1024), device="cuda")
+    del dummy
+
+
+def clear_l2_cache_large():
+    # import cupy as cp
+    # cp.cuda.runtime.deviceSetLimit(cp.cuda.runtime.cudaLimitPersistingL2CacheSize, 0)
+    # create a large dummy tensor
+    dummy = torch.randn((16000, 1024, 1024), device="cuda")
     del dummy
