@@ -405,7 +405,7 @@ def run_single_profile(test: TestCase, pool: multiprocessing.Pool) -> str:
     """
     Runs a single profiling activity in another process.
     """
-    if bool(os.getenv("POPCORN_NCU", "0")):
+    if int(os.getenv("POPCORN_NCU", "0")) == 1:
         return pool.apply(_run_single_profile_ncu, (test,))
     else:
         return pool.apply(_run_single_profile_torch, (test,))
@@ -420,7 +420,8 @@ def run_profiling(
         report = run_single_profile(test, pool)
         logger.log(
             f"benchmark.{idx}.report",
-            base64.b64encode(report.encode("utf-8"), b"+*").decode("utf-8"),
+            #base64.b64encode(report.encode("utf-8"), b"+*").decode("utf-8"),
+            report
         )
     logger.log("check", "pass")
     return 0
