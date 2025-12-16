@@ -107,7 +107,6 @@ class Stats:
 def calculate_stats(durations: list[int]):
     """
     Calculate statistical data from a list of durations.
-
     @param durations: A list of durations in nanoseconds.
     @return: A Stats object containing the number of runs, mean, standard deviation, error, best, and worst durations.
     """
@@ -172,7 +171,6 @@ def run_testing(
 ):
     """
     Executes the actual test case code and checks for correctness.
-
     @param logger: A PopcornOutput object used for logging test results.
     @param tests: A list of TestCase objects representing the test cases to be executed.
     @return: An integer representing the exit status: 0 if all tests pass, otherwise 112.
@@ -185,7 +183,7 @@ def run_testing(
         logger.log("compile.error", compile_error)
         return 112
     logger.log("compile", "pass")
-    
+
     # Step 2: Run all tests with compiled kernel
     passed = True
     logger.log("test-count", len(tests))
@@ -215,7 +213,7 @@ def _compile_kernel_once():
     This ensures compilation time is not included in benchmark results.
     """
     from submission import compile_kernel
-    
+
     try:
         # Trigger compilation (will be cached)
         compile_kernel()
@@ -239,7 +237,7 @@ def _run_single_benchmark(
     # generate input data once
     data = generate_input(**test.args)
     check_copy = _clone_data(data)
-    
+
     # Ensure kernel is compiled before any timing (compilation is cached)
     try:
         compile_kernel()
@@ -248,7 +246,7 @@ def _run_single_benchmark(
         return f"Compilation failed: {E}"
     except Exception as E:
         return f"Compilation failed: {E}"
-    
+
     #  first, one obligatory correctness check
     try:
         output = custom_kernel(_clone_data(data))
@@ -317,7 +315,6 @@ def run_single_benchmark(
 ):
     """
     For a particular test case, check correctness (if applicable) and grab runtime results.
-
     @param pool: Process on which the benchmark will be launched.
     @param test: TestCase object.
     @param recheck: Flag for whether to explicitly check functional correctness.
@@ -333,7 +330,6 @@ def run_benchmarking(
 ):
     """
     Executes benchmarking code for a CUDA Kernel and logs runtimes.
-
     @param logger: A PopcornOutput object used for logging benchmark results.
     @param pool: Process on which the benchmarks will be launched.
     @param tests: A list of TestCase objects representing the test cases to be benchmarked.
@@ -347,7 +343,7 @@ def run_benchmarking(
         logger.log("compile.error", compile_error)
         return 112
     logger.log("compile", "pass")
-    
+
     # Step 2: Warm up with compiled kernel
     run_single_benchmark(pool, tests[0], False, 200, 10e7)
 
@@ -464,10 +460,10 @@ def main():
                     logger.log("compile.error", compile_error)
                     return 112
                 logger.log("compile", "pass")
-                
+
                 # Step 2: Warmup with compiled kernel
                 run_single_benchmark(pool, tests[0], False, 200, 1e7)
-                
+
                 # Step 3: Run leaderboard benchmarks (compilation time excluded)
                 logger.log("benchmark-count", len(tests))
                 passed = True
