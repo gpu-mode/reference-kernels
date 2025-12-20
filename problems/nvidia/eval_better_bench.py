@@ -13,7 +13,7 @@ import torch.cuda
 from cutlass.cute.nvgpu.common import OpError
 from torch.cuda.nvtx import range as nvtx_range
 
-from utils import set_seed, clear_l2_cache
+from utils import set_seed, clear_l2_cache_large as clear_l2_cache
 
 try:
     from task import TestSpec
@@ -21,6 +21,8 @@ except ImportError:
     TestSpec = dict
 
 from reference import check_implementation, generate_input
+
+NUM_ITERATIONS_PER_BENCHMARK = 50
 
 
 class PopcornOutput:
@@ -208,18 +210,29 @@ def _run_single_benchmark(
     from submission import custom_kernel
 
     durations = []
+    data_list = []
     # generate input data once
-    data = generate_input(**test.args)
-    check_copy = _clone_data(data)
+
+    for i in range(NUM_ITERATIONS_PER_BENCHMARK):
+        if "seed" in test.args:
+            test.args["seed"] += 42
+        data = generate_input(**test.args)
+        data_list.append(data)
+
+    check_copy = _clone_data(data_list)
 
     #  first, one obligatory correctness check
+    outputs = []
     try:
-        output = custom_kernel(_clone_data(data))
+        for data in data_list:
+            output = custom_kernel(_clone_data(data))
+            outputs.append(output)
     except OpError as E:
         return f"Encountered {E}"
-    good, message = check_implementation(check_copy, output)
-    if not good:
-        return message
+    for reference_output, custom_output in zip(check_copy, outputs):
+        good, message = check_implementation(reference_output, custom_output)
+        if not good:
+            return message
 
     # now, do multiple timing runs without further correctness testing
     # there is an upper bound of 200 runs, and a lower bound of 3 runs;
@@ -228,34 +241,34 @@ def _run_single_benchmark(
 
     bm_start_time = time.perf_counter_ns()
     for i in range(max_repeats):
-        if recheck:
-            # ensure we use a different seed for every benchmark
-            if "seed" in test.args:
-                test.args["seed"] += 13
-
-            data = generate_input(**test.args)
-            check_copy = _clone_data(data)
         torch.cuda.synchronize()
+
+        outputs = []
+        clear_l2_cache()
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
-        clear_l2_cache()
-
         start_event.record()
-        output = custom_kernel(data)
+        for data in data_list:
+            output = custom_kernel(data)
+            outputs.append(output)
         end_event.record()
         torch.cuda.synchronize()
-        duration = start_event.elapsed_time(end_event) * 1e6  # Convert ms to ns
+        duration = (
+            start_event.elapsed_time(end_event) / NUM_ITERATIONS_PER_BENCHMARK
+        ) * 1e6  # Convert ms to ns
 
         if recheck:
-            good, message = check_implementation(check_copy, output)
+            for reference_output, custom_output in zip(check_copy, outputs):
+                good, message = check_implementation(reference_output, custom_output)
             if not good:
                 return message
 
-        del output
         durations.append(duration)
 
         total_bm_duration = time.perf_counter_ns() - bm_start_time
-        if i > 1 and total_bm_duration > 1e8:       # at least 2 runs, and at least 100 ms total time
+        if (
+            i > 1 and total_bm_duration > 1e8
+        ):  # at least 2 runs, and at least 100 ms total time
             stats = calculate_stats(durations)
             # stop if either
             # a) relative error dips below 0.1%

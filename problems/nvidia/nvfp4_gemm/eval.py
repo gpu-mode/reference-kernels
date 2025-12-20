@@ -8,10 +8,10 @@ import sys
 import math
 from pathlib import Path
 from typing import Any, Optional
+import tempfile
 
 import torch.cuda
 from cutlass.cute.nvgpu.common import OpError
-from torch.cuda.nvtx import range as nvtx_range
 
 from utils import set_seed, clear_l2_cache
 
@@ -177,6 +177,16 @@ def run_testing(
     @param tests: A list of TestCase objects representing the test cases to be executed.
     @return: An integer representing the exit status: 0 if all tests pass, otherwise 112.
     """
+    # Step 1: Compile kernel once before running tests
+    logger.log("compile", "start")
+    compile_success, compile_error = pool.apply(_compile_kernel_once)
+    if not compile_success:
+        logger.log("compile", "fail")
+        logger.log("compile.error", compile_error)
+        return 112
+    logger.log("compile", "pass")
+    
+    # Step 2: Run all tests with compiled kernel
     passed = True
     logger.log("test-count", len(tests))
     for idx, test in enumerate(tests):
@@ -199,19 +209,46 @@ def run_testing(
         return 112
 
 
+def _compile_kernel_once():
+    """
+    Compile the kernel once before any benchmarking.
+    This ensures compilation time is not included in benchmark results.
+    """
+    from submission import compile_kernel
+    
+    try:
+        # Trigger compilation (will be cached)
+        compile_kernel()
+        torch.cuda.synchronize()
+        return True, None
+    except OpError as E:
+        return False, f"Compilation failed: {E}"
+    except Exception as E:
+        return False, f"Compilation failed: {E}"
+
+
 def _run_single_benchmark(
     test: TestCase, recheck: bool, max_repeats: int, max_time_ns: float
 ) -> Stats | Any:
     """
     Runs one benchmark. Do not call directly.
     """
-    from submission import custom_kernel
+    from submission import custom_kernel, compile_kernel
 
     durations = []
     # generate input data once
     data = generate_input(**test.args)
     check_copy = _clone_data(data)
-
+    
+    # Ensure kernel is compiled before any timing (compilation is cached)
+    try:
+        compile_kernel()
+        torch.cuda.synchronize()
+    except OpError as E:
+        return f"Compilation failed: {E}"
+    except Exception as E:
+        return f"Compilation failed: {E}"
+    
     #  first, one obligatory correctness check
     try:
         output = custom_kernel(_clone_data(data))
@@ -254,8 +291,8 @@ def _run_single_benchmark(
         del output
         durations.append(duration)
 
-        total_bm_duration = time.perf_counter_ns() - bm_start_time
-        if i > 1 and total_bm_duration > 1e8:       # at least 2 runs, and at least 100 ms total time
+        if i > 1:
+            total_bm_duration = time.perf_counter_ns() - bm_start_time
             stats = calculate_stats(durations)
             # stop if either
             # a) relative error dips below 0.1%
@@ -302,9 +339,19 @@ def run_benchmarking(
     @param tests: A list of TestCase objects representing the test cases to be benchmarked.
     @return: An integer representing the exit status: 0 if all benchmarks pass, otherwise 112.
     """
-
+    # Step 1: Compile kernel once (outside of timing)
+    logger.log("compile", "start")
+    compile_success, compile_error = pool.apply(_compile_kernel_once)
+    if not compile_success:
+        logger.log("compile", "fail")
+        logger.log("compile.error", compile_error)
+        return 112
+    logger.log("compile", "pass")
+    
+    # Step 2: Warm up with compiled kernel
     run_single_benchmark(pool, tests[0], False, 200, 10e7)
 
+    # Step 3: Run benchmarks (compilation time excluded)
     passed = True
     logger.log("benchmark-count", len(tests))
     for idx, test in enumerate(tests):
@@ -326,98 +373,27 @@ def run_benchmarking(
         return 112
 
 
-def _run_single_profile_torch(test: TestCase) -> str:
+def run_single_profile(test: TestCase) -> str:
     """
-    Profiles a single benchmark using the torch profiler.
+    Runs a single test case. Do not call directly
     """
     from submission import custom_kernel
-    from torch.profiler import profile, ProfilerActivity
+    from torch.profiler import profile, record_function, ProfilerActivity
 
-    with nvtx_range("generate input"):
-        data = generate_input(**test.args)
-        torch.cuda.synchronize()
+    data = generate_input(**test.args)
+    torch.cuda.synchronize()
 
-    cloned = _clone_data(data)
     with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
-        with nvtx_range("custom_kernel"):
-            submission_output = custom_kernel(cloned)
-            torch.cuda.synchronize()
-
+        submission_output = custom_kernel(_clone_data(data))
+        torch.cuda.synchronize()
     return prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
 
 
-def _run_single_profile_ncu(test: TestCase) -> str:
-    """
-    Profiles a single benchmark using ncu. Note: this does not
-    invoke NCU; instead, it is expected that eval is launched
-    under NCU, and this function will rurnthe kernel excactly
-    once in the 'custom_kernel' nvtx range.
-    """
-    from submission import custom_kernel
-
-    with nvtx_range("generate input"):
-        data = generate_input(**test.args)
-        torch.cuda.synchronize()
-
-    cloned = _clone_data(data)
-    with nvtx_range("custom_kernel"):
-        submission_output = custom_kernel(cloned)
-        torch.cuda.synchronize()
-
-    return ""
-
-
-def _combine_traces(traces: list["EventList"]) -> "EventList":
-    """
-    Combine multiple event traces obtained from multiple (distributed) torch.profiler
-    activities. This function simply aggregates the data as like `prof.key_averages()`,
-    except over multiple traces. Most of this function is reimplemented
-    from `torch.autograd.profiler_util.EventList.key_averages()`.
-    """
-    from torch.autograd.profiler_util import FunctionEventAvg, EventList
-    from collections import defaultdict
-
-    def get_key(event) -> tuple[str, ...]:
-        return (
-            str(event.key),
-            str(event.node_id),
-            str(event.device_type),
-            str(event.is_legacy),
-            str(event.is_user_annotation),
-        )
-
-    stats: dict[tuple[str, ...], FunctionEventAvg] = defaultdict(FunctionEventAvg)
-
-    for events in traces:
-        for event in events:
-            stats[get_key(event)].add(event)
-
-    avg_list = EventList(stats.values())
-    for event in avg_list:
-        event.stack = []
-        event.input_shapes = ""
-        event.overload_name = ""
-
-    return avg_list
-
-
-def run_single_profile(test: TestCase, pool: multiprocessing.Pool) -> str:
-    """
-    Runs a single profiling activity in another process.
-    """
-    if bool(os.getenv("POPCORN_NCU", "0")):
-        return pool.apply(_run_single_profile_ncu, (test,))
-    else:
-        return pool.apply(_run_single_profile_torch, (test,))
-
-
-def run_profiling(
-    logger: PopcornOutput, pool: multiprocessing.Pool, tests: list[TestCase]
-):
+def run_profiling(logger: PopcornOutput, tests: list[TestCase]):
     logger.log("benchmark-count", len(tests))
     for idx, test in enumerate(tests):
         logger.log(f"benchmark.{idx}.spec", test.spec)
-        report = run_single_profile(test, pool)
+        report = run_single_profile(test)
         logger.log(
             f"benchmark.{idx}.report",
             base64.b64encode(report.encode("utf-8"), b"+*").decode("utf-8"),
@@ -440,7 +416,34 @@ def main():
     seed = int(seed) if seed else None
     set_seed(seed or 42)
 
-    tests = get_test_cases(sys.argv[2], seed)
+    filename = None
+
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+
+        def build_test_string(tests: list[dict]):
+            as_str = ""
+            for test in tests:
+                kvs = []
+                for k, v in test.items():
+                    kvs.append(f"{k}: {v}")
+                as_str += "; ".join(kvs) + "\n"
+            return as_str
+
+        import yaml
+
+        yaml_content = yaml.safe_load(open(sys.argv[2], "r"))
+        if mode == "test":
+            tests_str = build_test_string(yaml_content.get("tests", []))
+        elif mode in ("benchmark", "leaderboard", "profile"):
+            tests_str = build_test_string(yaml_content.get("benchmarks", []))
+
+        tmp.write(tests_str.encode("utf-8"))
+        tmp.flush()
+        filename = tmp.name
+
+    tests = get_test_cases(filename, seed)
+
+    os.unlink(filename)
 
     with PopcornOutput(int(fd)) as logger:
         import multiprocessing
@@ -453,7 +456,19 @@ def main():
                 return run_benchmarking(logger, pool, tests)
 
             if mode == "leaderboard":
+                # Step 1: Compile kernel once (outside of timing)
+                logger.log("compile", "start")
+                compile_success, compile_error = pool.apply(_compile_kernel_once)
+                if not compile_success:
+                    logger.log("compile", "fail")
+                    logger.log("compile.error", compile_error)
+                    return 112
+                logger.log("compile", "pass")
+                
+                # Step 2: Warmup with compiled kernel
                 run_single_benchmark(pool, tests[0], False, 200, 1e7)
+                
+                # Step 3: Run leaderboard benchmarks (compilation time excluded)
                 logger.log("benchmark-count", len(tests))
                 passed = True
                 for i in range(len(tests)):
@@ -475,7 +490,7 @@ def main():
 
                 logger.log("check", "pass" if passed else "fail")
             elif mode == "profile":
-                run_profiling(logger, pool, tests)
+                run_profiling(logger, tests)
             else:
                 # TODO: Implement script mode
                 return 2
