@@ -35,11 +35,11 @@ num_ab_stage = 4
 # Total number of columns in tmem
 num_tmem_alloc_cols = 512
 
-
-# Helper function for ceiling division
-def ceil_div(a, b):
-    return (a + b - 1) // b
-
+@cute.struct
+class SharedStorage:
+    ab_mbar_ptr: cute.struct.MemRange[cutlass.Int64, num_ab_stage * 2]
+    acc_mbar_ptr: cute.struct.MemRange[cutlass.Int64, num_acc_stage * 2]
+    tmem_holding_buf: cutlass.Int32
 
 # The CuTe reference implementation for NVFP4 block-scaled GEMM
 @cute.kernel
@@ -65,129 +65,125 @@ def kernel(
     """
     warp_idx = cute.arch.warp_idx()
     warp_idx = cute.arch.make_warp_uniform(warp_idx)
-    tidx = cute.arch.thread_idx()
-
-    #
-    # Setup cta/thread coordinates
-    #
-    # Coords inside cluster
     bidx, bidy, bidz = cute.arch.block_idx()
-
-    # Coords outside cluster
-    cta_coord = (bidx, bidy, bidz)
-    mma_tile_coord_mnl = (
-        cta_coord[0] // cute.size(tiled_mma.thr_id.shape),
-        cta_coord[1],
-        cta_coord[2],
-    )
-    # Coord inside cta
     tidx, _, _ = cute.arch.thread_idx()
 
     #
-    # Define shared storage for kernel
+    # Prefetch tma desc
     #
-    @cute.struct
-    class SharedStorage:
-        ab_mbar_ptr: cute.struct.MemRange[cutlass.Int64, num_ab_stage * 2]
-        acc_mbar_ptr: cute.struct.MemRange[cutlass.Int64, num_acc_stage * 2]
-        tmem_holding_buf: cutlass.Int32
+    if warp_idx == 0:
+        cpasync.prefetch_descriptor(tma_atom_a)
+        cpasync.prefetch_descriptor(tma_atom_b)
+        cpasync.prefetch_descriptor(tma_atom_sfa)
+        cpasync.prefetch_descriptor(tma_atom_sfb)
 
-    smem = utils.SmemAllocator()
+    #
+    # Allocate shared storage for kernel
+    #
+    smem = cutlass.utils.SmemAllocator()
     storage = smem.allocate(SharedStorage)
+
     # (MMA, MMA_M, MMA_K, STAGE)
     sA = smem.allocate_tensor(
-        element_type=ab_dtype,
-        layout=a_smem_layout_staged.outer,
-        byte_alignment=128,
-        swizzle=a_smem_layout_staged.inner,
+        ab_dtype,
+        a_smem_layout_staged.outer,
+        128,
+        a_smem_layout_staged.inner,
     )
     # (MMA, MMA_N, MMA_K, STAGE)
     sB = smem.allocate_tensor(
-        element_type=ab_dtype,
-        layout=b_smem_layout_staged.outer,
-        byte_alignment=128,
-        swizzle=b_smem_layout_staged.inner,
+        ab_dtype,
+        b_smem_layout_staged.outer,
+        128,
+        b_smem_layout_staged.inner,
     )
     # (MMA, MMA_M, MMA_K, STAGE)
     sSFA = smem.allocate_tensor(
-        element_type=sf_dtype,
-        layout=sfa_smem_layout_staged,
-        byte_alignment=128,
+        sf_dtype,
+        sfa_smem_layout_staged,
+        128,
     )
     # (MMA, MMA_N, MMA_K, STAGE)
     sSFB = smem.allocate_tensor(
-        element_type=sf_dtype,
-        layout=sfb_smem_layout_staged,
-        byte_alignment=128,
+        sf_dtype,
+        sfb_smem_layout_staged,
+        128,
     )
 
     #
-    # Initialize mainloop ab_pipeline, acc_pipeline and their states
+    # Initialize pipelines
     #
-    ab_pipeline_producer_group = pipeline.CooperativeGroup(pipeline.Agent.Thread)
-    ab_pipeline_consumer_group = pipeline.CooperativeGroup(pipeline.Agent.Thread, 1)
     ab_producer, ab_consumer = pipeline.PipelineTmaUmma.create(
-        barrier_storage=storage.ab_mbar_ptr.data_ptr(),
         num_stages=num_ab_stage,
-        producer_group=ab_pipeline_producer_group,
-        consumer_group=ab_pipeline_consumer_group,
+        producer_group=pipeline.CooperativeGroup(pipeline.Agent.Thread),
+        consumer_group=pipeline.CooperativeGroup(pipeline.Agent.Thread),
         tx_count=num_tma_load_bytes,
+        barrier_storage=storage.ab_mbar_ptr.data_ptr(),
     ).make_participants()
+
     acc_producer, acc_consumer = pipeline.PipelineUmmaAsync.create(
-        barrier_storage=storage.acc_mbar_ptr.data_ptr(),
         num_stages=num_acc_stage,
-        producer_group=ab_pipeline_producer_group,
-        consumer_group=pipeline.CooperativeGroup(
-            pipeline.Agent.Thread,
-            threads_per_cta,
-        ),
+        producer_group=pipeline.CooperativeGroup(pipeline.Agent.Thread),
+        consumer_group=pipeline.CooperativeGroup(pipeline.Agent.Thread, threads_per_cta),
+        barrier_storage=storage.acc_mbar_ptr.data_ptr(),
     ).make_participants()
 
     #
-    # Local_tile partition global tensors
+    # Partition tensors for MMA and make fragments
     #
-    # (bM, bK, RestM, RestK, RestL)
-    gA_mkl = cute.local_tile(
-        mA_mkl, cute.slice_(mma_tiler_mnk, (None, 0, None)), (None, None, None)
+    # (BM, BK, restM, restK, restL)
+    gA = cute.local_tile(
+        mA_mkl,
+        cute.select(mma_tiler_mnk, mode=[0, 2]),
+        (None, None, None),
     )
-    # (bN, bK, RestN, RestK, RestL)
-    gB_nkl = cute.local_tile(
-        mB_nkl, cute.slice_(mma_tiler_mnk, (0, None, None)), (None, None, None)
+    # (BN, BK, restN, restK, restL)
+    gB = cute.local_tile(
+        mB_nkl,
+        cute.select(mma_tiler_mnk, mode=[1, 2]),
+        (None, None, None),
     )
-    gSFA_mkl = cute.local_tile(
-        mSFA_mkl, cute.slice_(mma_tiler_mnk, (None, 0, None)), (None, None, None)
+    # (BM, BK, restM, restK, restL)
+    gSFA = cute.local_tile(
+        mSFA_mkl,
+        cute.select(mma_tiler_mnk, mode=[0, 2]),
+        (None, None, None),
     )
-    gSFB_nkl = cute.local_tile(
-        mSFB_nkl, cute.slice_(mma_tiler_mnk, (0, None, None)), (None, None, None)
+    # (BN, BK, restN, restK, restL)
+    gSFB = cute.local_tile(
+        mSFB_nkl,
+        cute.select(mma_tiler_mnk, mode=[1, 2]),
+        (None, None, None),
     )
-    # (bM, bN, RestM, RestN, RestL)
-    gC_mnl = cute.local_tile(
-        mC_mnl, cute.slice_(mma_tiler_mnk, (None, None, 0)), (None, None, None)
+    # (BM, BN, restM, restN, restL)
+    gC = cute.local_tile(
+        mC_mnl,
+        cute.select(mma_tiler_mnk, mode=[0, 1]),
+        (None, None, None),
     )
-    k_tile_cnt = cute.size(gA_mkl, mode=[3])
+    k_tile_cnt = cute.size(gA, mode=[3])
 
     #
     # Partition global tensor for TiledMMA_A/B/SFA/SFB/C
     #
     # (MMA, MMA_M, MMA_K, RestK)
     thr_mma = tiled_mma.get_slice(0)
-    # (MMA, MMA_M, MMA_K, RestM, RestK, RestL)
-    tCgA = thr_mma.partition_A(gA_mkl)
-    # (MMA, MMA_N, MMA_K, RestN, RestK, RestL)
-    tCgB = thr_mma.partition_B(gB_nkl)
-    # (MMA, MMA_M, MMA_K, RestM, RestK, RestL)
-    tCgSFA = thr_mma.partition_A(gSFA_mkl)
-    # (MMA, MMA_N, MMA_K, RestN, RestK, RestL)
-    tCgSFB = thr_mma.partition_B(gSFB_nkl)
-    # (MMA, MMA_M, MMA_N, RestM, RestN, RestL)
-    tCgC = thr_mma.partition_C(gC_mnl)
+    # (MMA, MMA_M, MMA_N, restM, restK, restL)
+    tCgA = thr_mma.partition_A(gA)
+    # (MMA, MMA_N, MMA_K, restN, restK, restL)
+    tCgB = thr_mma.partition_B(gB)
+    # (MMA, MMA_M, MMA_K, restM, restK, restL)
+    tCgSFA = thr_mma.partition_A(gSFA)
+    # (MMA, MMA_N, MMA_K, restN, restK, restL)
+    tCgSFB = thr_mma.partition_B(gSFB)
+    # (MMA, MMA_M, MMA_N, restM, restN, restL)
+    tCgC = thr_mma.partition_C(gC)
 
     #
     # Partition global/shared tensor for TMA load A/B/SFA/SFB
     #
-    # TMA Partition_S/D for A
-    # ((atom_v, rest_v), STAGE)
-    # ((atom_v, rest_v), RestM, RestK, RestL)
+    # tAsA: ((atom_v, rest_v), STAGE)
+    # tAgA: ((atom_v, rest_v), RestM, RestK, RestL)
     tAsA, tAgA = cpasync.tma_partition(
         tma_atom_a,
         0,
@@ -195,9 +191,8 @@ def kernel(
         cute.group_modes(sA, 0, 3),
         cute.group_modes(tCgA, 0, 3),
     )
-    # TMA Partition_S/D for B
-    # ((atom_v, rest_v), STAGE)
-    # ((atom_v, rest_v), RestN, RestK, RestL)
+    # tBsB: ((atom_v, rest_v), STAGE)
+    # tBgB: ((atom_v, rest_v), RestN, RestK, RestL)
     tBsB, tBgB = cpasync.tma_partition(
         tma_atom_b,
         0,
@@ -205,9 +200,8 @@ def kernel(
         cute.group_modes(sB, 0, 3),
         cute.group_modes(tCgB, 0, 3),
     )
-    #  TMA Partition_S/D for SFA
-    # ((atom_v, rest_v), STAGE)
-    # ((atom_v, rest_v), RestM, RestK, RestL)
+    # tAsSFA: ((atom_v, rest_v), STAGE)
+    # tAgSFA: ((atom_v, rest_v), RestM, RestK, RestL)
     tAsSFA, tAgSFA = cpasync.tma_partition(
         tma_atom_sfa,
         0,
@@ -217,9 +211,8 @@ def kernel(
     )
     tAsSFA = cute.filter_zeros(tAsSFA)
     tAgSFA = cute.filter_zeros(tAgSFA)
-    # TMA Partition_S/D for SFB
-    # ((atom_v, rest_v), STAGE)
-    # ((atom_v, rest_v), RestN, RestK, RestL)
+    # tBsSFB: ((atom_v, rest_v), STAGE)
+    # tBgSFB: ((atom_v, rest_v), RestN, RestK, RestL)
     tBsSFB, tBgSFB = cpasync.tma_partition(
         tma_atom_sfb,
         0,
@@ -231,7 +224,7 @@ def kernel(
     tBgSFB = cute.filter_zeros(tBgSFB)
 
     #
-    # Partition shared/tensor memory tensor for TiledMMA_A/B/C
+    # Partition shared memory tensor for TiledMMA_A/B/C
     #
     # (MMA, MMA_M, MMA_K, STAGE)
     tCrA = tiled_mma.make_fragment_A(sA)
@@ -254,16 +247,19 @@ def kernel(
         barrier_for_retrieve=tmem_alloc_barrier,
     )
     tmem.allocate(num_tmem_alloc_cols)
+
+    # Wait for tmem to be allocated
     tmem.wait_for_alloc()
     acc_tmem_ptr = tmem.retrieve_ptr(cutlass.Float32)
+
+    # Create the real tensor residing in tmem
     tCtAcc = cute.make_tensor(acc_tmem_ptr, tCtAcc_fake.layout)
 
     #
     # Make SFA/SFB tmem tensor
     #
-    # Get SFA tmem ptr
     sfa_tmem_ptr = cute.recast_ptr(
-        acc_tmem_ptr + tcgen05.find_tmem_tensor_col_offset(tCtAcc),
+        acc_tmem_ptr + mma_tiler_mnk[1],
         dtype=sf_dtype,
     )
     # (MMA, MMA_M, MMA_K)
@@ -271,14 +267,12 @@ def kernel(
         tiled_mma,
         mma_tiler_mnk,
         sf_vec_size,
-        cute.slice_(sfa_smem_layout_staged, (None, None, None, 0)),
+        cute.select(sfa_smem_layout_staged, mode=[0, 1, 2]),
     )
     tCtSFA = cute.make_tensor(sfa_tmem_ptr, tCtSFA_layout)
-    # Get SFB tmem ptr
+
     sfb_tmem_ptr = cute.recast_ptr(
-        acc_tmem_ptr
-        + tcgen05.find_tmem_tensor_col_offset(tCtAcc)
-        + tcgen05.find_tmem_tensor_col_offset(tCtSFA),
+        acc_tmem_ptr + mma_tiler_mnk[0] + tcgen05.find_tmem_tensor_col_offset(tCtSFA),
         dtype=sf_dtype,
     )
     # (MMA, MMA_N, MMA_K)
@@ -286,59 +280,103 @@ def kernel(
         tiled_mma,
         mma_tiler_mnk,
         sf_vec_size,
-        cute.slice_(sfb_smem_layout_staged, (None, None, None, 0)),
+        cute.select(sfb_smem_layout_staged, mode=[0, 1, 2]),
     )
     tCtSFB = cute.make_tensor(sfb_tmem_ptr, tCtSFB_layout)
 
     #
-    # Partition for S2T copy of SFA/SFB
+    # Partition for S2T copy of SFA/SFB (TiledMMA)
     #
     # Make S2T CopyAtom
     copy_atom_s2t = cute.make_copy_atom(
         tcgen05.Cp4x32x128bOp(tcgen05.CtaGroup.ONE),
         sf_dtype,
     )
-    # (MMA, MMA_MN, MMA_K, STAGE)
+
+    # SFA
+    # (MMA, MMA_M, MMA_K, STAGE)
+    # ((((32,4),1),(1,4)),1,4,4)
     tCsSFA_compact = cute.filter_zeros(sSFA)
-    # (MMA, MMA_MN, MMA_K)
+    # (MMA, MMA_N, MMA_K)
+    # ((((32,4),4),(1,4)),1,4)
     tCtSFA_compact = cute.filter_zeros(tCtSFA)
-    tiled_copy_s2t_sfa = tcgen05.make_s2t_copy(copy_atom_s2t, tCtSFA_compact)
+    tiled_copy_s2t_sfa = tcgen05.make_s2t_copy(
+        copy_atom_s2t,
+        tCtSFA_compact
+    )    
     thr_copy_s2t_sfa = tiled_copy_s2t_sfa.get_slice(0)
-    # ((ATOM_V, REST_V), Rest_Tiler, MMA_MN, MMA_K, STAGE)
+    # ((ATOM_V, REST_V), Rest_Tiler, MMA_M, MMA_K, STAGE)
+    # Copy entire SFA tensor for (128, 256) stage
+    # ((((32,4,4),4),1),1,1,4,4)
     tCsSFA_compact_s2t_ = thr_copy_s2t_sfa.partition_S(tCsSFA_compact)
-    # ((ATOM_V, REST_V), Rest_Tiler, MMA_MN, MMA_K, STAGE)
     tCsSFA_compact_s2t = tcgen05.get_s2t_smem_desc_tensor(
-        tiled_copy_s2t_sfa, tCsSFA_compact_s2t_
+        copy_atom_s2t,
+        tCsSFA_compact_s2t_
     )
-    # ((ATOM_V, REST_V), Rest_Tiler, MMA_MN, MMA_K)
+    # ((ATOM_V, REST_V), Rest_Tiler, MMA_M, MMA_K)
+    # (((32,16,4),1),1,1,4)
     tCtSFA_compact_s2t = thr_copy_s2t_sfa.partition_D(tCtSFA_compact)
 
-    # (MMA, MMA_MN, MMA_K, STAGE)
+    # SFB
+    # (MMA, MMA_N, MMA_K, STAGE)
     tCsSFB_compact = cute.filter_zeros(sSFB)
-    # (MMA, MMA_MN, MMA_K)
+    # (MMA, MMA_N, MMA_K)
     tCtSFB_compact = cute.filter_zeros(tCtSFB)
-    tiled_copy_s2t_sfb = tcgen05.make_s2t_copy(copy_atom_s2t, tCtSFB_compact)
-    thr_copy_s2t_sfb = tiled_copy_s2t_sfb.get_slice(0)
-    # ((ATOM_V, REST_V), Rest_Tiler, MMA_MN, MMA_K, STAGE)
-    tCsSFB_compact_s2t_ = thr_copy_s2t_sfb.partition_S(tCsSFB_compact)
-    # ((ATOM_V, REST_V), Rest_Tiler, MMA_MN, MMA_K, STAGE)
-    tCsSFB_compact_s2t = tcgen05.get_s2t_smem_desc_tensor(
-        tiled_copy_s2t_sfb, tCsSFB_compact_s2t_
+    tiled_copy_s2t_sfb = tcgen05.make_s2t_copy(
+        copy_atom_s2t,
+        tCtSFB_compact
     )
-    # ((ATOM_V, REST_V), Rest_Tiler, MMA_MN, MMA_K)
+    thr_copy_s2t_sfb = tiled_copy_s2t_sfb.get_slice(0)
+    # ((ATOM_V, REST_V), Rest_Tiler, MMA_N, MMA_K, STAGE)
+    tCsSFB_compact_s2t_ = thr_copy_s2t_sfb.partition_S(tCsSFB_compact)
+    tCsSFB_compact_s2t = tcgen05.get_s2t_smem_desc_tensor(
+        copy_atom_s2t,
+        tCsSFB_compact_s2t_
+    )
+    # ((ATOM_V, REST_V), Rest_Tiler, MMA_N, MMA_K)
     tCtSFB_compact_s2t = thr_copy_s2t_sfb.partition_D(tCtSFB_compact)
 
     #
     # Slice to per mma tile index
     #
     # ((atom_v, rest_v), RestK)
-    tAgA = tAgA[(None, mma_tile_coord_mnl[0], None, mma_tile_coord_mnl[2])]
+    tAgA = tAgA[(None, bidx, None, bidz)]
     # ((atom_v, rest_v), RestK)
-    tBgB = tBgB[(None, mma_tile_coord_mnl[1], None, mma_tile_coord_mnl[2])]
+    tBgB = tBgB[(None, bidy, None, bidz)]
     # ((atom_v, rest_v), RestK)
-    tAgSFA = tAgSFA[(None, mma_tile_coord_mnl[0], None, mma_tile_coord_mnl[2])]
+    tAgSFA = tAgSFA[(None, bidx, None, bidz)]
     # ((atom_v, rest_v), RestK)
-    tBgSFB = tBgSFB[(None, mma_tile_coord_mnl[1], None, mma_tile_coord_mnl[2])]
+    tBgSFB = tBgSFB[(None, bidy, None, bidz)]
+
+    # Prefetch num_ab_stage - 2 of TMA loads
+    if warp_idx == 0:
+        for stage in cutlass.range(num_ab_stage - 2):
+            if stage < k_tile_cnt:
+                ab_empty = ab_producer.acquire_and_advance()
+                cute.copy(
+                    tma_atom_a,
+                    tAgA[(None, ab_empty.count)],
+                    tAsA[(None, ab_empty.index)],
+                    tma_bar_ptr=ab_empty.barrier,
+                )
+                cute.copy(
+                    tma_atom_b,
+                    tBgB[(None, ab_empty.count)],
+                    tBsB[(None, ab_empty.index)],
+                    tma_bar_ptr=ab_empty.barrier,
+                )
+                cute.copy(
+                    tma_atom_sfa,
+                    tAgSFA[(None, ab_empty.count)],
+                    tAsSFA[(None, ab_empty.index)],
+                    tma_bar_ptr=ab_empty.barrier,
+                )
+                cute.copy(
+                    tma_atom_sfb,
+                    tBgSFB[(None, ab_empty.count)],
+                    tBsSFB[(None, ab_empty.index)],
+                    tma_bar_ptr=ab_empty.barrier,
+                )
 
     #
     # Execute Data copy and Math computation in the k_tile loop
@@ -346,89 +384,80 @@ def kernel(
     if warp_idx == 0:
         # Wait for accumulator buffer empty
         acc_empty = acc_producer.acquire_and_advance()
-        # Set ACCUMULATE field to False for the first k_tile iteration
-        tiled_mma.set(tcgen05.Field.ACCUMULATE, False)
         # Execute k_tile loop
-        for k_tile in range(k_tile_cnt):
-            # Wait for AB buffer empty
-            ab_empty = ab_producer.acquire_and_advance()
+        for k_tile in cutlass.range(k_tile_cnt):
+            # Issue TMA loads
+            if k_tile + num_ab_stage - 2 < k_tile_cnt:
+                ab_empty = ab_producer.acquire_and_advance()
 
-            #  TMA load A/B/SFA/SFB to shared memory
-            cute.copy(
-                tma_atom_a,
-                tAgA[(None, k_tile)],
-                tAsA[(None, ab_empty.index)],
-                tma_bar_ptr=ab_empty.barrier,
-            )
-            cute.copy(
-                tma_atom_b,
-                tBgB[(None, k_tile)],
-                tBsB[(None, ab_empty.index)],
-                tma_bar_ptr=ab_empty.barrier,
-            )
-            cute.copy(
-                tma_atom_sfa,
-                tAgSFA[(None, k_tile)],
-                tAsSFA[(None, ab_empty.index)],
-                tma_bar_ptr=ab_empty.barrier,
-            )
-            cute.copy(
-                tma_atom_sfb,
-                tBgSFB[(None, k_tile)],
-                tBsSFB[(None, ab_empty.index)],
-                tma_bar_ptr=ab_empty.barrier,
-            )
+                cute.copy(
+                    tma_atom_a,
+                    tAgA[(None, ab_empty.count)],
+                    tAsA[(None, ab_empty.index)],
+                    tma_bar_ptr=ab_empty.barrier,
+                )
+                cute.copy(
+                    tma_atom_b,
+                    tBgB[(None, ab_empty.count)],
+                    tBsB[(None, ab_empty.index)],
+                    tma_bar_ptr=ab_empty.barrier,
+                )
+                cute.copy(
+                    tma_atom_sfa,
+                    tAgSFA[(None, ab_empty.count)],
+                    tAsSFA[(None, ab_empty.index)],
+                    tma_bar_ptr=ab_empty.barrier,
+                )
+                cute.copy(
+                    tma_atom_sfb,
+                    tBgSFB[(None, ab_empty.count)],
+                    tBsSFB[(None, ab_empty.index)],
+                    tma_bar_ptr=ab_empty.barrier,
+                )
 
-            # Wait for AB buffer full
+            # Wait for ab data to be ready
             ab_full = ab_consumer.wait_and_advance()
 
-            # Copy SFA/SFB from shared memory to TMEM
+            # Copy SFA/SFB from smem to tmem
             s2t_stage_coord = (None, None, None, None, ab_full.index)
-            tCsSFA_compact_s2t_staged = tCsSFA_compact_s2t[s2t_stage_coord]
-            tCsSFB_compact_s2t_staged = tCsSFB_compact_s2t[s2t_stage_coord]
             cute.copy(
                 tiled_copy_s2t_sfa,
-                tCsSFA_compact_s2t_staged,
+                tCsSFA_compact_s2t[s2t_stage_coord],
                 tCtSFA_compact_s2t,
             )
             cute.copy(
                 tiled_copy_s2t_sfb,
-                tCsSFB_compact_s2t_staged,
+                tCsSFB_compact_s2t[s2t_stage_coord],
                 tCtSFB_compact_s2t,
             )
 
-            # tCtAcc += tCrA * tCrSFA * tCrB * tCrSFB
-            num_kblocks = cute.size(tCrA, mode=[2])
-            for kblock_idx in cutlass.range(num_kblocks, unroll_full=True):
-                kblock_coord = (
-                    None,
-                    None,
-                    kblock_idx,
-                    ab_full.index,
-                )
+            # MMA here
+            num_k_blocks = cute.size(tCrA, mode=[2])
+            for k_block_idx in cutlass.range(num_k_blocks, unroll_full=True):
+                k_block_coord = (None, None, k_block_idx, ab_full.index)
 
                 # Set SFA/SFB tensor to tiled_mma
-                sf_kblock_coord = (None, None, kblock_idx)
+                sf_k_block_coord = (None, None, k_block_idx)
                 tiled_mma.set(
                     tcgen05.Field.SFA,
-                    tCtSFA[sf_kblock_coord].iterator,
+                    tCtSFA[sf_k_block_coord].iterator,
                 )
                 tiled_mma.set(
                     tcgen05.Field.SFB,
-                    tCtSFB[sf_kblock_coord].iterator,
+                    tCtSFB[sf_k_block_coord].iterator,
                 )
 
                 cute.gemm(
                     tiled_mma,
                     tCtAcc,
-                    tCrA[kblock_coord],
-                    tCrB[kblock_coord],
+                    tCrA[k_block_coord],
+                    tCrB[k_block_coord],
                     tCtAcc,
                 )
-                # Enable accumulate on tCtAcc after first kblock
-                tiled_mma.set(tcgen05.Field.ACCUMULATE, True)
 
-            # Async arrive AB buffer empty
+                tiled_mma.set(tcgen05.Field.ACCUMULATE, True)
+            
+            # Release ab buffer
             ab_full.release()
         acc_empty.commit()
 
@@ -454,7 +483,7 @@ def kernel(
     )
     # STG Atom
     simt_atom = cute.make_copy_atom(cute.nvgpu.CopyUniversalOp(), c_dtype)
-    tTR_gC = tTR_gC[(None, None, None, None, *mma_tile_coord_mnl)]
+    tTR_gC = tTR_gC[(None, None, None, None, bidx, bidy, bidz)]
 
     # Wait for accumulator buffer full
     acc_full = acc_consumer.wait_and_advance()
@@ -468,8 +497,16 @@ def kernel(
 
     acc_full.release()
 
+    # if bidx == 0 and bidy == 0 and tidx == 0:
+    #     cute.printf("sSFB: {}", sSFB.shape)
+    #     cute.printf("tCsSFB_compact: {}", tCsSFB_compact.shape)
+    #     cute.printf("tCtSFB: {}", tCtSFB.shape)
+    #     cute.printf("tCtSFB_compact: {}", tCtSFB_compact.shape)
+    #     cute.printf("tCsSFB_compact_s2t_: {}", tCsSFB_compact_s2t_.shape)
+    #     cute.printf("tCtSFB_compact_s2t: {}", tCtSFB_compact_s2t.shape)
+    
     # Deallocate TMEM
-    cute.arch.barrier()
+    pipeline.sync(barrier_id=1)
     tmem.free(acc_tmem_ptr)
 
     return
@@ -482,6 +519,7 @@ def my_kernel(
     sfa_ptr: cute.Pointer,
     sfb_ptr: cute.Pointer,
     c_ptr: cute.Pointer,
+    acc_ptr: cute.Pointer,  # FP32 accumulator for split-k
     problem_size: tuple,
 ):
     """
@@ -493,33 +531,40 @@ def my_kernel(
     a_tensor = cute.make_tensor(
         a_ptr,
         cute.make_layout(
-            (m, cute.assume(k, 32), l),
-            stride=(cute.assume(k, 32), 1, cute.assume(m * k, 32)),
+            (m, cute.assume(k, 256), l),
+            stride=(cute.assume(k, 256), 1, cute.assume(m * k, 256)),
         ),
     )
     b_tensor = cute.make_tensor(
         b_ptr,
         cute.make_layout(
-            (n, cute.assume(k, 32), l),
-            stride=(cute.assume(k, 32), 1, cute.assume(n * k, 32)),
+            (n, cute.assume(k, 256), l),
+            stride=(cute.assume(k, 256), 1, cute.assume(n * k, 256)),
         ),
     )
     c_tensor = cute.make_tensor(
-        c_ptr, cute.make_layout((cute.assume(m, 32), n, l), stride=(n, 1, m * n))
+        c_ptr, cute.make_layout((cute.assume(m, 128), n, l), stride=(n, 1, m * n))
     )
+    
+    # FP32 accumulator tensor for split-k atomic adds
+    acc_tensor = cute.make_tensor(
+        acc_ptr, cute.make_layout((cute.assume(m, 128), n, l), stride=(n, 1, m * n))
+    )
+
     # Setup sfa/sfb tensor by filling A/B tensor to scale factor atom layout
-    # ((Atom_M, Rest_M),(Atom_K, Rest_K),RestL)
+    # (((32,4), Rest_M),((16,4), Rest_K),RestL)
     sfa_layout = blockscaled_utils.tile_atom_to_shape_SF(
         a_tensor.shape, sf_vec_size
     )
     sfa_tensor = cute.make_tensor(sfa_ptr, sfa_layout)
 
-    # ((Atom_N, Rest_N),(Atom_K, Rest_K),RestL)
+    # (((32,4), Rest_N),((16,4), Rest_K),RestL)
     sfb_layout = blockscaled_utils.tile_atom_to_shape_SF(
         b_tensor.shape, sf_vec_size
     )
     sfb_tensor = cute.make_tensor(sfb_ptr, sfb_layout)
 
+    # Setup tiled MMA
     mma_op = tcgen05.MmaMXF4NVF4Op(
         sf_dtype,
         (mma_tiler_mnk[0], mma_tiler_mnk[1], mma_inst_shape_k),
@@ -528,12 +573,7 @@ def my_kernel(
     )
     tiled_mma = cute.make_tiled_mma(mma_op)
 
-    cluster_layout_vmnk = cute.tiled_divide(
-        cute.make_layout((1, 1, 1)),
-        (tiled_mma.thr_id.shape,),
-    )
-
-    # Compute A/B/SFA/SFB/C shared memory layout
+    # Compute smem layouts for A/B/SFA/SFB
     a_smem_layout_staged = sm100_utils.make_smem_layout_a(
         tiled_mma,
         mma_tiler_mnk,
@@ -559,108 +599,94 @@ def my_kernel(
         num_ab_stage,
     )
 
-    atom_thr_size = cute.size(tiled_mma.thr_id.shape)
+    # Setup TMA copy atoms for A/B/SFA/SFB
+    tma_op = cpasync.CopyBulkTensorTileG2SOp(tcgen05.CtaGroup.ONE)
 
-    # Setup TMA for A
-    a_smem_layout = cute.slice_(a_smem_layout_staged, (None, None, None, 0))
-    tma_atom_a, tma_tensor_a = cute.nvgpu.make_tiled_tma_atom_A(
-        cpasync.CopyBulkTensorTileG2SOp(tcgen05.CtaGroup.ONE),
+    a_smem_layout = cute.select(a_smem_layout_staged, mode=[0, 1, 2])
+    a_tma_atom, a_tma_tensor = cute.nvgpu.make_tiled_tma_atom_A(
+        tma_op,
         a_tensor,
         a_smem_layout,
         mma_tiler_mnk,
         tiled_mma,
-        cluster_layout_vmnk.shape,
     )
-    # Setup TMA for B
-    b_smem_layout = cute.slice_(b_smem_layout_staged, (None, None, None, 0))
-    tma_atom_b, tma_tensor_b = cute.nvgpu.make_tiled_tma_atom_B(
-        cpasync.CopyBulkTensorTileG2SOp(tcgen05.CtaGroup.ONE),
+
+    b_smem_layout = cute.select(b_smem_layout_staged, mode=[0, 1, 2])
+    b_tma_atom, b_tma_tensor = cute.nvgpu.make_tiled_tma_atom_B(
+        tma_op,
         b_tensor,
         b_smem_layout,
         mma_tiler_mnk,
         tiled_mma,
-        cluster_layout_vmnk.shape,
     )
-    # Setup TMA for SFA
-    sfa_smem_layout = cute.slice_(
-        sfa_smem_layout_staged, (None, None, None, 0)
-    )
-    tma_atom_sfa, tma_tensor_sfa = cute.nvgpu.make_tiled_tma_atom_A(
-        cpasync.CopyBulkTensorTileG2SOp(tcgen05.CtaGroup.ONE),
+
+    sfa_smem_layout = cute.select(sfa_smem_layout_staged, mode=[0, 1, 2])
+    sfa_tma_atom, sfa_tma_tensor = cute.nvgpu.make_tiled_tma_atom_A(
+        tma_op,
         sfa_tensor,
         sfa_smem_layout,
         mma_tiler_mnk,
         tiled_mma,
-        cluster_layout_vmnk.shape,
         internal_type=cutlass.Int16,
     )
-    # Setup TMA for SFB
-    sfb_smem_layout = cute.slice_(
-        sfb_smem_layout_staged, (None, None, None, 0)
-    )
-    tma_atom_sfb, tma_tensor_sfb = cute.nvgpu.make_tiled_tma_atom_B(
-        cpasync.CopyBulkTensorTileG2SOp(tcgen05.CtaGroup.ONE),
+
+    sfb_smem_layout = cute.select(sfb_smem_layout_staged, mode=[0, 1, 2])
+    sfb_tma_atom, sfb_tma_tensor = cute.nvgpu.make_tiled_tma_atom_B(
+        tma_op,
         sfb_tensor,
         sfb_smem_layout,
         mma_tiler_mnk,
         tiled_mma,
-        cluster_layout_vmnk.shape,
         internal_type=cutlass.Int16,
     )
 
-    # Compute TMA load bytes
-    a_copy_size = cute.size_in_bytes(ab_dtype, a_smem_layout)
-    b_copy_size = cute.size_in_bytes(ab_dtype, b_smem_layout)
-    sfa_copy_size = cute.size_in_bytes(sf_dtype, sfa_smem_layout)
-    sfb_copy_size = cute.size_in_bytes(sf_dtype, sfb_smem_layout)
-    num_tma_load_bytes = (
-        a_copy_size + b_copy_size + sfa_copy_size + sfb_copy_size
-    ) * atom_thr_size
+    # cute.printf("Problem size: {}", problem_size)
+    # cute.printf("a_smem_layout_staged: {}", a_smem_layout_staged)
+    # cute.printf("b_smem_layout_staged: {}", b_smem_layout_staged)
+    # cute.printf("sfa_smem_layout_staged: {}", sfa_smem_layout_staged)
+    # cute.printf("sfb_smem_layout_staged: {}", sfb_smem_layout_staged)
 
-    # Compute grid size
+    a_smem_size = cute.size_in_bytes(ab_dtype, a_smem_layout)
+    b_smem_size = cute.size_in_bytes(ab_dtype, b_smem_layout)
+    sfa_smem_size = cute.size_in_bytes(sf_dtype, sfa_smem_layout)
+    sfb_smem_size = cute.size_in_bytes(sf_dtype, sfb_smem_layout)
+    num_tma_load_bytes = a_smem_size + b_smem_size + sfa_smem_size + sfb_smem_size
+
+    # Compute total K tiles
+    k_tile_cnt_total = cute.ceil_div(k, mma_tiler_mnk[2])
+
+    # Compute grid size with split-k: z dimension = L * split_k
     grid = (
         cute.ceil_div(c_tensor.shape[0], mma_tiler_mnk[0]),
         cute.ceil_div(c_tensor.shape[1], mma_tiler_mnk[1]),
-        c_tensor.shape[2],
+        c_tensor.shape[2] * split_k,  # batch * split_k
     )
 
     # Launch the kernel
     kernel(
-        # MMA (Matrix Multiply-Accumulate) configuration
-        tiled_mma,                  # Tiled MMA object defining NVFP4 GEMM compute pattern
-        
-        # TMA (Tensor Memory Accelerator) atoms and tensors for input matrix A
-        tma_atom_a,                 # TMA copy atom defining how to load A from global memory
-        tma_tensor_a,               # Tensor descriptor for A matrix (m, k, l)
-        
-        # TMA atoms and tensors for input matrix B
-        tma_atom_b,                 # TMA copy atom defining how to load B from global memory
-        tma_tensor_b,               # Tensor descriptor for B matrix (n, k, l)
-        
-        # TMA atoms and tensors for scale factor A
-        tma_atom_sfa,               # TMA copy atom for loading scale factors for A
-        tma_tensor_sfa,             # Tensor descriptor for SFA (block scale factors for A)
-        
-        # TMA atoms and tensors for scale factor B
-        tma_atom_sfb,               # TMA copy atom for loading scale factors for B
-        tma_tensor_sfb,             # Tensor descriptor for SFB (block scale factors for B)
-        
-        # Output tensor C
-        c_tensor,                   # Output tensor C where result will be stored (m, n, l)
-        
-        # Shared memory layouts with staging for pipelined execution
-        a_smem_layout_staged,       # Staged shared memory layout for A (includes stage dimension)
-        b_smem_layout_staged,       # Staged shared memory layout for B (includes stage dimension)
-        sfa_smem_layout_staged,     # Staged shared memory layout for SFA (includes stage dimension)
-        sfb_smem_layout_staged,     # Staged shared memory layout for SFB (includes stage dimension)
-        
-        # Pipeline synchronization parameter
-        num_tma_load_bytes,         # Total bytes to load per TMA transaction (for barrier setup)
+        tiled_mma,
+        a_tma_atom,
+        a_tma_tensor,
+        b_tma_atom,
+        b_tma_tensor,
+        sfa_tma_atom,
+        sfa_tma_tensor,
+        sfb_tma_atom,
+        sfb_tma_tensor,
+        c_tensor,
+        acc_tensor,
+        a_smem_layout_staged,
+        b_smem_layout_staged,
+        sfa_smem_layout_staged,
+        sfb_smem_layout_staged,
+        num_tma_load_bytes,
+        k_tile_cnt_total,
+        split_k,
     ).launch(
         grid=grid,
         block=[threads_per_cta, 1, 1],
-        cluster=(1, 1, 1),
     )
+    
     return
 
 
@@ -682,7 +708,7 @@ def compile_kernel():
         return _compiled_kernel_cache
     
 
-    # Create CuTe pointers for A/B/C/SFA/SFB via torch tensor data pointer
+    # Create CuTe pointers for A/B/C/SFA/SFB/Acc via torch tensor data pointer
     a_ptr = make_ptr(
         ab_dtype, 0, cute.AddressSpace.gmem, assumed_align=16
     )
@@ -692,6 +718,9 @@ def compile_kernel():
     c_ptr = make_ptr(
         c_dtype, 0, cute.AddressSpace.gmem, assumed_align=16
     )
+    acc_ptr = make_ptr(
+        acc_dtype, 0, cute.AddressSpace.gmem, assumed_align=16
+    )
     sfa_ptr = make_ptr(
         sf_dtype, 0, cute.AddressSpace.gmem, assumed_align=32
     )
@@ -700,7 +729,7 @@ def compile_kernel():
     )
 
     # Compile the kernel
-    _compiled_kernel_cache = cute.compile(my_kernel, a_ptr, b_ptr, sfa_ptr, sfb_ptr, c_ptr, (0, 0, 0, 0))
+    _compiled_kernel_cache = cute.compile(my_kernel, a_ptr, b_ptr, sfa_ptr, sfb_ptr, c_ptr, acc_ptr, (0, 0, 0, 0))
     
     return _compiled_kernel_cache
 
@@ -738,7 +767,10 @@ def custom_kernel(data: input_t) -> output_t:
     # Torch use e2m1_x2 data type, thus k is halved
     k = k * 2 
 
-    # Create CuTe pointers for A/B/C/SFA/SFB via torch tensor data pointer
+    # Allocate FP32 accumulator buffer for split-k atomic adds
+    acc = torch.zeros((m, n, l), dtype=torch.float32, device=a.device)
+
+    # Create CuTe pointers for A/B/C/SFA/SFB/Acc via torch tensor data pointer
     a_ptr = make_ptr(
         ab_dtype, a.data_ptr(), cute.AddressSpace.gmem, assumed_align=16
     )
@@ -748,6 +780,9 @@ def custom_kernel(data: input_t) -> output_t:
     c_ptr = make_ptr(
         c_dtype, c.data_ptr(), cute.AddressSpace.gmem, assumed_align=16
     )
+    acc_ptr = make_ptr(
+        acc_dtype, acc.data_ptr(), cute.AddressSpace.gmem, assumed_align=16
+    )
     sfa_ptr = make_ptr(
         sf_dtype, sfa_permuted.data_ptr(), cute.AddressSpace.gmem, assumed_align=32
     )
@@ -756,6 +791,10 @@ def custom_kernel(data: input_t) -> output_t:
     )
 
     # Execute the compiled kernel
-    compiled_func(a_ptr, b_ptr, sfa_ptr, sfb_ptr, c_ptr, (m, n, k, l))
+    compiled_func(a_ptr, b_ptr, sfa_ptr, sfb_ptr, c_ptr, acc_ptr, (m, n, k, l))
+
+    # Convert FP32 accumulator to FP16 output (split-k always uses atomic adds)
+    if split_k > 1:
+        c.copy_(acc.to(torch.float16))
 
     return c
