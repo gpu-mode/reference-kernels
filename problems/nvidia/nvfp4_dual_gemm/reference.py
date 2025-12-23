@@ -110,16 +110,20 @@ def generate_input(
     """
     torch.manual_seed(seed)
     
+    def create_fp4_tensors(l, mn, k):
+        # generate int8 tensor, then convert to float4e2m1fn_x2 data type
+        ref_i8 = torch.randint(255, size=(l, mn, k // 2), dtype=torch.uint8, device="cuda")
+
+        # for each nibble, only keep the sign bit and 2 LSBs
+        # the possible values are [-1.5, -1, -0.5, 0, +0.5, +1, +1.5]
+        ref_i8 = ref_i8 & 0b1011_1011
+
+        return ref_i8.permute(1, 2, 0).view(torch.float4_e2m1fn_x2)
+
     # Generate uint8 tensor, then convert to float4e2m1fn_x2 data type
-    a_ref = torch.randint(
-        0, 2, (l, m, k // 2), dtype=torch.int8, device="cuda"
-    ).permute(1, 2, 0)
-    b1_ref = torch.randint(
-        0, 2, (l, n, k // 2), dtype=torch.int8, device="cuda"
-    ).permute(1, 2, 0)
-    b2_ref = torch.randint(
-        0, 2, (l, n, k // 2), dtype=torch.int8, device="cuda"
-    ).permute(1, 2, 0)
+    a_ref = create_fp4_tensors(l, m, k)
+    b1_ref = create_fp4_tensors(l, n, k)
+    b2_ref = create_fp4_tensors(l, n, k)
     a_ref = a_ref.view(torch.float4_e2m1fn_x2)
     b1_ref = b1_ref.view(torch.float4_e2m1fn_x2)
     b2_ref = b2_ref.view(torch.float4_e2m1fn_x2)
@@ -136,9 +140,9 @@ def generate_input(
         # Create the reference scale factor tensor (mn, sf_k, l) on CPU.
         ref_shape = (l, mn, sf_k)
         ref_permute_order = (1, 2, 0)
-        # Init with uint8 tensor, then convert to float8_e4m3fn
-        ref_f8_random_int = torch.randint(0, 3, ref_shape, dtype=torch.int8, device='cuda')
-        ref_f8_torch_tensor = ref_f8_random_int.to(dtype=torch.float8_e4m3fn)
+        # Init with fp32 tensor in [0,1), then convert to float8_e4m3fn
+        ref_f8_random_fp32 = torch.rand(ref_shape, dtype=torch.float32, device='cuda')
+        ref_f8_torch_tensor = ref_f8_random_fp32.to(dtype=torch.float8_e4m3fn)
         # permute to match ref_permute_order
         ref_f8_torch_tensor_permuted = ref_f8_torch_tensor.permute(*ref_permute_order)
 
