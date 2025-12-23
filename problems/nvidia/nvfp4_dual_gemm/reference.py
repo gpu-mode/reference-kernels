@@ -74,7 +74,6 @@ def ref_kernel(
         ref2[:, :, l_idx] = res2
     # Do silu on the first GEMM result and multiply with the second GEMM result
     c_ref = (torch.nn.functional.silu(ref1) * ref2).to(torch.float16)
-    print("First 10 elements of c_ref:", c_ref.flatten()[:10])
     return c_ref
 
 
