@@ -112,13 +112,13 @@ def generate_input(
     
     # Generate uint8 tensor, then convert to float4e2m1fn_x2 data type
     a_ref = torch.randint(
-        0, 2, (l, m, k // 2), dtype=torch.int8, device="cuda"
+        0, 4, (l, m, k // 2), dtype=torch.int8, device="cuda"
     ).permute(1, 2, 0)
     b1_ref = torch.randint(
-        0, 2, (l, n, k // 2), dtype=torch.int8, device="cuda"
+        0, 4, (l, n, k // 2), dtype=torch.int8, device="cuda"
     ).permute(1, 2, 0)
     b2_ref = torch.randint(
-        0, 2, (l, n, k // 2), dtype=torch.int8, device="cuda"
+        0, 4, (l, n, k // 2), dtype=torch.int8, device="cuda"
     ).permute(1, 2, 0)
     a_ref = a_ref.view(torch.float4_e2m1fn_x2)
     b1_ref = b1_ref.view(torch.float4_e2m1fn_x2)
