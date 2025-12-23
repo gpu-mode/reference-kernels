@@ -112,13 +112,13 @@ def generate_input(
     
     # Generate uint8 tensor, then convert to float4e2m1fn_x2 data type
     a_ref = torch.randint(
-        -6, 6, (l, m, k // 2), dtype=torch.int8, device="cuda"
+        0, 2, (l, m, k // 2), dtype=torch.int8, device="cuda"
     ).permute(1, 2, 0)
     b1_ref = torch.randint(
-        -6, 6, (l, n, k // 2), dtype=torch.int8, device="cuda"
+        0, 2, (l, n, k // 2), dtype=torch.int8, device="cuda"
     ).permute(1, 2, 0)
     b2_ref = torch.randint(
-        -6, 6, (l, n, k // 2), dtype=torch.int8, device="cuda"
+        0, 2, (l, n, k // 2), dtype=torch.int8, device="cuda"
     ).permute(1, 2, 0)
     a_ref = a_ref.view(torch.float4_e2m1fn_x2)
     b1_ref = b1_ref.view(torch.float4_e2m1fn_x2)
@@ -137,7 +137,8 @@ def generate_input(
         ref_shape = (l, mn, sf_k)
         ref_permute_order = (1, 2, 0)
         # Init with uint8 tensor, then convert to float8_e4m3fn
-        ref_f8_random_int = torch.randint(-3, 3, ref_shape, dtype=torch.int8, device='cuda')
+        ref_f8_random_int = torch.randint(1, 3, ref_shape, dtype=torch.int8, device='cuda')
+        ref_f8_random_int = torch.clamp(ref_f8_random_int, -3, -1)
         ref_f8_torch_tensor = ref_f8_random_int.to(dtype=torch.float8_e4m3fn)
         # permute to match ref_permute_order
         ref_f8_torch_tensor_permuted = ref_f8_torch_tensor.permute(*ref_permute_order)
@@ -157,7 +158,7 @@ def generate_input(
         # Which is needed by the CuTe customized kernel
         mma_permute_order = (3, 4, 1, 5, 2, 0)
         # Generate a random int8 tensor, then convert to float8_e4m3fn
-        rand_int_tensor = torch.randint(-3, 3, mma_shape, dtype=torch.int8, device='cuda')
+        rand_int_tensor = torch.empty(mma_shape, dtype=torch.int8, device='cuda')
         reordered_f8_torch_tensor = rand_int_tensor.to(dtype=torch.float8_e4m3fn)
         # Permute according to mma_permute_order
         reordered_f8_torch_tensor = reordered_f8_torch_tensor.permute(*mma_permute_order)
