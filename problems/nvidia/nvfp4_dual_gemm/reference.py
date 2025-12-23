@@ -111,7 +111,8 @@ def generate_input(
     torch.manual_seed(seed)
     
     def create_fp4_tensors(l, mn, k):
-        # generate int8 tensor, then convert to float4e2m1fn_x2 data type
+        # generate uint8 tensor, then convert to float4e2m1fn_x2 data type
+        # generate all bit patterns
         ref_i8 = torch.randint(255, size=(l, mn, k // 2), dtype=torch.uint8, device="cuda")
 
         # for each nibble, only keep the sign bit and 2 LSBs
