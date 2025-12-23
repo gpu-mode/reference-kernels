@@ -137,7 +137,7 @@ def generate_input(
         ref_shape = (l, mn, sf_k)
         ref_permute_order = (1, 2, 0)
         # Init with uint8 tensor, then convert to float8_e4m3fn
-        ref_f8_random_int = torch.randint(-1, 2, ref_shape, dtype=torch.int8, device='cuda')
+        ref_f8_random_int = torch.randint(0, 3, ref_shape, dtype=torch.int8, device='cuda')
         ref_f8_torch_tensor = ref_f8_random_int.to(dtype=torch.float8_e4m3fn)
         # permute to match ref_permute_order
         ref_f8_torch_tensor_permuted = ref_f8_torch_tensor.permute(*ref_permute_order)
