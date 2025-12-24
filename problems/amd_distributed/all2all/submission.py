@@ -38,7 +38,7 @@ class PyTorchAllToAll:
                 )  # srcGobalExpert, srcRank, srcIndex, expert index
 
         send_counts_t = torch.tensor(send_counts, dtype=torch.long, device=device)
-        # 1.3 token nums to recv from each rank
+        # 1.4 token nums to recv from each rank
         recv_counts_t = torch.empty(self.world_size, dtype=torch.long, device=device)
         dist.all_to_all_single(recv_counts_t, send_counts_t)
         # ---------2. send and recv buffer, order by tokens on each rank ----------
