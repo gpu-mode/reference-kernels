@@ -8,7 +8,7 @@ description: "Popular and important kernels for BioML models like AlphaFold3"
 problems:
   - directory: bioml/trimul
     name: trimul
-    deadline: "2025-09-30"
+    deadline: "2026-09-30"
     gpus:
       - B200
       - H100
