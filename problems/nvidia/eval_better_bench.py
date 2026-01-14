@@ -466,11 +466,11 @@ def main():
                 return run_benchmarking(logger, pool, tests)
 
             if mode == "leaderboard":
-                run_single_benchmark(pool, tests[0], False, 200, 1e7)
+                run_single_benchmark(pool, tests[0], False, 1000, 5e8)
                 logger.log("benchmark-count", len(tests))
                 passed = True
                 for i in range(len(tests)):
-                    result = run_single_benchmark(pool, tests[i], True, 200, 30e9)
+                    result = run_single_benchmark(pool, tests[i], True, 1000, 30e9)
                     logger.log(f"benchmark.{i}.spec", tests[i].spec)
                     if isinstance(result, Stats):
                         for field in dataclasses.fields(Stats):
