@@ -6,6 +6,10 @@ import time
 import os
 import sys
 import math
+
+# Disable CuTe DSL file caching for more stable benchmarking
+os.environ["CUTE_DSL_DISABLE_FILE_CACHING"] = "True"
+
 from pathlib import Path
 from typing import Any, Optional
 
