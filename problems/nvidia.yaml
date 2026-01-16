@@ -16,7 +16,7 @@ problems:
     gpus:
       - NVIDIA
   - directory: nvidia/nvfp4_dual_gemm
-    name: fake_nvfp4_dual_gem
+    name: nvfp4_dual_gemm
     deadline: "2026-02-20 7:59"
     gpus:
       - NVIDIA
