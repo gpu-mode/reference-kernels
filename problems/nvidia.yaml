@@ -20,4 +20,9 @@ problems:
     deadline: "2026-02-20 7:59"
     gpus:
       - NVIDIA
-  
+  - directory: nvidia/final_nvfp4_dual_gemm
+    name: final_nvfp4_dual_gemm
+    deadline: "2026-01-20 7:59"
+    gpus:
+      - NVIDIA
+
