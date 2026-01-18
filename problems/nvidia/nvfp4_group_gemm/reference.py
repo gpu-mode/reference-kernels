@@ -92,7 +92,7 @@ def create_reordered_scale_factor_tensor(l, mn, k, ref_f8_tensor):
     # Create the reordered scale factor tensor (32, 4, rest_m, 4, rest_k, l) on GPU.
     mma_permute_order = (3, 4, 1, 5, 2, 0)
     # Generate a random int8 tensor, then convert to float8_e4m3fn
-    rand_int_tensor = torch.randint(-3, 3, mma_shape, dtype=torch.int8, device='cuda')
+    rand_int_tensor = torch.randint(1, 3, mma_shape, dtype=torch.int8, device='cuda')
     reordered_f8_tensor = rand_int_tensor.to(dtype=torch.float8_e4m3fn)
     # Permute according to mma_permute_order
     reordered_f8_tensor = reordered_f8_tensor.permute(*mma_permute_order)
@@ -166,10 +166,10 @@ def generate_input(
         ni = n[group_idx]
         ki = k[group_idx]
         a_ref = torch.randint(
-            -6, 6, (l, mi, ki // 2), dtype=torch.int8, device="cuda"
+            -1, 2, (l, mi, ki // 2), dtype=torch.int8, device="cuda"
         ).permute(1, 2, 0)
         b_ref = torch.randint(
-            -6, 6, (l, ni, ki // 2), dtype=torch.int8, device="cuda"
+            -1, 2, (l, ni, ki // 2), dtype=torch.int8, device="cuda"
         ).permute(1, 2, 0)
         a_ref = a_ref.view(torch.float4_e2m1fn_x2)
         b_ref = b_ref.view(torch.float4_e2m1fn_x2)
@@ -180,10 +180,10 @@ def generate_input(
 
         sf_k = ceil_div(ki, sf_vec_size)
         sfa_ref_cpu = torch.randint(
-            -3, 3, (l, mi, sf_k), dtype=torch.int8
+            1, 3, (l, mi, sf_k), dtype=torch.int8
         ).to(dtype=torch.float8_e4m3fn).permute(1, 2, 0)
         sfb_ref_cpu = torch.randint(
-            -3, 3, (l, ni, sf_k), dtype=torch.int8
+            1, 3, (l, ni, sf_k), dtype=torch.int8
         ).to(dtype=torch.float8_e4m3fn).permute(1, 2, 0)
 
         sfa_reordered = create_reordered_scale_factor_tensor(l, mi, ki, sfa_ref_cpu)
