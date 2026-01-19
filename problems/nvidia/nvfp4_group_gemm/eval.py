@@ -368,33 +368,6 @@ def run_profiling(logger: PopcornOutput, tests: list[TestCase]):
     return 0
 
 
-def get_test_cases_from_yaml(yaml_tests: list[dict], seed: Optional[int]) -> list[TestCase]:
-    """
-    Create TestCase objects directly from YAML test definitions.
-    This bypasses text serialization to properly handle list values.
-    """
-    tests = []
-    for test in yaml_tests:
-        # Convert lists to tuples for consistency
-        args = {}
-        spec_parts = []
-        for k, v in test.items():
-            if isinstance(v, list):
-                args[k] = tuple(v)
-            else:
-                args[k] = v
-            spec_parts.append(f"{k}: {v}")
-        spec = "; ".join(spec_parts)
-        tests.append(TestCase(spec=spec, args=args))
-
-    if seed is not None:
-        for test in tests:
-            if "seed" in test.args:
-                test.args["seed"] = _combine(test.args["seed"], seed)
-
-    return tests
-
-
 def main():
     fd = os.getenv("POPCORN_FD")
     if not fd:
@@ -409,17 +382,8 @@ def main():
     seed = int(seed) if seed else None
     set_seed(seed or 42)
 
-    import yaml
-
-    yaml_content = yaml.safe_load(open(sys.argv[2], "r"))
-    if mode == "test":
-        yaml_tests = yaml_content.get("tests", [])
-    elif mode in ("benchmark", "leaderboard", "profile"):
-        yaml_tests = yaml_content.get("benchmarks", [])
-    else:
-        yaml_tests = []
-
-    tests = get_test_cases_from_yaml(yaml_tests, seed)
+    # Parse test cases from temp file (text format from kernelbot)
+    tests = get_test_cases(sys.argv[2], seed)
 
     with PopcornOutput(int(fd)) as logger:
         import multiprocessing
