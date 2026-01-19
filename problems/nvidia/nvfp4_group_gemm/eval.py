@@ -67,13 +67,22 @@ def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
 
     tests = []
     lines = content.splitlines()
-    match = r"\s*([a-zA-Z]+):\s*(\([^)]+\)|\[[^\]]+\]|[a-zA-Z]+|[+-]?[0-9]+)\s*"
+    # Match key: value pairs where value can be:
+    # - a list like [1, 2, 3]
+    # - a tuple like (1, 2, 3)
+    # - an integer
+    # - an alphabetic string
+    match = r"\s*([a-zA-Z_]+)\s*:\s*(\[[^\]]*\]|\([^)]*\)|[a-zA-Z_]+|[+-]?[0-9]+)\s*"
     for line in lines:
+        if not line.strip():
+            continue
         parts = line.split(";")
         case = {}
         for part in parts:
-            matched = re.match(match, part)
-            if not re.fullmatch(match, part):
+            if not part.strip():
+                continue
+            matched = re.fullmatch(match, part)
+            if not matched:
                 print(f"invalid test case: '{line}': '{part}'", file=sys.stderr)
                 exit(113)
             key = matched[1]
@@ -84,7 +93,11 @@ def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
                 # Try parsing as tuple/list
                 if (val.startswith('(') and val.endswith(')')) or (val.startswith('[') and val.endswith(']')):
                     try:
-                        val = tuple(int(x.strip()) for x in val[1:-1].split(','))
+                        inner = val[1:-1].strip()
+                        if inner:
+                            val = tuple(int(x.strip()) for x in inner.split(','))
+                        else:
+                            val = tuple()
                     except ValueError:
                         pass
 
