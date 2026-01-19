@@ -67,13 +67,22 @@ def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
 
     tests = []
     lines = content.splitlines()
-    match = r"\s*([a-zA-Z]+):\s*(\([^)]+\)|\[[^\]]+\]|[a-zA-Z]+|[+-]?[0-9]+)\s*"
+    # Match key: value pairs where value can be:
+    # - a list like [1, 2, 3]
+    # - a tuple like (1, 2, 3)
+    # - an integer
+    # - an alphabetic string
+    match = r"\s*([a-zA-Z_]+)\s*:\s*(\[[^\]]*\]|\([^)]*\)|[a-zA-Z_]+|[+-]?[0-9]+)\s*"
     for line in lines:
+        if not line.strip():
+            continue
         parts = line.split(";")
         case = {}
         for part in parts:
-            matched = re.match(match, part)
-            if not re.fullmatch(match, part):
+            if not part.strip():
+                continue
+            matched = re.fullmatch(match, part)
+            if not matched:
                 print(f"invalid test case: '{line}': '{part}'", file=sys.stderr)
                 exit(113)
             key = matched[1]
@@ -84,7 +93,11 @@ def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
                 # Try parsing as tuple/list
                 if (val.startswith('(') and val.endswith(')')) or (val.startswith('[') and val.endswith(']')):
                     try:
-                        val = tuple(int(x.strip()) for x in val[1:-1].split(','))
+                        inner = val[1:-1].strip()
+                        if inner:
+                            val = tuple(int(x.strip()) for x in inner.split(','))
+                        else:
+                            val = tuple()
                     except ValueError:
                         pass
 
@@ -355,33 +368,6 @@ def run_profiling(logger: PopcornOutput, tests: list[TestCase]):
     return 0
 
 
-def get_test_cases_from_yaml(yaml_tests: list[dict], seed: Optional[int]) -> list[TestCase]:
-    """
-    Create TestCase objects directly from YAML test definitions.
-    This bypasses text serialization to properly handle list values.
-    """
-    tests = []
-    for test in yaml_tests:
-        # Convert lists to tuples for consistency
-        args = {}
-        spec_parts = []
-        for k, v in test.items():
-            if isinstance(v, list):
-                args[k] = tuple(v)
-            else:
-                args[k] = v
-            spec_parts.append(f"{k}: {v}")
-        spec = "; ".join(spec_parts)
-        tests.append(TestCase(spec=spec, args=args))
-
-    if seed is not None:
-        for test in tests:
-            if "seed" in test.args:
-                test.args["seed"] = _combine(test.args["seed"], seed)
-
-    return tests
-
-
 def main():
     fd = os.getenv("POPCORN_FD")
     if not fd:
@@ -396,17 +382,8 @@ def main():
     seed = int(seed) if seed else None
     set_seed(seed or 42)
 
-    import yaml
-
-    yaml_content = yaml.safe_load(open(sys.argv[2], "r"))
-    if mode == "test":
-        yaml_tests = yaml_content.get("tests", [])
-    elif mode in ("benchmark", "leaderboard", "profile"):
-        yaml_tests = yaml_content.get("benchmarks", [])
-    else:
-        yaml_tests = []
-
-    tests = get_test_cases_from_yaml(yaml_tests, seed)
+    # Parse test cases from temp file (text format from kernelbot)
+    tests = get_test_cases(sys.argv[2], seed)
 
     with PopcornOutput(int(fd)) as logger:
         import multiprocessing
