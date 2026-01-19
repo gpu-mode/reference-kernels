@@ -355,6 +355,33 @@ def run_profiling(logger: PopcornOutput, tests: list[TestCase]):
     return 0
 
 
+def get_test_cases_from_yaml(yaml_tests: list[dict], seed: Optional[int]) -> list[TestCase]:
+    """
+    Create TestCase objects directly from YAML test definitions.
+    This bypasses text serialization to properly handle list values.
+    """
+    tests = []
+    for test in yaml_tests:
+        # Convert lists to tuples for consistency
+        args = {}
+        spec_parts = []
+        for k, v in test.items():
+            if isinstance(v, list):
+                args[k] = tuple(v)
+            else:
+                args[k] = v
+            spec_parts.append(f"{k}: {v}")
+        spec = "; ".join(spec_parts)
+        tests.append(TestCase(spec=spec, args=args))
+
+    if seed is not None:
+        for test in tests:
+            if "seed" in test.args:
+                test.args["seed"] = _combine(test.args["seed"], seed)
+
+    return tests
+
+
 def main():
     fd = os.getenv("POPCORN_FD")
     if not fd:
@@ -369,34 +396,17 @@ def main():
     seed = int(seed) if seed else None
     set_seed(seed or 42)
 
-    filename = None
+    import yaml
 
-    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+    yaml_content = yaml.safe_load(open(sys.argv[2], "r"))
+    if mode == "test":
+        yaml_tests = yaml_content.get("tests", [])
+    elif mode in ("benchmark", "leaderboard", "profile"):
+        yaml_tests = yaml_content.get("benchmarks", [])
+    else:
+        yaml_tests = []
 
-        def build_test_string(tests: list[dict]):
-            as_str = ""
-            for test in tests:
-                kvs = []
-                for k, v in test.items():
-                    kvs.append(f"{k}: {v}")
-                as_str += "; ".join(kvs) + "\n"
-            return as_str
-
-        import yaml
-
-        yaml_content = yaml.safe_load(open(sys.argv[2], "r"))
-        if mode == "test":
-            tests_str = build_test_string(yaml_content.get("tests", []))
-        elif mode in ("benchmark", "leaderboard", "profile"):
-            tests_str = build_test_string(yaml_content.get("benchmarks", []))
-
-        tmp.write(tests_str.encode("utf-8"))
-        tmp.flush()
-        filename = tmp.name
-
-    tests = get_test_cases(filename, seed)
-
-    os.unlink(filename)
+    tests = get_test_cases_from_yaml(yaml_tests, seed)
 
     with PopcornOutput(int(fd)) as logger:
         import multiprocessing
