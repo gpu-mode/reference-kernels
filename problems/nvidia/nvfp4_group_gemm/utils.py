@@ -131,6 +131,10 @@ def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08) -
     Convenient "default" implementation for tasks' `check_implementation` function.
     """
     expected = reference(data)
+
+    if len(output) != len(expected):
+        return False, f"output length mismatch: got {len(output)}, expected {len(expected)}"
+
     for i, (output_i, expected_i) in enumerate(zip(output, expected)):
         reasons = verbose_allclose(output_i, expected_i, rtol=rtol, atol=atol)
         if len(reasons) > 0:
