@@ -5,7 +5,8 @@ files:
   - {"name": "task.py", "source": "task.py"}
   - {"name": "utils.py", "source": "utils.py"}
   - {"name": "reference.py", "source": "reference.py"}
-  - {"name": "eval.py", "source": "eval.py"}
+  # Use eval_better_bench.py for batched timing (50 kernels per measurement) to reduce variance
+  - {"name": "eval.py", "source": "../eval_better_bench.py"}
 
 lang: "py"
 

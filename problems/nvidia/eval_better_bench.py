@@ -79,7 +79,12 @@ def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
 
     tests = []
     lines = content.splitlines()
-    match = r"\s*([a-zA-Z]+):\s*([a-zA-Z]+|[+-]?[0-9]+)\s*"
+    # Match key: value pairs where value can be:
+    # - a list like [1, 2, 3] (needed for group gemm which has per-group dimensions)
+    # - a tuple like (1, 2, 3)
+    # - an integer
+    # - an alphabetic string
+    match = r"\s*([a-zA-Z_]+)\s*:\s*(\[[^\]]*\]|\([^)]*\)|[a-zA-Z_]+|[+-]?[0-9]+)\s*"
     for line in lines:
         parts = line.split(";")
         case = {}
@@ -93,7 +98,16 @@ def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
             try:
                 val = int(val)
             except ValueError:
-                pass
+                # Try parsing as tuple/list (e.g., [1, 2, 3] for group gemm dimensions)
+                if (val.startswith('(') and val.endswith(')')) or (val.startswith('[') and val.endswith(']')):
+                    try:
+                        inner = val[1:-1].strip()
+                        if inner:
+                            val = tuple(int(x.strip()) for x in inner.split(','))
+                        else:
+                            val = tuple()
+                    except ValueError:
+                        pass
 
             case[key] = val
         tests.append(TestCase(spec=line, args=case))
