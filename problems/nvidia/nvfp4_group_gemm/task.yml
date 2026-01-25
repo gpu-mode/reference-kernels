@@ -5,7 +5,7 @@ files:
   - {"name": "task.py", "source": "task.py"}
   - {"name": "utils.py", "source": "utils.py"}
   - {"name": "reference.py", "source": "reference.py"}
-  - {"name": "eval.py", "source": "eval.py"}
+  - {"name": "eval.py", "source": "../eval_better_bench_grouped_gemm.py"}
 
 lang: "py"
 
@@ -63,3 +63,5 @@ benchmarks:
   - {"m": [128, 384], "n": [4096, 4096], "k": [1536, 1536], "g": 2, "seed": 1111}
 
 ranking_by: "geom"
+
+ranked_timeout: 300
