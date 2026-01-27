@@ -134,7 +134,9 @@ def generate_input(
     # Generate input tensor based on distribution
     if distribution == "cauchy":
         # Heavier tail distribution
-        input_tensor = torch.distributions.Cauchy(0, 2).sample(
+        zero = torch.tensor(0.0, device="cuda")
+        two = torch.tensor(2.0, device="cuda")
+        input_tensor = torch.distributions.Cauchy(zero, two).sample(
             (batch_size, seq_len, seq_len, dim)
         ).to(device='cuda', dtype=torch.float32)
     else:  # normal distribution
