@@ -5,10 +5,11 @@ This repo holds reference kernels for the KernelBot which hosts regular competit
 You can see what's going on [gpumode.com](https://www.gpumode.com/)
 
 ## Competition
-1. [PMPP practice problems](https://gpu-mode.github.io/discord-cluster-manager/docs/active#practice-round-leaderboard): Starting on Sunday Feb 21, 2025.
+1. [PMPP practice problems](https://gpu-mode.github.io/discord-cluster-manager/docs/active#practice-round-leaderboard)
 2. [AMD $100K kernel competition](problems/amd)
 3. [BioML kernels](problems/bioml)
 4. [AMD $100K distributed kernel competition](problems/amd_distributed)
+5. [NVIDIA Blackwell NVFP4 competition](problems/nvidia)
 
 ## Making a Leaderboard Submission
 
