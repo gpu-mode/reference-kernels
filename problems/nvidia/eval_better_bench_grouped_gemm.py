@@ -21,6 +21,8 @@ from typing import Any, Optional
 
 import torch.cuda
 from cutlass.cute.nvgpu.common import OpError
+from cutlass._mlir.ir import MLIRError
+
 from torch.cuda.nvtx import range as nvtx_range
 
 from utils import set_seed, clear_l2_cache_large as clear_l2_cache
@@ -33,6 +35,7 @@ except ImportError:
 from reference import check_implementation, generate_input
 
 NUM_ITERATIONS_PER_BENCHMARK = 15
+UNSERIALIZABLE_EXCEPTIONS = (OpError, MLIRError)
 
 
 class PopcornOutput:
@@ -181,7 +184,7 @@ def _run_single_test(test: TestCase):
     try:
         submission_output = custom_kernel(_clone_data(data))
 
-    except OpError as E:
+    except UNSERIALIZABLE_EXCEPTIONS as E:
         print(f"Encountered {E}", file=sys.stderr)
         return False, str(E)
     torch.cuda.synchronize()
@@ -253,7 +256,7 @@ def _run_single_benchmark(
         for data in data_list:
             output = custom_kernel(_clone_data(data))
             outputs.append(output)
-    except OpError as E:
+    except UNSERIALIZABLE_EXCEPTIONS as E:
         return f"Encountered {E}"
     for reference_output, custom_output in zip(check_copy, outputs):
         good, message = check_implementation(reference_output, custom_output)
