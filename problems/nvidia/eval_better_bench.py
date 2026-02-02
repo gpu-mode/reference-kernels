@@ -472,10 +472,10 @@ def main():
         with mp_context.Pool(1, initializer=_init_worker) as pool:
             if mode == "test":
                 return run_testing(logger, pool, tests)
-            if mode == "benchmark":
+            if mode == "private":
                 return run_benchmarking(logger, pool, tests)
 
-            if mode == "leaderboard":
+            if mode == "public":
                 # Warmup all test shapes to ensure consistent benchmarking
                 for test in tests:
                     run_single_benchmark(pool, test, False, 1000, 5e8)

@@ -452,10 +452,10 @@ def main():
         with mp_context.Pool(1) as pool:
             if mode == "test":
                 return run_testing(logger, pool, tests)
-            if mode == "benchmark":
+            if mode == "private":
                 return run_benchmarking(logger, pool, tests)
 
-            if mode == "leaderboard":
+            if mode == "public":
                 # Step 1: Compile kernel once (outside of timing)
                 logger.log("compile", "start")
                 compile_success, compile_error = pool.apply(_compile_kernel_once)
