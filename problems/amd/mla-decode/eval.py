@@ -294,10 +294,10 @@ def main():
         if mode == "test":
             return run_testing(logger, tests)
 
-        if mode == "benchmark":
+        if mode == "private":
             return run_benchmarking(logger, tests)
-        
-        if mode == "leaderboard":
+
+        if mode == "public":
             warm_up(tests[0])
             result = benchmark(tests[-1], True, 100, 30e9)
             if isinstance(result, Stats):
