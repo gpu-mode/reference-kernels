@@ -449,10 +449,10 @@ def main():
         with mp_context.Pool(1) as pool:
             if mode == "test":
                 return run_testing(logger, pool, tests)
-            if mode == "benchmark":
+            if mode == "private":
                 return run_benchmarking(logger, pool, tests)
 
-            if mode == "leaderboard":
+            if mode == "public":
                 run_single_benchmark(pool, tests[0], False, 1000, 5e8)
                 logger.log("benchmark-count", len(tests))
                 passed = True
