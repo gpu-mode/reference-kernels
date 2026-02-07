@@ -242,10 +242,14 @@ def _run_single_benchmark(
     data_list = []
     # generate input data once
 
+    local_seed = test.args.get("seed", None)
     for i in range(NUM_ITERATIONS_PER_BENCHMARK):
-        if "seed" in test.args:
-            test.args["seed"] += 42
-        data = generate_input(**test.args)
+        if local_seed is not None:
+            local_seed += 42
+            args = {**test.args, "seed": local_seed}
+        else:
+            args = test.args
+        data = generate_input(**args)
         data_list.append(data)
 
     check_copy = _clone_data(data_list)
@@ -272,12 +276,15 @@ def _run_single_benchmark(
     for i in range(max_repeats):
         torch.cuda.synchronize()
 
+        # Clone data before timing to prevent object-identity caching exploits
+        iteration_data = _clone_data(data_list)
+
         outputs = []
         clear_l2_cache()
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
         start_event.record()
-        for data in data_list:
+        for data in iteration_data:
             output = custom_kernel(data)
             outputs.append(output)
         end_event.record()
