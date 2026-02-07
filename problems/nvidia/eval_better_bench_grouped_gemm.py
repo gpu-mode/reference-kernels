@@ -1,6 +1,7 @@
 import base64
 import dataclasses
 import multiprocessing
+import random
 import re
 import time
 import os
@@ -274,10 +275,14 @@ def _run_single_benchmark(
 
     bm_start_time = time.perf_counter_ns()
     for i in range(max_repeats):
-        torch.cuda.synchronize()
-
-        # Clone data before timing to prevent object-identity caching exploits
+        # Clone and shuffle data before timing to prevent both
+        # object-identity caching and call-order caching exploits
         iteration_data = _clone_data(data_list)
+        shuffle_order = list(range(len(iteration_data)))
+        random.shuffle(shuffle_order)
+        iteration_data = [iteration_data[j] for j in shuffle_order]
+
+        torch.cuda.synchronize()
 
         outputs = []
         clear_l2_cache()
@@ -294,10 +299,10 @@ def _run_single_benchmark(
         ) * 1e6  # Convert ms to ns
 
         if recheck:
-            for reference_output, custom_output in zip(check_copy, outputs):
-                good, message = check_implementation(reference_output, custom_output)
-            if not good:
-                return message
+            for j, custom_output in zip(shuffle_order, outputs):
+                good, message = check_implementation(check_copy[j], custom_output)
+                if not good:
+                    return message
 
         durations.append(duration)
 
