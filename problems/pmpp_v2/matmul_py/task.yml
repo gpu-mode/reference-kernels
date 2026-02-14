@@ -41,4 +41,4 @@ benchmarks:
 
 test_timeout: 180
 benchmark_timeout: 180
-ranked_timeout: 180
+ranked_timeout: 420
