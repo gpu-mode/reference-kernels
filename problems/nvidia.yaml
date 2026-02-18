@@ -27,7 +27,7 @@ problems:
       - B200
   - directory: nvidia/nvfp4_group_gemm
     name: nvfp4_group_gemm
-    deadline: "2026-02-20"
+    deadline: "2026-02-21 7:30"
     gpus:
       - B200
       - NVIDIA
