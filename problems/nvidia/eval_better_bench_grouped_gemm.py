@@ -240,12 +240,16 @@ def _run_single_benchmark(
 
     durations = []
     data_list = []
-    # generate input data once
+    # generate input data once (local seed avoids mutating test.args)
 
+    local_seed = test.args.get("seed", None)
     for i in range(NUM_ITERATIONS_PER_BENCHMARK):
-        if "seed" in test.args:
-            test.args["seed"] += 42
-        data = generate_input(**test.args)
+        if local_seed is not None:
+            local_seed += 42
+            args = {**test.args, "seed": local_seed}
+        else:
+            args = test.args
+        data = generate_input(**args)
         data_list.append(data)
 
     check_copy = _clone_data(data_list)
@@ -263,35 +267,40 @@ def _run_single_benchmark(
         if not good:
             return message
 
-    # now, do multiple timing runs without further correctness testing
-    # there is an upper bound of 200 runs, and a lower bound of 3 runs;
-    # otherwise, we repeat until we either measure at least 10 full seconds,
-    # or the relative error of the mean is below 1%.
+    # Timing: individual per-call measurement with GPU sync between calls.
+    # This prevents "batch-and-skip" exploits where a submission defers all
+    # work to one call and returns cached/uncomputed results for the rest.
+    # Data is cloned each iteration to prevent object-identity caching.
 
     bm_start_time = time.perf_counter_ns()
     for i in range(max_repeats):
+        iteration_data = _clone_data(data_list)
         torch.cuda.synchronize()
-
-        outputs = []
         clear_l2_cache()
-        start_event = torch.cuda.Event(enable_timing=True)
-        end_event = torch.cuda.Event(enable_timing=True)
-        start_event.record()
-        for data in data_list:
+
+        per_call_durations = []
+        outputs = []
+        for j, data in enumerate(iteration_data):
+            start_event = torch.cuda.Event(enable_timing=True)
+            end_event = torch.cuda.Event(enable_timing=True)
+            start_event.record()
             output = custom_kernel(data)
+            end_event.record()
+            torch.cuda.synchronize()
+            per_call_durations.append(
+                start_event.elapsed_time(end_event) * 1e6  # Convert ms to ns
+            )
             outputs.append(output)
-        end_event.record()
-        torch.cuda.synchronize()
-        duration = (
-            start_event.elapsed_time(end_event) / NUM_ITERATIONS_PER_BENCHMARK
-        ) * 1e6  # Convert ms to ns
 
-        if recheck:
-            for reference_output, custom_output in zip(check_copy, outputs):
-                good, message = check_implementation(reference_output, custom_output)
-            if not good:
-                return message
+            # Per-call correctness check catches deferred-computation exploits:
+            # if a submission skips the kernel and returns uncomputed tensors,
+            # the check fails immediately.
+            if recheck:
+                good, message = check_implementation(check_copy[j], output)
+                if not good:
+                    return message
 
+        duration = sum(per_call_durations) / NUM_ITERATIONS_PER_BENCHMARK
         durations.append(duration)
 
         total_bm_duration = time.perf_counter_ns() - bm_start_time
