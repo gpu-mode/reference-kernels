@@ -1,0 +1,52 @@
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a top-k sampling kernel.
+
+  Top-k keeps only the k highest-probability tokens and zeros out the rest.
+  A key insight: instead of O(V log V) sort, use binary search on the
+  probability threshold to find the k-th largest in O(V) time.
+
+  Algorithm:
+    1. probs = softmax(logits)
+    2. Binary search for threshold T where count(probs >= T) >= k
+    3. filtered = where(probs >= threshold, probs, 0)
+    4. output = filtered / sum(filtered)
+
+  Input: tuple(logits, top_k) where:
+    - logits: torch.Tensor of shape [batch_size, vocab_size] (float32)
+    - top_k: torch.Tensor of shape [batch_size] (int32)
+
+  Output: torch.Tensor of shape [batch_size, vocab_size] (float32, renormalized probabilities)
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"batch_size": 1, "vocab_size": 256, "k": 50, "seed": 4242}
+  - {"batch_size": 4, "vocab_size": 1024, "k": 100, "seed": 5236}
+  - {"batch_size": 2, "vocab_size": 4096, "k": 10, "seed": 1001}
+  - {"batch_size": 1, "vocab_size": 32000, "k": 50, "seed": 5531}
+  - {"batch_size": 1, "vocab_size": 256, "k": 1, "seed": 9173}
+
+benchmarks:
+  - {"batch_size": 1, "vocab_size": 32000, "k": 50, "seed": 31232}
+  - {"batch_size": 8, "vocab_size": 32000, "k": 50, "seed": 4052}
+  - {"batch_size": 1, "vocab_size": 128256, "k": 50, "seed": 2146}
+  - {"batch_size": 8, "vocab_size": 128256, "k": 50, "seed": 3129}
+  - {"batch_size": 1, "vocab_size": 151936, "k": 50, "seed": 54352}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 420
+ranking_by: "geom"

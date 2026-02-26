@@ -1,0 +1,57 @@
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement Kimi Delta Attention (KDA), a linear attention mechanism with
+  per-channel decay gates and delta rule error correction.
+
+  KDA combines ideas from Gated Linear Attention (GLA) and DeltaNet:
+    - Per-channel exponential decay gates (from GLA)
+    - Delta rule error correction: predict, compute error, update state
+
+  Recurrence per timestep t:
+    S_t = diag(exp(g_t)) @ S_{t-1}           # per-channel decay
+    predicted = k_t^T @ S_t                   # prediction
+    delta = v_t - predicted                   # error
+    S_t = S_t + k_t @ (beta_t * delta)^T     # correction
+    o_t = (1/sqrt(K)) * q_t @ S_t            # output
+
+  Input: tuple(q, k, v, g, beta) where:
+    - q: torch.Tensor of shape [B, T, H, K] (float32)
+    - k: torch.Tensor of shape [B, T, H, K] (float32, L2-normalized)
+    - v: torch.Tensor of shape [B, T, H, V] (float32)
+    - g: torch.Tensor of shape [B, T, H, K] (float32, per-channel log-space gates)
+    - beta: torch.Tensor of shape [B, T, H] (float32, update strength in [0,1])
+
+  Output: torch.Tensor of shape [B, T, H, V] (float32)
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"B": 1, "T": 32, "H": 4, "K": 32, "V": 32, "seed": 4242}
+  - {"B": 2, "T": 32, "H": 4, "K": 32, "V": 32, "seed": 5236}
+  - {"B": 1, "T": 64, "H": 4, "K": 64, "V": 64, "seed": 1001}
+  - {"B": 1, "T": 64, "H": 8, "K": 32, "V": 32, "seed": 5531}
+  - {"B": 1, "T": 128, "H": 4, "K": 64, "V": 64, "seed": 9173}
+
+benchmarks:
+  - {"B": 1, "T": 256, "H": 4, "K": 64, "V": 64, "seed": 31232}
+  - {"B": 1, "T": 512, "H": 8, "K": 128, "V": 128, "seed": 4052}
+  - {"B": 1, "T": 1024, "H": 8, "K": 128, "V": 128, "seed": 2146}
+  - {"B": 1, "T": 1024, "H": 16, "K": 128, "V": 256, "seed": 3129}
+  - {"B": 1, "T": 2048, "H": 16, "K": 128, "V": 256, "seed": 54352}
+
+test_timeout: 180
+benchmark_timeout: 300
+ranked_timeout: 600
+ranking_by: "geom"
