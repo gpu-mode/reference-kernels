@@ -1,0 +1,51 @@
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a causal depthwise 1D convolution kernel.
+
+  This is a core component of Mamba/Mamba-2 architectures. Each channel is
+  convolved independently (depthwise) with causal (left) zero-padding so that
+  output[t] depends only on input[t-W+1:t+1].
+
+  For each batch b, channel d, and time t:
+    out[b, d, t] = bias[d] + sum_{k=0}^{W-1} weight[d, k] * x[b, d, t - W + 1 + k]
+  where out-of-bounds values are treated as zero.
+
+  Input: tuple(x, weight, bias) where:
+    - x: torch.Tensor of shape [B, D, S] (float32)
+    - weight: torch.Tensor of shape [D, W] (float32)
+    - bias: torch.Tensor of shape [D] (float32)
+
+  Output: torch.Tensor of shape [B, D, S] (float32)
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"B": 1, "D": 64, "S": 64, "W": 4, "seed": 4242}
+  - {"B": 2, "D": 128, "S": 128, "W": 4, "seed": 5236}
+  - {"B": 1, "D": 256, "S": 256, "W": 3, "seed": 1001}
+  - {"B": 1, "D": 128, "S": 64, "W": 8, "seed": 5531}
+  - {"B": 4, "D": 64, "S": 128, "W": 4, "seed": 9173}
+
+benchmarks:
+  - {"B": 1, "D": 768, "S": 512, "W": 4, "seed": 31232}
+  - {"B": 1, "D": 768, "S": 2048, "W": 4, "seed": 4052}
+  - {"B": 1, "D": 1536, "S": 2048, "W": 4, "seed": 2146}
+  - {"B": 1, "D": 2560, "S": 2048, "W": 4, "seed": 3129}
+  - {"B": 1, "D": 2560, "S": 4096, "W": 4, "seed": 54352}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 420
+ranking_by: "geom"

@@ -1,0 +1,55 @@
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a top-p (nucleus) sampling kernel.
+
+  Top-p keeps the smallest set of tokens whose cumulative probability mass
+  exceeds the threshold top_p. This is the most widely used sampling strategy
+  across production LLMs (Qwen3 top_p=0.95, DeepSeek-V3 top_p=0.95).
+
+  A key insight: instead of O(V log V) sort, use binary search on the
+  probability threshold to find the nucleus boundary in O(V) time.
+
+  Algorithm:
+    1. probs = softmax(logits)
+    2. Binary search for threshold T where sum(probs >= T) >= top_p
+    3. filtered = where(probs >= threshold, probs, 0)
+    4. output = filtered / sum(filtered)
+
+  Input: tuple(logits, top_p) where:
+    - logits: torch.Tensor of shape [batch_size, vocab_size] (float32)
+    - top_p: torch.Tensor of shape [batch_size] (float32, values in [0, 1])
+
+  Output: torch.Tensor of shape [batch_size, vocab_size] (float32, renormalized probabilities)
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"batch_size": 1, "vocab_size": 256, "seed": 4242}
+  - {"batch_size": 4, "vocab_size": 1024, "seed": 5236}
+  - {"batch_size": 2, "vocab_size": 4096, "seed": 1001}
+  - {"batch_size": 1, "vocab_size": 32000, "seed": 5531}
+  - {"batch_size": 8, "vocab_size": 32000, "seed": 9173}
+
+benchmarks:
+  - {"batch_size": 1, "vocab_size": 32000, "seed": 31232}
+  - {"batch_size": 8, "vocab_size": 32000, "seed": 4052}
+  - {"batch_size": 1, "vocab_size": 128256, "seed": 2146}
+  - {"batch_size": 8, "vocab_size": 128256, "seed": 3129}
+  - {"batch_size": 1, "vocab_size": 151936, "seed": 54352}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 420
+ranking_by: "geom"
