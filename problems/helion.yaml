@@ -1,22 +1,7 @@
 name: Helion Kernel Challenge
 deadline: "2026-03-14"
-description: "GPU kernel challenges inspired by Helion kernel ideas — attention mechanisms, sampling strategies, quantization, and sequence modeling operators from production LLM architectures."
+description: "GPU kernel challenges inspired by Helion kernel ideas — convolution, quantization, and gated deltanet operators from production LLM architectures."
 problems:
-  - directory: helion/gqa_py
-    name: gqa
-    deadline: "2026-03-14 00:00"
-    gpus:
-      - NVIDIA
-  - directory: helion/mla_py
-    name: mla
-    deadline: "2026-03-14 00:00"
-    gpus:
-      - NVIDIA
-  - directory: helion/kda_py
-    name: kda
-    deadline: "2026-03-14 00:00"
-    gpus:
-      - NVIDIA
   - directory: helion/causal_conv1d_py
     name: causal_conv1d
     deadline: "2026-03-14 00:00"
@@ -27,23 +12,18 @@ problems:
     deadline: "2026-03-14 00:00"
     gpus:
       - NVIDIA
-  - directory: helion/int8_quant_py
-    name: int8_quant
+  - directory: helion/gated_deltanet_chunk_fwd_h_py
+    name: gated_deltanet_chunk_fwd_h
     deadline: "2026-03-14 00:00"
     gpus:
       - NVIDIA
-  - directory: helion/min_p_py
-    name: min_p
+  - directory: helion/gated_deltanet_chunk_fwd_o_py
+    name: gated_deltanet_chunk_fwd_o
     deadline: "2026-03-14 00:00"
     gpus:
       - NVIDIA
-  - directory: helion/top_k_py
-    name: top_k
-    deadline: "2026-03-14 00:00"
-    gpus:
-      - NVIDIA
-  - directory: helion/top_p_py
-    name: top_p
+  - directory: helion/gated_deltanet_recompute_w_u_py
+    name: gated_deltanet_recompute_w_u
     deadline: "2026-03-14 00:00"
     gpus:
       - NVIDIA
