@@ -5,7 +5,7 @@ This repo holds reference kernels for the KernelBot which hosts regular competit
 You can see what's going on [gpumode.com](https://www.gpumode.com/)
 
 ## Competition
-1. [PMPP practice problems](https://gpu-mode.github.io/discord-cluster-manager/docs/active#practice-round-leaderboard)
+1. [PMPP practice problems](https://github.com/gpu-mode/reference-kernels/tree/main/problems/pmpp_v2)
 2. [AMD $100K kernel competition](problems/amd)
 3. [BioML kernels](problems/bioml)
 4. [AMD $100K distributed kernel competition](problems/amd_distributed)
