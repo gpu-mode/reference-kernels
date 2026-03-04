@@ -65,6 +65,11 @@ description: |
 
   d_hidden_pad and d_expert_pad are the dimensions padded to 256-alignment for the CK kernel.
 
+  **Known issue:** The reference submission (which calls aiter's fused_moe) is non-deterministic
+  on MI355X — it does not pass correctness checks against itself. This appears to be an aiter
+  fused_moe kernel bug on gfx950. Submissions will be evaluated on benchmark performance only
+  until this is resolved.
+
   The ranking criteria is the geometric mean of the benchmark results.
 
   ```
