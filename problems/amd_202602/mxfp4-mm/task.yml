@@ -1,0 +1,62 @@
+# name: mxfp4-mm
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  You will implement a quantize func and block scaled MXFP4 matrix-matrix multiplication kernel optimized for AMD Instinct MI355X GPU.
+  To be explicit, you will be given a tuple of tensors:
+  ```
+  (A, B, B_q, B_shuffle, B_scale_sh)
+  ```
+  where:
+  * `A` is M x K in K-major order in bfloat16
+  * `B` is N x K in K-major order in bfloat16
+  * `B_q` is N x K/2 in K-major order in MXFP4
+  * `B_shuffle` is N x K/2 in shuffled order in MXFP4, shuffled to (16,16) tile coalesced
+  * `B_scale_sh` is * x K/32 in E8M0, * means it will be padded.
+
+  Then, the kernel flow is bf16 A, MXFP4 B -> MXFP4 per-1x32 quant A -> gemm_a4w4 -> BF16 C [m,n].
+  To be specific, the invocation flow is:
+  (1) Quant A to MXFP4: aiter.get_triton_quant(QuantType.per_1x32). 
+  (2) GEMM: aiter.gemm_a4w4.
+  m, n divisible by 64; k divisible by 64.
+
+  The ranking criteria is the geometric mean of the benchmark results.
+  Pls note that this is the elimination round, whoever rank top5 are selected into the next round, e2e optimization for deepseek-R1-MXFP4 and GPTOSS-MXFP4 mdoel
+  ```
+  The aiter performance is:
+  M   N    K   time[us]
+    4 2880   512  8.198
+   16 2112  7168 20.873
+   32 4096   512  9.462
+   64 7168  2048 12.738
+   64 2880   512  9.873
+  128 2112  7168 27.284
+  256 3072  1536 12.219
+  256 7168  2048 13.506
+  ```
+config:
+  main: "eval.py"
+
+tests:
+  - {"m": 8, "n": 2112, "k": 7168, "seed": 124}
+  - {"m": 16, "n": 3072, "k": 1536, "seed": 6635}
+  - {"m": 64, "n": 3072, "k": 1536, "seed": 45}
+  - {"m": 256, "n": 2880, "k": 512, "seed": 78}
+
+benchmarks:
+  - {"m": 4, "n": 2880, "k": 512, "seed": 4565}
+  - {"m": 16, "n": 2112, "k": 7168, "seed": 15}
+  - {"m": 32, "n": 4096, "k": 512, "seed": 457}
+  - {"m": 64, "n": 7168, "k": 2048, "seed": 687}
+  - {"m": 64, "n": 2880, "k": 512, "seed": 54}
+  - {"m": 128, "n": 2112, "k": 7168, "seed": 24}
+  - {"m": 256, "n": 3072, "k": 1536, "seed": 7856}
+  - {"m": 256, "n": 7168, "k": 2048, "seed": 223}
