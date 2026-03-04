@@ -64,7 +64,7 @@ def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
 
     tests = []
     lines = content.splitlines()
-    match = r"\s*([a-zA-Z]+):\s*([a-zA-Z]+|[+-]?[0-9]+)\s*"
+    match = r"\s*([a-zA-Z_]\w*):\s*([a-zA-Z_]\w*|[+-]?[0-9]+)\s*"
     for line in lines:
         parts = line.split(";")
         case = {}
@@ -78,7 +78,10 @@ def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
             try:
                 val = int(val)
             except ValueError:
-                pass
+                if val == "true":
+                    val = True
+                elif val == "false":
+                    val = False
 
             case[key] = val
         tests.append(TestCase(spec=line, args=case))
