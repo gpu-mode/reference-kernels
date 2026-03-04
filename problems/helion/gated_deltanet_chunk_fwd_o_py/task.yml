@@ -1,0 +1,61 @@
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement the chunk_fwd_o (output computation) kernel for Gated DeltaNet.
+
+  This kernel computes the final output by combining inter-chunk (state-based)
+  and intra-chunk (attention-based) contributions for the chunkwise parallel
+  forward pass of Gated DeltaNet (arXiv:2412.06464, ICLR 2025).
+
+  The sequence is divided into chunks of BT=64 timesteps. For each chunk
+  independently:
+    inter = q @ h * exp(g)
+    intra = causal_mask(q @ k^T * exp(g[:, None] - g[None, :])) @ v_new
+    output = (inter + intra) * scale
+
+  where scale = K^(-0.5), and causal_mask zeros out entries where row < col.
+
+  Input: tuple(q, k, v_new, h, g) where:
+    - q: torch.Tensor of shape [B, T, H, K] (float32) — queries
+    - k: torch.Tensor of shape [B, T, H, K] (float32) — keys
+    - v_new: torch.Tensor of shape [B, T, H, V] (float32) — corrected values
+    - h: torch.Tensor of shape [B, NT, H, K, V] (float32) — per-chunk states
+    - g: torch.Tensor of shape [B, T, H] (float32) — cumulative gate
+
+  Output: torch.Tensor of shape [B, T, H, V] (float32)
+
+  Constraint: T must be a multiple of 64. NT = T // 64. scale = K^(-0.5).
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"B": 1, "T": 64, "H": 2, "K": 64, "V": 64, "seed": 4242}
+  - {"B": 2, "T": 128, "H": 4, "K": 64, "V": 64, "seed": 5236}
+  - {"B": 1, "T": 256, "H": 4, "K": 64, "V": 128, "seed": 1001}
+  - {"B": 1, "T": 64, "H": 1, "K": 128, "V": 128, "seed": 5531}
+  - {"B": 2, "T": 128, "H": 2, "K": 100, "V": 100, "seed": 9173}
+
+benchmarks:
+  - {"B": 1, "T": 64, "H": 1, "K": 64, "V": 64, "seed": 31232}
+  - {"B": 2, "T": 512, "H": 3, "K": 64, "V": 64, "seed": 4052}
+  - {"B": 2, "T": 1024, "H": 3, "K": 64, "V": 64, "seed": 2146}
+  - {"B": 3, "T": 1024, "H": 4, "K": 100, "V": 100, "seed": 3129}
+  - {"B": 4, "T": 1024, "H": 4, "K": 128, "V": 128, "seed": 54352}
+  - {"B": 2, "T": 1536, "H": 4, "K": 128, "V": 128, "seed": 71234}
+  - {"B": 4, "T": 2048, "H": 8, "K": 64, "V": 64, "seed": 82345}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 420
+ranking_by: "geom"

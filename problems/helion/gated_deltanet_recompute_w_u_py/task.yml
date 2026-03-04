@@ -1,0 +1,66 @@
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement the recompute_w_u forward kernel for Gated DeltaNet.
+
+  This kernel computes WY-transformed keys (w) and values (u) for the chunkwise
+  parallel forward pass of Gated DeltaNet (arXiv:2412.06464, ICLR 2025). It is
+  one of three per-chunk kernels in the forward pipeline.
+
+  The sequence is divided into non-overlapping chunks of BT=64 timesteps.
+  For each chunk independently:
+    u = A @ diag(beta) @ v           (WY-transformed values)
+    w = A @ diag(beta * exp(g)) @ k  (WY-transformed keys)
+
+  Equivalently:
+    u = A @ (v * beta[:, None])
+    w = A @ (k * beta[:, None] * exp(g)[:, None])
+
+  where A is a [BT, BT] WY representation matrix per chunk.
+
+  Input: tuple(k, v, beta, A, g) where:
+    - k: torch.Tensor of shape [B, T, H, K] (float32) — keys
+    - v: torch.Tensor of shape [B, T, H, V] (float32) — values
+    - beta: torch.Tensor of shape [B, T, H] (float32) — gating coefficients
+    - A: torch.Tensor of shape [B, T, H, BT] (float32) — WY matrix (BT=64)
+    - g: torch.Tensor of shape [B, T, H] (float32) — cumulative gate
+
+  Output: tuple(w, u) where:
+    - w: torch.Tensor of shape [B, T, H, K] (float32) — WY-transformed keys
+    - u: torch.Tensor of shape [B, T, H, V] (float32) — WY-transformed values
+
+  Constraint: T must be a multiple of 64.
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"B": 1, "T": 64, "H": 2, "K": 64, "V": 64, "seed": 4242}
+  - {"B": 2, "T": 128, "H": 4, "K": 64, "V": 64, "seed": 5236}
+  - {"B": 1, "T": 256, "H": 4, "K": 64, "V": 128, "seed": 1001}
+  - {"B": 1, "T": 64, "H": 1, "K": 128, "V": 128, "seed": 5531}
+  - {"B": 2, "T": 128, "H": 2, "K": 100, "V": 100, "seed": 9173}
+
+benchmarks:
+  - {"B": 1, "T": 64, "H": 1, "K": 64, "V": 64, "seed": 31232}
+  - {"B": 2, "T": 512, "H": 3, "K": 64, "V": 64, "seed": 4052}
+  - {"B": 2, "T": 1024, "H": 3, "K": 64, "V": 64, "seed": 2146}
+  - {"B": 3, "T": 1024, "H": 4, "K": 100, "V": 100, "seed": 3129}
+  - {"B": 4, "T": 1024, "H": 4, "K": 128, "V": 128, "seed": 54352}
+  - {"B": 2, "T": 1536, "H": 4, "K": 128, "V": 128, "seed": 71234}
+  - {"B": 4, "T": 2048, "H": 8, "K": 64, "V": 64, "seed": 82345}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 420
+ranking_by: "geom"
