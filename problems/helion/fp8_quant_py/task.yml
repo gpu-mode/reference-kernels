@@ -1,0 +1,58 @@
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a per-token-group FP8 E4M3 quantization kernel.
+
+  This is THE standard activation quantization method in production LLM inference
+  (DeepSeek-V3, Llama 3, Qwen3). It dynamically quantizes activations to FP8
+  format with per-group scale factors for W8A8 quantized inference.
+
+  For each group of `group_size` contiguous elements:
+    1. absmax = max(|x_group|)
+    2. scale = max(absmax, eps) / 448.0
+    3. x_q = clamp(x / scale, -448.0, 448.0)
+
+  Where 448.0 is the max representable value in FP8 E4M3 format.
+
+  NOTE: Output is float32 clamped to FP8 range (for broad GPU compatibility).
+
+  Input: tuple(x, x_q, x_s) where:
+    - x: torch.Tensor of shape [num_tokens, hidden_dim] (float32)
+    - x_q: pre-allocated output [num_tokens, hidden_dim] (float32)
+    - x_s: pre-allocated scales [num_tokens, hidden_dim // group_size] (float32)
+
+  Output: tuple(x_q, x_s) where:
+    - x_q: quantized values [num_tokens, hidden_dim] (float32, clamped to FP8 range)
+    - x_s: per-group scale factors [num_tokens, hidden_dim // group_size] (float32)
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "../template.py"
+
+tests:
+  - {"num_tokens": 1, "hidden_dim": 256, "group_size": 64, "seed": 4242}
+  - {"num_tokens": 4, "hidden_dim": 512, "group_size": 128, "seed": 5236}
+  - {"num_tokens": 16, "hidden_dim": 1024, "group_size": 64, "seed": 1001}
+  - {"num_tokens": 1, "hidden_dim": 4096, "group_size": 128, "seed": 5531}
+  - {"num_tokens": 8, "hidden_dim": 4096, "group_size": 128, "seed": 9173}
+
+benchmarks:
+  - {"num_tokens": 1, "hidden_dim": 4096, "group_size": 128, "seed": 31232}
+  - {"num_tokens": 16, "hidden_dim": 4096, "group_size": 128, "seed": 4052}
+  - {"num_tokens": 256, "hidden_dim": 4096, "group_size": 128, "seed": 2146}
+  - {"num_tokens": 256, "hidden_dim": 8192, "group_size": 128, "seed": 3129}
+  - {"num_tokens": 4096, "hidden_dim": 7168, "group_size": 128, "seed": 54352}
+
+test_timeout: 180
+benchmark_timeout: 180
+ranked_timeout: 420
+ranking_by: "geom"
