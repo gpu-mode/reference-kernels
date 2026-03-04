@@ -75,12 +75,13 @@ description: |
   ```
   The AITER reference performance is (E includes shared expert, top_k = routed + shared):
     bs     E  d_hidden  d_expert  top_k  time[us]
-     4   257      7168       256      9     46.9
-    64   257      7168       256      9    187.7
-   256   257      7168       256      9    245.7
-    64    33      7168      2048      9    220.6
-   256    33      7168      2048      9    276.4
-  1024    33      7168      2048      9    572.2
+    16   257      7168       256      9    152.7
+   128   257      7168       256      9    239.0
+   512   257      7168       256      9    336.5
+    16    33      7168       512      9    106.2
+   128    33      7168       512      9    141.1
+   512    33      7168       512      9    225.0
+   512    33      7168      2048      9    380.4
   ```
 
   Input:
@@ -112,16 +113,18 @@ ranked_timeout: 840
 ranking_by: "geom"
 
 tests:
-  - {"dhidden": 4096, "dexpert": 1024, "nroutedexperts": 16, "nexpertspertoken": 4, "nsharedexperts": 1, "bs": 8, "seed": 9371}
+  - {"dhidden": 4096, "dexpert": 1024, "nroutedexperts": 256, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 8, "seed": 9371}
   - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 32, "seed": 2291}
   - {"dhidden": 4096, "dexpert": 1536, "nroutedexperts": 64, "nexpertspertoken": 6, "nsharedexperts": 1, "bs": 128, "seed": 81934}
 
 benchmarks:
-  # EP off (all 257 experts on 1 GPU): E=257, top_k=9 (8 routed + 1 shared)
-  - {"dhidden": 7168, "dexpert": 256, "nroutedexperts": 256, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 4, "seed": 9371}
-  - {"dhidden": 7168, "dexpert": 256, "nroutedexperts": 256, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 64, "seed": 2291}
-  - {"dhidden": 7168, "dexpert": 256, "nroutedexperts": 256, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 256, "seed": 81934}
-  # EP on (EP=8, 33 experts per GPU): E=33, top_k=9 (8 routed + 1 shared)
-  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 64, "seed": 2291}
-  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 256, "seed": 81934}
-  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 1024, "seed": 81934}
+  # TP=8
+  - {"dhidden": 7168, "dexpert": 256, "nroutedexperts": 256, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 16, "seed": 9371}
+  - {"dhidden": 7168, "dexpert": 256, "nroutedexperts": 256, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 128, "seed": 2291}
+  - {"dhidden": 7168, "dexpert": 256, "nroutedexperts": 256, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 512, "seed": 81934}
+  # TP=4
+  - {"dhidden": 7168, "dexpert": 512, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 16, "seed": 2291}
+  - {"dhidden": 7168, "dexpert": 512, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 128, "seed": 81934}
+  - {"dhidden": 7168, "dexpert": 512, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 512, "seed": 81934}
+  # EP on
+  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 512, "seed": 81934}
