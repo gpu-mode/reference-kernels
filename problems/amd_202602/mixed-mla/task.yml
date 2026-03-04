@@ -1,0 +1,95 @@
+# name: mla-py
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  Implement a custom MLA (Multi-head Latent Attention) decode kernel optimized for MI355X.
+
+  This is the inner attention kernel from DeepSeek R1's forward_absorb MLA path.
+  The absorbed query and compressed KV cache are provided directly — you only need to
+  implement the **attention** computation with variable-length batching (indptr).
+
+  The reference uses aiter a8w8 MLA decode kernel (mla_decode_fwd, fp8 Q + fp8 KV,
+  persistent mode), which is ~2-3x faster than bf16 on MI355X.
+
+  DeepSeek R1 forward_absorb MLA config:
+    - num_heads = 16 (query heads, after TP split)
+    - num_kv_heads = 1 (shared latent KV head)
+    - kv_lora_rank = 512
+    - qk_rope_head_dim = 64
+    - qk_head_dim = 576 (kv_lora_rank + qk_rope_head_dim, absorbed q/k dim)
+    - v_head_dim = 512 (= kv_lora_rank, output dim)
+    - sm_scale = 1/sqrt(576)
+    - dtype: q=bfloat16
+    - decode only (q_seq_len=1, kv_seq_len up to 8k)
+
+  KV buffer format (forward_absorb):
+    - Full 576 dims are used as keys (for Q@K^T score computation)
+    - First 512 dims (kv_lora_rank) are used as values (for output computation)
+
+  Input tuple: (q, kv_data, qo_indptr, kv_indptr, config)
+    - q: (total_q, 16, 576) bfloat16 — absorbed query
+    - kv_data: dict with three KV cache formats:
+        kv_data["bf16"]  — Tensor (total_kv, 1, 576) bfloat16
+        kv_data["fp8"]   — (Tensor, Tensor): kv_buffer fp8 + scalar scale
+        kv_data["mxfp4"] — (Tensor, Tensor): kv_buffer fp4x2 + fp8_e8m0 scale
+    - qo_indptr: (batch_size+1,) int32 — query segment pointers
+    - kv_indptr: (batch_size+1,) int32 — KV segment pointers
+    - config: dict with MLA parameters
+
+  Return:
+    - attention output: (total_q, 16, 512) bfloat16
+
+  Key optimization opportunities:
+    1. Use mxfp4 KV cache for even lower memory bandwidth (4x savings over bf16)
+       - Fuse dequantization with attention to skip bf16 materialization
+    2. Custom kernel with tighter memory access patterns
+    3. MQA: 1 KV head shared across 16 query heads — minimize redundant memory loads
+    4. Decode: q_seq_len=1, kv_seq_len up to 8k — memory-bound workload
+    5. Variable-length batching: indptr-based segmented attention
+    6. Split K/V from buffer: full 576 dims for keys, first 512 dims for values
+
+  The ranking criteria is the geometric mean of the benchmark results.
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "submission.py"
+
+test_timeout: 900
+benchmark_timeout: 900
+ranked_timeout: 1200
+
+tests:
+  # bs=4
+  - {"batchsize": 4, "qseqlen": 1, "kvseqlen": 1024, "seed": 4220}
+  # bs=32
+  - {"batchsize": 32, "qseqlen": 1, "kvseqlen": 1024, "seed": 5412}
+  # bs=64
+  - {"batchsize": 64, "qseqlen": 1, "kvseqlen": 8192, "seed": 1360}
+  # bs=256
+  - {"batchsize": 256, "qseqlen": 1, "kvseqlen": 8192, "seed": 9826}
+
+benchmarks:
+  # bs=4
+  - {"batchsize": 4, "qseqlen": 1, "kvseqlen": 1024, "seed": 4217}
+  - {"batchsize": 4, "qseqlen": 1, "kvseqlen": 8192, "seed": 4220}
+  # bs=32
+  - {"batchsize": 32, "qseqlen": 1, "kvseqlen": 1024, "seed": 5412}
+  - {"batchsize": 32, "qseqlen": 1, "kvseqlen": 8192, "seed": 5415}
+  # bs=64
+  - {"batchsize": 64, "qseqlen": 1, "kvseqlen": 1024, "seed": 1357}
+  - {"batchsize": 64, "qseqlen": 1, "kvseqlen": 8192, "seed": 1360}
+  # bs=256
+  - {"batchsize": 256, "qseqlen": 1, "kvseqlen": 1024, "seed": 9823}
+  - {"batchsize": 256, "qseqlen": 1, "kvseqlen": 8192, "seed": 9826}
+
+ranking_by: "geom"

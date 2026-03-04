@@ -1,0 +1,122 @@
+# name: 3_moe_mxfp4
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "../eval.py"}
+
+lang: "py"
+
+description: |
+  You will implement a DeepSeek-R1 style MXFP4 Mixture-of-Experts (MoE) fused kernel optimized for AMD Instinct MI355X GPU.
+
+  To be explicit, you will be given a tuple of tensors:
+  ```
+  (hidden_states,
+   gate_up_weight, down_weight,                                         # fp4x2 raw
+   gate_up_weight_scale, down_weight_scale,                             # e8m0  raw
+   gate_up_weight_shuffled, down_weight_shuffled,                       # fp4x2 pre-shuffled
+   gate_up_weight_scale_shuffled, down_weight_scale_shuffled,           # e8m0  pre-shuffled
+   topk_weights, topk_ids,
+   config)
+  ```
+  where:
+  * `hidden_states` is M x d_hidden in bfloat16 (the input activations, M = batch of tokens)
+  * `gate_up_weight` is [E, 2*d_expert_pad, d_hidden_pad//2] in MXFP4 (fp4x2), raw layout.
+    Fused gate + up projection weights for each expert. E = number of local experts.
+  * `down_weight` is [E, d_hidden_pad, d_expert_pad//2] in MXFP4 (fp4x2), raw layout.
+    Down projection weights for each expert.
+  * `gate_up_weight_scale` is [E, 2*d_expert_pad, d_hidden_pad//32] in E8M0, raw layout.
+    Block scales (block_size=32) for gate_up_weight.
+  * `down_weight_scale` is [E, d_hidden_pad, d_expert_pad//32] in E8M0, raw layout.
+    Block scales for down_weight.
+  * `gate_up_weight_shuffled` / `down_weight_shuffled` are the same weights shuffled to
+    (16,16) tile-coalesced layout for the CK kernel.
+  * `gate_up_weight_scale_shuffled` / `down_weight_scale_shuffled` are the scales after
+    e8m0_shuffle, flattened to [padded, flat].
+  * `topk_weights` is [M, total_top_k] float32: routing weights (routed experts + shared experts).
+  * `topk_ids` is [M, total_top_k] int32: expert indices. First nexpertspertoken columns are
+    routed expert ids (0..n_routed-1), last nsharedexperts columns are shared expert ids
+    (n_routed..n_routed+n_shared-1). Shared experts are always selected with weight=1.0.
+  * `config` is a dict with: d_hidden, d_expert, d_hidden_pad, d_expert_pad,
+    n_routed_experts, n_shared_experts, n_experts_per_token, total_top_k, bs.
+
+  Then, the fused_moe kernel flow is:
+  (1) Quant activations to MXFP4: aiter per-1x32 dynamic quantization of hidden_states.
+  (2) Stage 1 GEMM + activation (per token i, per assigned expert j):
+      - gate = x_i @ W_gate_j.T          # [d_hidden] x [d_expert, d_hidden].T -> [d_expert]
+      - up   = x_i @ W_up_j.T            # [d_hidden] x [d_expert, d_hidden].T -> [d_expert]
+      - intermediate = SiLU(gate) * up    # SwiGLU activation, -> [d_expert]
+      (W_gate and W_up are fused as gate_up_weight, so this is one a4w4 GEMM + fused activation)
+  (3) Stage 2 GEMM:
+      - expert_out = intermediate @ W_down_j.T  # [d_expert] x [d_hidden, d_expert].T -> [d_hidden]
+  (4) Weighted reduction:
+      - output_i += w_ij * expert_out     # accumulate across top_k experts
+  All weight GEMMs are a4w4 (MXFP4 activations x MXFP4 weights, per-1x32 block scaling).
+  The AITER CK kernel fuses all of the above into a 2-stage pipeline across all tokens and experts.
+
+  DeepSeek-R1 MoE specs:
+    - hidden_size = 7168, moe_intermediate_size = 2048
+    - 256 routed experts + 1 shared expert (total 257), top-8 routed + 1 shared = 9 per token
+    - 58 MoE layers (layer 3-60)
+    - The shared expert processes ALL tokens unconditionally (weight=1.0)
+
+  d_hidden_pad and d_expert_pad are the dimensions padded to 256-alignment for the CK kernel.
+
+  The ranking criteria is the geometric mean of the benchmark results.
+
+  ```
+  The AITER reference performance is (E includes shared expert, top_k = routed + shared):
+    bs     E  d_hidden  d_expert  top_k  time[us]
+     4   257      7168       256      9     46.9
+    64   257      7168       256      9    187.7
+   256   257      7168       256      9    245.7
+    64    33      7168      2048      9    220.6
+   256    33      7168      2048      9    276.4
+  1024    33      7168      2048      9    572.2
+  ```
+
+  Input:
+    - hidden_states:                  [M, d_hidden]                          bf16
+    - gate_up_weight:                 [E, 2*d_expert_pad, d_hidden_pad//2]   fp4x2 (raw, before shuffle)
+    - down_weight:                    [E, d_hidden_pad, d_expert_pad//2]     fp4x2 (raw, before shuffle)
+    - gate_up_weight_scale:           [E, 2*d_expert_pad, d_hidden_pad//32]  e8m0  (raw, before shuffle)
+    - down_weight_scale:              [E, d_hidden_pad, d_expert_pad//32]    e8m0  (raw, before shuffle)
+    - gate_up_weight_shuffled:        [E, 2*d_expert_pad, d_hidden_pad//2]   fp4x2 (pre-shuffled for CK)
+    - down_weight_shuffled:           [E, d_hidden_pad, d_expert_pad//2]     fp4x2 (pre-shuffled for CK)
+    - gate_up_weight_scale_shuffled:  [padded, flat]                         e8m0  (pre-shuffled for CK)
+    - down_weight_scale_shuffled:     [padded, flat]                         e8m0  (pre-shuffled for CK)
+    - topk_weights:                   [M, total_top_k]                       float32
+    - topk_ids:                       [M, total_top_k]                       int32
+    - config:                         dict with dimensions
+
+  Output:
+    - output: [M, d_hidden] bf16
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "submission.py"
+
+test_timeout: 540
+benchmark_timeout: 540
+ranked_timeout: 840
+ranking_by: "geom"
+
+tests:
+  - {"dhidden": 4096, "dexpert": 1024, "nroutedexperts": 16, "nexpertspertoken": 4, "nsharedexperts": 1, "bs": 8, "seed": 9371}
+  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 32, "seed": 2291}
+  - {"dhidden": 4096, "dexpert": 1536, "nroutedexperts": 64, "nexpertspertoken": 6, "nsharedexperts": 1, "bs": 128, "seed": 81934}
+
+benchmarks:
+  # EP off (all 257 experts on 1 GPU): E=257, top_k=9 (8 routed + 1 shared)
+  - {"dhidden": 7168, "dexpert": 256, "nroutedexperts": 256, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 4, "seed": 9371}
+  - {"dhidden": 7168, "dexpert": 256, "nroutedexperts": 256, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 64, "seed": 2291}
+  - {"dhidden": 7168, "dexpert": 256, "nroutedexperts": 256, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 256, "seed": 81934}
+  # EP on (EP=8, 33 experts per GPU): E=33, top_k=9 (8 routed + 1 shared)
+  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 64, "seed": 2291}
+  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 256, "seed": 81934}
+  - {"dhidden": 7168, "dexpert": 2048, "nroutedexperts": 32, "nexpertspertoken": 8, "nsharedexperts": 1, "bs": 1024, "seed": 81934}
