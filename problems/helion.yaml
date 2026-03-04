@@ -1,29 +1,29 @@
 name: Helion Kernel Challenge
-deadline: "2026-03-14"
+deadline: "2026-03-15 06:00"
 description: "GPU kernel challenges inspired by Helion kernel ideas — convolution, quantization, and gated deltanet operators from production LLM architectures."
 problems:
   - directory: helion/causal_conv1d_py
     name: causal_conv1d
-    deadline: "2026-03-14 00:00"
+    deadline: "2026-03-15 06:00"
     gpus:
       - NVIDIA
   - directory: helion/fp8_quant_py
     name: fp8_quant
-    deadline: "2026-03-14 00:00"
+    deadline: "2026-03-15 06:00"
     gpus:
       - NVIDIA
   - directory: helion/gated_deltanet_chunk_fwd_h_py
     name: gated_deltanet_chunk_fwd_h
-    deadline: "2026-03-14 00:00"
+    deadline: "2026-03-15 06:00"
     gpus:
       - NVIDIA
   - directory: helion/gated_deltanet_chunk_fwd_o_py
     name: gated_deltanet_chunk_fwd_o
-    deadline: "2026-03-14 00:00"
+    deadline: "2026-03-15 06:00"
     gpus:
       - NVIDIA
   - directory: helion/gated_deltanet_recompute_w_u_py
     name: gated_deltanet_recompute_w_u
-    deadline: "2026-03-14 00:00"
+    deadline: "2026-03-15 06:00"
     gpus:
       - NVIDIA
