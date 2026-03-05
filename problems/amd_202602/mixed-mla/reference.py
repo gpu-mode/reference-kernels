@@ -6,7 +6,7 @@ DeepSeek R1 forward_absorb MLA: absorbed q (576), compressed kv_buffer (576),
 output v_head_dim = kv_lora_rank = 512.
 
 The input provides:
-  q:       (total_q, num_heads, 576) bfloat16 — absorbed query (num_heads = 128 // tp)
+  q:       (total_q, 16, 576) bfloat16 — absorbed query
   kv_data: dict with KV cache in three formats:
     "bf16":  Tensor  (total_kv, 1, 576)  bfloat16          — highest precision
     "fp8":   (Tensor, Tensor)  kv_buffer fp8 + scalar scale — per-tensor quantized
@@ -37,7 +37,7 @@ from aiter.utility.fp4_utils import (
 # DeepSeek R1 latent MQA constants (forward_absorb path)
 # https://huggingface.co/deepseek-ai/DeepSeek-R1-0528/blob/main/config.json
 # ---------------------------------------------------------------------------
-TOTAL_NUM_HEADS = 128
+NUM_HEADS = 16
 NUM_KV_HEADS = 1
 KV_LORA_RANK = 512
 QK_ROPE_HEAD_DIM = 64
@@ -285,12 +285,9 @@ def _aiter_mla_decode(
 # generate_input / ref_kernel / check_implementation
 # ---------------------------------------------------------------------------
 
-def generate_input(batchsize: int, qseqlen: int, kvseqlen: int, tp: int, seed: int) -> input_t:
+def generate_input(batchsize: int, qseqlen: int, kvseqlen: int, seed: int) -> input_t:
     """
     Generate absorbed q and compressed kv_buffer for MLA decode.
-
-    Args:
-        tp: tensor parallelism degree (4 or 8). num_heads = TOTAL_NUM_HEADS // tp.
 
     Returns all three KV cache formats in kv_data dict:
       kv_data = {
@@ -299,9 +296,6 @@ def generate_input(batchsize: int, qseqlen: int, kvseqlen: int, tp: int, seed: i
         "mxfp4": (Tensor, Tensor)     — kv_buffer fp4x2 + fp8_e8m0 scale
       }
     """
-    assert TOTAL_NUM_HEADS % tp == 0, f"TOTAL_NUM_HEADS ({TOTAL_NUM_HEADS}) must be divisible by tp ({tp})"
-    num_heads = TOTAL_NUM_HEADS // tp
-
     gen = torch.Generator(device="cuda")
     gen.manual_seed(seed)
 
@@ -310,7 +304,7 @@ def generate_input(batchsize: int, qseqlen: int, kvseqlen: int, tp: int, seed: i
 
     # Absorbed query: (total_q, num_heads, 576) bf16
     q = torch.randn(
-        (total_q, num_heads, QK_HEAD_DIM),
+        (total_q, NUM_HEADS, QK_HEAD_DIM),
         dtype=torch.bfloat16, device="cuda", generator=gen,
     ) * 0.02
 
@@ -338,7 +332,7 @@ def generate_input(batchsize: int, qseqlen: int, kvseqlen: int, tp: int, seed: i
 
     config = {
         "batch_size": batchsize,
-        "num_heads": num_heads,
+        "num_heads": NUM_HEADS,
         "num_kv_heads": NUM_KV_HEADS,
         "qk_head_dim": QK_HEAD_DIM,
         "kv_lora_rank": KV_LORA_RANK,
