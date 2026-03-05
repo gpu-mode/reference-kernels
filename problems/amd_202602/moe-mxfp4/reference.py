@@ -5,7 +5,8 @@ import torch.nn.functional as F
 from typing import Dict, Tuple, Optional
 import math
 
-from aiter import ActivationType, QuantType
+import aiter
+from aiter import ActivationType, QuantType, dtypes
 from aiter.fused_moe import fused_moe
 from aiter.utility import fp4_utils
 from aiter.ops.shuffle import shuffle_weight
@@ -98,48 +99,23 @@ def generate_input(
     topk_ids = torch.cat([routed_ids, shared_ids], dim=-1)        # [M, total_top_k]
     topk_weights = torch.cat([routed_weights, shared_weights], dim=-1)  # [M, total_top_k]
 
-    # ── Expert weights: bf16 -> quantize to MXFP4 ──
-    # Generate weights for ALL experts (routed + shared)
-    # gate_up = fused [gate_proj; up_proj] per expert: [2*d_expert_pad, d_hidden_pad]
-    # down    = down_proj                  per expert: [d_hidden_pad, d_expert_pad]
-    gate_up_q_list, gate_up_s_list = [], []
-    down_q_list, down_s_list = [], []
+    gate_up_bf16 = torch.randn(
+        (E_total, 2 * d_expert_pad, d_hidden_pad), device='cuda', dtype=torch.bfloat16, generator=gen,
+    ) / math.sqrt(d_hidden)
+    down_bf16 = torch.randn(
+        (E_total, d_hidden_pad, d_expert_pad), device='cuda', dtype=torch.bfloat16, generator=gen,
+    ) / math.sqrt(d_expert)
 
-    for _ in range(E_total):
-        # gate_proj + up_proj -> fused [2*d_expert_pad, d_hidden_pad]
-        gate_bf16 = torch.randn(
-            (d_expert_pad, d_hidden_pad), device='cuda', dtype=torch.bfloat16, generator=gen
-        ) / math.sqrt(d_hidden)
-        up_bf16 = torch.randn(
-            (d_expert_pad, d_hidden_pad), device='cuda', dtype=torch.bfloat16, generator=gen
-        ) / math.sqrt(d_hidden)
-        gate_up_bf16 = torch.cat([gate_bf16, up_bf16], dim=0)
+    torch_quant = aiter.get_torch_quant(QuantType.per_1x32)
+    gate_up_weight, gate_up_weight_scale = torch_quant(gate_up_bf16, quant_dtype=dtypes.fp4x2)
+    down_weight, down_weight_scale = torch_quant(down_bf16, quant_dtype=dtypes.fp4x2)
+    gate_up_weight = gate_up_weight.view(E_total, 2 * d_expert_pad, d_hidden_pad // 2)
+    down_weight = down_weight.view(E_total, d_hidden_pad, d_expert_pad // 2)
 
-        # down_proj -> [d_hidden_pad, d_expert_pad]
-        down_bf16 = torch.randn(
-            (d_hidden_pad, d_expert_pad), device='cuda', dtype=torch.bfloat16, generator=gen
-        ) / math.sqrt(d_expert)
-
-        # Quantize to MXFP4
-        gu_q, gu_s = fp4_utils.dynamic_mxfp4_quant(gate_up_bf16)
-        dn_q, dn_s = fp4_utils.dynamic_mxfp4_quant(down_bf16)
-
-        gate_up_q_list.append(gu_q)
-        gate_up_s_list.append(gu_s)
-        down_q_list.append(dn_q)
-        down_s_list.append(dn_s)
-
-    # Stack into [E_total, ...] tensors — raw (before shuffle)
-    gate_up_weight = torch.stack(gate_up_q_list)          # [E_total, 2*d_expert_pad, d_hidden_pad//2]  fp4x2
-    gate_up_weight_scale = torch.stack(gate_up_s_list)    # [E_total, 2*d_expert_pad, scale_K]          e8m0
-    down_weight = torch.stack(down_q_list)                # [E_total, d_hidden_pad, d_expert_pad//2]    fp4x2
-    down_weight_scale = torch.stack(down_s_list)          # [E_total, d_hidden_pad, scale_K]            e8m0
-
-    # Pre-shuffled weight. You can also shuffle the weights yourself before calling the kernel.
-    gate_up_weight_shuffled = shuffle_weight(gate_up_weight.clone())
-    down_weight_shuffled = shuffle_weight(down_weight.clone())
-    gate_up_weight_scale_shuffled = fp4_utils.e8m0_shuffle(gate_up_weight_scale.reshape(E_total, -1))
-    down_weight_scale_shuffled = fp4_utils.e8m0_shuffle(down_weight_scale.reshape(E_total, -1))
+    gate_up_weight_shuffled = shuffle_weight(gate_up_weight, layout=(16, 16))
+    down_weight_shuffled = shuffle_weight(down_weight, layout=(16, 16))
+    gate_up_weight_scale_shuffled = fp4_utils.e8m0_shuffle(gate_up_weight_scale)
+    down_weight_scale_shuffled = fp4_utils.e8m0_shuffle(down_weight_scale)
 
     return (
         hidden_states,                  # [M, d_hidden]                              bf16
