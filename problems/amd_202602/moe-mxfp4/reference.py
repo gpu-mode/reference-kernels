@@ -1,4 +1,4 @@
-from utils import make_match_reference, verbose_allclose
+from utils import make_match_reference
 from task import input_t, output_t
 import torch
 import torch.nn.functional as F
@@ -296,15 +296,4 @@ def ref_kernel(data: input_t) -> output_t:
 
 
 
-def check_implementation(data, submission_output):
-    """
-    Custom check that re-runs ref_kernel on the ORIGINAL (un-cloned) data.
-
-    aiter's fused_moe is sensitive to weight tensor memory layout — cloned
-    weight tensors (as produced by the eval harness's _clone_data) yield
-    different results even though the values are identical.  Because fused_moe
-    does NOT mutate its inputs, comparing the submission output against a fresh
-    ref_kernel run on the same data object is safe and correct.
-    """
-    expected = ref_kernel(data)
-    return verbose_allclose(submission_output, expected, rtol=5e-2, atol=5e-2)
+check_implementation = make_match_reference(ref_kernel, rtol=5e-2, atol=5e-2)
