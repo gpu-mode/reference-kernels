@@ -6,24 +6,24 @@ problems:
     name: causal_conv1d
     deadline: "2026-03-14 00:00"
     gpus:
-      - NVIDIA
+      - B200_Nebius
   - directory: helion/fp8_quant_py
     name: fp8_quant
     deadline: "2026-03-14 00:00"
     gpus:
-      - NVIDIA
+      - B200_Nebius
   - directory: helion/gated_deltanet_chunk_fwd_h_py
     name: gated_deltanet_chunk_fwd_h
     deadline: "2026-03-14 00:00"
     gpus:
-      - NVIDIA
+      - B200_Nebius
   - directory: helion/gated_deltanet_chunk_fwd_o_py
     name: gated_deltanet_chunk_fwd_o
     deadline: "2026-03-14 00:00"
     gpus:
-      - NVIDIA
+      - B200_Nebius
   - directory: helion/gated_deltanet_recompute_w_u_py
     name: gated_deltanet_recompute_w_u
     deadline: "2026-03-14 00:00"
     gpus:
-      - NVIDIA
+      - B200_Nebius
