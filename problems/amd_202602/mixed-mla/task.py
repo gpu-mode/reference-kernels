@@ -5,14 +5,13 @@ from typing import TypeVar, TypedDict, Union
 #
 # Input: (q, kv_data, qo_indptr, kv_indptr, config)
 #   q:          (total_q, num_heads, qk_head_dim)   bfloat16
-#               num_heads = 128 // tp (tp=4 → 32, tp=8 → 16)
 #   kv_data:    dict with three KV cache formats:
 #     "bf16":   Tensor  (total_kv, 1, 576)           bfloat16
 #     "fp8":    (Tensor, Tensor)  kv_buffer fp8 (total_kv, 1, 576) + scalar scale
 #     "mxfp4":  (Tensor, Tensor)  kv_buffer fp4x2 (total_kv, 1, 288) + fp8_e8m0 scale
 #   qo_indptr:  (batch_size + 1,)                    int32
 #   kv_indptr:  (batch_size + 1,)                    int32
-#   config:     dict with MLA parameters (includes num_heads computed from tp)
+#   config:     dict with MLA parameters
 #
 # where qk_head_dim = kv_lora_rank + qk_rope_head_dim = 512 + 64 = 576
 #
@@ -34,5 +33,4 @@ class TestSpec(TypedDict):
     batchsize: int
     qseqlen: int
     kvseqlen: int
-    tp: int
     seed: int
