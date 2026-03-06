@@ -4,7 +4,7 @@ from task import input_t, output_t
 def custom_kernel(data: input_t) -> output_t:
     import torch
 
-    k, w, u, g, initial_state = data
+    k, w, u, g = data
     B, T, H, K = k.shape
     V = u.shape[-1]
     BT = 64
@@ -15,7 +15,7 @@ def custom_kernel(data: input_t) -> output_t:
 
     for b in range(B):
         for hh in range(H):
-            b_h = initial_state[b, hh].float().clone()
+            b_h = torch.zeros(K, V, dtype=torch.float32, device=k.device)
 
             for c in range(NT):
                 cs = c * BT

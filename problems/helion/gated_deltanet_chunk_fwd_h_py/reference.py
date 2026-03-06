@@ -5,7 +5,7 @@ from utils import verbose_allclose
 CHUNK_SIZE = 64
 
 
-def generate_input(B: int, T: int, H: int, K: int, V: int, use_initial_state: bool, seed: int) -> input_t:
+def generate_input(B: int, T: int, H: int, K: int, V: int, seed: int) -> input_t:
     gen = torch.Generator(device="cuda")
     gen.manual_seed(seed)
     k = torch.randn(B, T, H, K, dtype=torch.float32, device="cuda", generator=gen).contiguous()
@@ -13,15 +13,11 @@ def generate_input(B: int, T: int, H: int, K: int, V: int, use_initial_state: bo
     u = torch.randn(B, T, H, V, dtype=torch.float32, device="cuda", generator=gen).contiguous()
     # Use negative values for g to keep exp(g) bounded in (0, 1] and prevent overflow
     g = -torch.abs(torch.randn(B, T, H, dtype=torch.float32, device="cuda", generator=gen)).contiguous()
-    if use_initial_state:
-        initial_state = torch.randn(B, H, K, V, dtype=torch.float32, device="cuda", generator=gen).contiguous()
-    else:
-        initial_state = torch.zeros(B, H, K, V, dtype=torch.float32, device="cuda").contiguous()
-    return k, w, u, g, initial_state
+    return k, w, u, g
 
 
 def ref_kernel(data: input_t) -> output_t:
-    k, w, u, g, initial_state = data
+    k, w, u, g = data
     B, T, H, K = k.shape
     V = u.shape[-1]
     BT = CHUNK_SIZE
@@ -32,7 +28,7 @@ def ref_kernel(data: input_t) -> output_t:
 
     for b in range(B):
         for hh in range(H):
-            b_h = initial_state[b, hh].float().clone()  # [K, V]
+            b_h = torch.zeros(K, V, dtype=torch.float32, device=k.device)
 
             for c in range(NT):
                 cs = c * BT
