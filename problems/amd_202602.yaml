@@ -1,19 +1,19 @@
 name: AMD Developer Challenge February 2026
-deadline: "2026-03-15 06:00"
+deadline: "2026-03-30 06:00"
 description: "AMD Developer Challenge: MXFP4 matrix multiplication, Mixture-of-Experts, and Multi-head Latent Attention optimized for MI355X."
 problems:
   - directory: amd_202602/mxfp4-mm
     name: amd-mxfp4-mm
-    deadline: "2026-03-15 06:00"
+    deadline: "2026-03-30 06:00"
     gpus:
       - MI355X
   - directory: amd_202602/moe-mxfp4
     name: amd-moe-mxfp4
-    deadline: "2026-03-15 06:00"
+    deadline: "2026-03-30 06:00"
     gpus:
       - MI355X
   - directory: amd_202602/mixed-mla
     name: amd-mixed-mla
-    deadline: "2026-03-15 06:00"
+    deadline: "2026-03-30 06:00"
     gpus:
       - MI355X
