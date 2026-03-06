@@ -1,19 +1,22 @@
-name: AMD Developer Challenge February 2026
-deadline: "2026-03-30 06:00"
-description: "AMD Developer Challenge: MXFP4 matrix multiplication, Mixture-of-Experts, and Multi-head Latent Attention optimized for MI355X."
+name: AMD Developer Challenge 2025 - Distributed Edition
+# when does this end (individual problems might close earlier)
+deadline: "2025-10-14"
+# A description for this particular competition
+description: "AMD Developer Challenge 2025: Distributed Edition"
+# the list of problems
 problems:
-  - directory: amd_202602/mxfp4-mm
-    name: amd-mxfp4-mm
-    deadline: "2026-03-30 06:00"
+  - directory: amd_distributed/all2all
+    name: amd-all2all
+    deadline: "2025-10-15 07:00" # midnight pst
     gpus:
-      - MI355X
-  - directory: amd_202602/moe-mxfp4
-    name: amd-moe-mxfp4
-    deadline: "2026-03-30 06:00"
+      - MI300x8
+  - directory: amd_distributed/gemm-rs
+    name: amd-gemm-rs
+    deadline: "2025-10-15 07:00" # midnight pst
     gpus:
-      - MI355X
-  - directory: amd_202602/mixed-mla
-    name: amd-mixed-mla
-    deadline: "2026-03-30 06:00"
+      - MI300x8
+  - directory: amd_distributed/ag-gemm
+    name: amd-ag-gemm
+    deadline: "2025-10-15 07:00" # midnight pst
     gpus:
-      - MI355X
+      - MI300x8
