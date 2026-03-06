@@ -43,6 +43,14 @@ description: |
 config:
   main: "eval.py"
 
+templates:
+  Python: "submission.py"
+
+test_timeout: 420
+benchmark_timeout: 420
+ranked_timeout: 600
+ranking_by: "geom"
+
 tests:
   - {"m": 8, "n": 2112, "k": 7168, "seed": 124}
   - {"m": 16, "n": 3072, "k": 1536, "seed": 6635}
