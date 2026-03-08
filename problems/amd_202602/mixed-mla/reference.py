@@ -1,17 +1,22 @@
 """
-Pure PyTorch reference implementation for MLA (Multi-head Latent Attention)
-decode.
+Reference implementation for MLA (Multi-head Latent Attention) decode kernel.
 
-This version keeps the same task-facing structure as the original reference:
-  - generate_input(...)
-  - ref_kernel(...)
-  - check_implementation
+Uses aiter MLA kernels (mla_decode_fwd) as the reference.
+DeepSeek R1 forward_absorb MLA: absorbed q (576), compressed kv_buffer (576),
+output v_head_dim = kv_lora_rank = 512.
 
-The key difference is that it avoids AITER entirely. It uses the same dynamic
-per-tensor FP8 quantization for Q/KV and computes decode attention with regular
-PyTorch matmuls after dequantization. On the official decode workload
-(`q_seq_len == 1`) this stays numerically very close to the original a8w8
-reference while avoiding the AITER build/compile dependency.
+The input provides:
+  q:       (total_q, 16, 576) bfloat16 — absorbed query
+  kv_data: dict with KV cache in three formats:
+    "bf16":  Tensor  (total_kv, 1, 576)  bfloat16          — highest precision
+    "fp8":   (Tensor, Tensor)  kv_buffer fp8 + scalar scale — per-tensor quantized
+    "mxfp4": (Tensor, Tensor)  kv_buffer fp4x2 + fp8_e8m0  — block-32 quantized
+  The reference quantizes Q to fp8 on-the-fly inside ref_kernel.
+
+The reference kernel quantizes Q to fp8 on-the-fly and uses fp8 KV (a8w8 kernel),
+which is ~2-3x faster than bf16 on MI355X with negligible accuracy loss.
+
+Decode only — persistent mode with get_mla_metadata_v1.
 """
 
 import torch
