@@ -79,7 +79,7 @@ def generate_input(m: int, n: int, k: int, seed: int):
     A = torch.randn((m, k), dtype=torch.bfloat16, device="cuda", generator=gen)
     B = torch.randn((n, k), dtype=torch.bfloat16, device="cuda", generator=gen)
     
-    B_q, B_scale = quantize_mxfp4_pure_torch(B)
+    B_q, B_scale = quantize_mxfp4(B)
     B_shuffle = shuffle_weights(B_q, layout=(16, 16))
     B_scale_sh = shuffle_scales(B_scale, M_actual=n, N_actual=k)
     
