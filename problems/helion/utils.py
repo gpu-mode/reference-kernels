@@ -196,13 +196,10 @@ def gpu_lockdown():
     """
     max_sm = _nvsmi_query("clocks.max.graphics")
     max_mem = _nvsmi_query("clocks.max.memory")
-    max_power = _nvsmi_query("power.max_limit")
 
-    logging.info("[gpu_lockdown] Locking clocks: SM=%s MHz, mem=%s MHz, power=%s W",
-                 max_sm, max_mem, max_power)
+    logging.info("[gpu_lockdown] Locking clocks: SM=%s MHz, mem=%s MHz", max_sm, max_mem)
 
     _sudo_nvsmi("-pm", "1")
-    _sudo_nvsmi("--power-limit", max_power)
     _sudo_nvsmi("-lgc", max_sm)
     _sudo_nvsmi("-lmc", max_mem)
     _sudo_nvsmi("-ac", f"{max_mem},{max_sm}")
