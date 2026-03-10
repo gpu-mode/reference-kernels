@@ -194,7 +194,7 @@ def _nvsmi_query(field: str) -> str:
 
 
 @contextmanager
-def gpu_lockdown(enabled=True):
+def gpu_lockdown():
     """
     Lock B200 GPU clocks to max frequencies for reproducible benchmarking.
     Queries max clocks from the GPU rather than hardcoding them.
@@ -203,25 +203,17 @@ def gpu_lockdown(enabled=True):
     Requires passwordless sudo for nvidia-smi (typical on CI runners).
     Falls back gracefully if sudo is unavailable.
     """
-    if not enabled:
-        yield
-        return
-
     max_sm = _nvsmi_query("clocks.max.graphics")
     max_mem = _nvsmi_query("clocks.max.memory")
 
     logging.info("[gpu_lockdown] Locking B200 clocks: SM=%s MHz, mem=%s MHz, power=%d W",
                  max_sm, max_mem, B200_POWER_CAP)
 
-    ok = True
-    ok = _sudo_nvsmi("-pm", "1") and ok
-    ok = _sudo_nvsmi("--power-limit", str(B200_POWER_CAP)) and ok
-    ok = _sudo_nvsmi("-lgc", max_sm) and ok
-    ok = _sudo_nvsmi("-lmc", max_mem) and ok
+    _sudo_nvsmi("-pm", "1")
+    _sudo_nvsmi("--power-limit", str(B200_POWER_CAP))
+    _sudo_nvsmi("-lgc", max_sm)
+    _sudo_nvsmi("-lmc", max_mem)
     _sudo_nvsmi("-ac", f"{max_mem},{max_sm}")
-
-    if not ok:
-        logging.warning("[gpu_lockdown] Some settings failed — need passwordless sudo for nvidia-smi")
 
     try:
         yield
