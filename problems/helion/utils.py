@@ -170,7 +170,6 @@ class DeterministicContext:
         os.environ['CUBLAS_WORKSPACE_CONFIG'] = self.cublas
 
 CUDA_VISIBLE_DEVICES = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
-B200_POWER_CAP = 750  # Watts — matches tritonbench .ci/gpu/tune-b200.sh
 
 
 def _sudo_nvsmi(*args: str):
@@ -197,12 +196,13 @@ def gpu_lockdown():
     """
     max_sm = _nvsmi_query("clocks.max.graphics")
     max_mem = _nvsmi_query("clocks.max.memory")
+    max_power = _nvsmi_query("power.max_limit")
 
-    logging.info("[gpu_lockdown] Locking B200 clocks: SM=%s MHz, mem=%s MHz, power=%d W",
-                 max_sm, max_mem, B200_POWER_CAP)
+    logging.info("[gpu_lockdown] Locking clocks: SM=%s MHz, mem=%s MHz, power=%s W",
+                 max_sm, max_mem, max_power)
 
     _sudo_nvsmi("-pm", "1")
-    _sudo_nvsmi("--power-limit", str(B200_POWER_CAP))
+    _sudo_nvsmi("--power-limit", max_power)
     _sudo_nvsmi("-lgc", max_sm)
     _sudo_nvsmi("-lmc", max_mem)
     _sudo_nvsmi("-ac", f"{max_mem},{max_sm}")
