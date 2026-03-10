@@ -170,48 +170,28 @@ class DeterministicContext:
         os.environ['CUBLAS_WORKSPACE_CONFIG'] = self.cublas
 
 CUDA_VISIBLE_DEVICES = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
-# Power cap below TDP so the GPU stays in a thermal range where clocks
-# can actually be sustained without throttling. Matches tritonbench.
+# B200 clock settings validated by NVIDIA engineer.
+# 1965 MHz SM clock + 750W power cap is sustainable without throttling.
+B200_SM_CLOCK = 1965
 B200_POWER_CAP = 750
-
-
-def _sudo_nvsmi(*args: str):
-    cmd = ["sudo", "-n", "nvidia-smi", "-i", CUDA_VISIBLE_DEVICES, *args]
-    subprocess.check_call(cmd)
-
-
-def _nvsmi_query(field: str) -> str:
-    result = subprocess.check_output(
-        ["nvidia-smi", "-i", CUDA_VISIBLE_DEVICES,
-         f"--query-gpu={field}", "--format=csv,noheader,nounits"],
-        text=True,
-    )
-    return result.strip().split("\n")[0].strip()
 
 
 def gpu_lockdown():
     """
-    Lock GPU clocks for reproducible benchmarking.
+    Lock B200 GPU clocks for reproducible benchmarking.
 
-    Caps power to 750W (below B200's 1kW TDP) so the GPU stays in a
-    thermal range where the requested clocks can actually be sustained
-    without throttling. Then requests max clocks — nvidia-smi will
-    clamp to whatever is achievable at that power budget.
+    Sets SM clocks to 1965 MHz and power cap to 750W (below 1kW TDP)
+    so clocks are actually sustainable without thermal throttling.
 
-    Adapted from tritonbench/.ci/gpu/tune-b200.sh.
     Requires passwordless sudo for nvidia-smi.
     """
-    max_sm = _nvsmi_query("clocks.max.graphics")
-    max_mem = _nvsmi_query("clocks.max.memory")
-
-    logging.info("[gpu_lockdown] Locking clocks: SM=%s MHz, mem=%s MHz, power=%dW",
-                 max_sm, max_mem, B200_POWER_CAP)
-
-    _sudo_nvsmi("-pm", "1")
-    _sudo_nvsmi("--power-limit", str(B200_POWER_CAP))
-    _sudo_nvsmi("-lgc", max_sm)
-    _sudo_nvsmi("-lmc", max_mem)
-    _sudo_nvsmi("-ac", f"{max_mem},{max_sm}")
+    gpu_id = CUDA_VISIBLE_DEVICES
+    subprocess.run(
+        ["sudo", "nvidia-smi", "-lgc", str(B200_SM_CLOCK), f"--id={gpu_id}"], check=True
+    )
+    subprocess.run(
+        ["sudo", "nvidia-smi", "-pl", str(B200_POWER_CAP), f"--id={gpu_id}"], check=True
+    )
 
 
 def clear_l2_cache():
