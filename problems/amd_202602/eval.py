@@ -319,7 +319,7 @@ def run_single_profile(test: TestCase) -> str:
     torch.cuda.synchronize()
 
     with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
-        submission_output = custom_kernel(_clone_data(data))
+        submission_output = custom_kernel(data)
         torch.cuda.synchronize()
     return prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
 
