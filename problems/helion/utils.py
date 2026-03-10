@@ -2,7 +2,6 @@ import logging
 import os
 import random
 import subprocess
-from contextlib import contextmanager
 
 import numpy as np
 import torch
@@ -188,7 +187,6 @@ def _nvsmi_query(field: str) -> str:
     return result.strip().split("\n")[0].strip()
 
 
-@contextmanager
 def gpu_lockdown():
     """
     Lock B200 GPU clocks to max frequencies for reproducible benchmarking.
@@ -208,13 +206,6 @@ def gpu_lockdown():
     _sudo_nvsmi("-lgc", max_sm)
     _sudo_nvsmi("-lmc", max_mem)
     _sudo_nvsmi("-ac", f"{max_mem},{max_sm}")
-
-    try:
-        yield
-    finally:
-        logging.info("[gpu_lockdown] Resetting GPU clocks")
-        _sudo_nvsmi("-rgc")
-        _sudo_nvsmi("-rmc")
 
 
 def clear_l2_cache():
