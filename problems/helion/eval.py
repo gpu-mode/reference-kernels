@@ -347,13 +347,11 @@ def main():
             if mode == "test":
                 return run_testing(logger, pool, tests)
             if mode == "benchmark":
-                lock = os.getenv("POPCORN_GPU_LOCKDOWN", "1") != "0"
-                with gpu_lockdown(enabled=lock):
+                with gpu_lockdown():
                     return run_benchmarking(logger, pool, tests)
 
             if mode == "leaderboard":
-                lock = os.getenv("POPCORN_GPU_LOCKDOWN", "1") != "0"
-                with gpu_lockdown(enabled=lock):
+                with gpu_lockdown():
                     # warmup
                     run_single_benchmark(pool, tests[0], False, 100, 1e7)
                     logger.log("benchmark-count", len(tests))
