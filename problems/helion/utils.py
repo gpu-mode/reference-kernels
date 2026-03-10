@@ -170,6 +170,9 @@ class DeterministicContext:
         os.environ['CUBLAS_WORKSPACE_CONFIG'] = self.cublas
 
 CUDA_VISIBLE_DEVICES = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
+# Power cap below TDP so the GPU stays in a thermal range where clocks
+# can actually be sustained without throttling. Matches tritonbench.
+B200_POWER_CAP = 750
 
 
 def _sudo_nvsmi(*args: str):
@@ -188,8 +191,12 @@ def _nvsmi_query(field: str) -> str:
 
 def gpu_lockdown():
     """
-    Lock B200 GPU clocks to max frequencies for reproducible benchmarking.
-    Queries max clocks from the GPU rather than hardcoding them.
+    Lock GPU clocks for reproducible benchmarking.
+
+    Caps power to 750W (below B200's 1kW TDP) so the GPU stays in a
+    thermal range where the requested clocks can actually be sustained
+    without throttling. Then requests max clocks — nvidia-smi will
+    clamp to whatever is achievable at that power budget.
 
     Adapted from tritonbench/.ci/gpu/tune-b200.sh.
     Requires passwordless sudo for nvidia-smi.
@@ -197,9 +204,11 @@ def gpu_lockdown():
     max_sm = _nvsmi_query("clocks.max.graphics")
     max_mem = _nvsmi_query("clocks.max.memory")
 
-    logging.info("[gpu_lockdown] Locking clocks: SM=%s MHz, mem=%s MHz", max_sm, max_mem)
+    logging.info("[gpu_lockdown] Locking clocks: SM=%s MHz, mem=%s MHz, power=%dW",
+                 max_sm, max_mem, B200_POWER_CAP)
 
     _sudo_nvsmi("-pm", "1")
+    _sudo_nvsmi("--power-limit", str(B200_POWER_CAP))
     _sudo_nvsmi("-lgc", max_sm)
     _sudo_nvsmi("-lmc", max_mem)
     _sudo_nvsmi("-ac", f"{max_mem},{max_sm}")
