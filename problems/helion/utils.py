@@ -1,5 +1,9 @@
+import logging
 import os
 import random
+import subprocess
+from contextlib import contextmanager
+
 import numpy as np
 import torch
 
@@ -165,6 +169,67 @@ class DeterministicContext:
         torch.backends.cudnn.deterministic = self.deterministic
         torch.use_deterministic_algorithms(False)
         os.environ['CUBLAS_WORKSPACE_CONFIG'] = self.cublas
+
+CUDA_VISIBLE_DEVICES = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
+B200_POWER_CAP = 750  # Watts — matches tritonbench .ci/gpu/tune-b200.sh
+
+
+def _nvsmi(*args: str):
+    cmd = ["nvidia-smi", "-i", CUDA_VISIBLE_DEVICES, *args]
+    return subprocess.run(cmd, capture_output=True, text=True)
+
+
+def _sudo_nvsmi(*args: str):
+    cmd = ["sudo", "-n", "nvidia-smi", "-i", CUDA_VISIBLE_DEVICES, *args]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        logging.warning("nvidia-smi %s failed: %s", " ".join(args), result.stderr.strip())
+        return False
+    return True
+
+
+def _nvsmi_query(field: str) -> str:
+    result = _nvsmi(f"--query-gpu={field}", "--format=csv,noheader,nounits")
+    return result.stdout.strip().split("\n")[0].strip()
+
+
+@contextmanager
+def gpu_lockdown(enabled=True):
+    """
+    Lock B200 GPU clocks to max frequencies for reproducible benchmarking.
+    Queries max clocks from the GPU rather than hardcoding them.
+
+    Adapted from tritonbench/.ci/gpu/tune-b200.sh.
+    Requires passwordless sudo for nvidia-smi (typical on CI runners).
+    Falls back gracefully if sudo is unavailable.
+    """
+    if not enabled:
+        yield
+        return
+
+    max_sm = _nvsmi_query("clocks.max.graphics")
+    max_mem = _nvsmi_query("clocks.max.memory")
+
+    logging.info("[gpu_lockdown] Locking B200 clocks: SM=%s MHz, mem=%s MHz, power=%d W",
+                 max_sm, max_mem, B200_POWER_CAP)
+
+    ok = True
+    ok = _sudo_nvsmi("-pm", "1") and ok
+    ok = _sudo_nvsmi("--power-limit", str(B200_POWER_CAP)) and ok
+    ok = _sudo_nvsmi("-lgc", max_sm) and ok
+    ok = _sudo_nvsmi("-lmc", max_mem) and ok
+    _sudo_nvsmi("-ac", f"{max_mem},{max_sm}")
+
+    if not ok:
+        logging.warning("[gpu_lockdown] Some settings failed — need passwordless sudo for nvidia-smi")
+
+    try:
+        yield
+    finally:
+        logging.info("[gpu_lockdown] Resetting GPU clocks")
+        _sudo_nvsmi("-rgc")
+        _sudo_nvsmi("-rmc")
+
 
 def clear_l2_cache():
     # import cupy as cp

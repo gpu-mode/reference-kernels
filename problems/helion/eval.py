@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 import torch.cuda
 
-from utils import set_seed, clear_l2_cache
+from utils import set_seed, clear_l2_cache, gpu_lockdown
 try:
     from task import TestSpec
 except ImportError:
@@ -347,26 +347,30 @@ def main():
             if mode == "test":
                 return run_testing(logger, pool, tests)
             if mode == "benchmark":
-                return run_benchmarking(logger, pool, tests)
+                lock = os.getenv("POPCORN_GPU_LOCKDOWN", "1") != "0"
+                with gpu_lockdown(enabled=lock):
+                    return run_benchmarking(logger, pool, tests)
 
             if mode == "leaderboard":
-                # warmup
-                run_single_benchmark(pool, tests[0], False, 100, 1e7)
-                logger.log("benchmark-count", len(tests))
-                passed = True
-                for i in range(len(tests)):
-                    result = run_single_benchmark(pool, tests[i], True, 100, 30e9)
-                    logger.log(f"benchmark.{i}.spec", tests[i].spec)
-                    if isinstance(result, Stats):
-                        for field in dataclasses.fields(Stats):
-                            logger.log(f"benchmark.{i}.{field.name}", getattr(result, field.name))
-                    else:
-                        passed = False
-                        logger.log(f"benchmark.{i}.status", "fail")
-                        logger.log(f"benchmark.{i}.error", str(result))  # TODO: Make sure result implements __str__?
-                        break
+                lock = os.getenv("POPCORN_GPU_LOCKDOWN", "1") != "0"
+                with gpu_lockdown(enabled=lock):
+                    # warmup
+                    run_single_benchmark(pool, tests[0], False, 100, 1e7)
+                    logger.log("benchmark-count", len(tests))
+                    passed = True
+                    for i in range(len(tests)):
+                        result = run_single_benchmark(pool, tests[i], True, 100, 30e9)
+                        logger.log(f"benchmark.{i}.spec", tests[i].spec)
+                        if isinstance(result, Stats):
+                            for field in dataclasses.fields(Stats):
+                                logger.log(f"benchmark.{i}.{field.name}", getattr(result, field.name))
+                        else:
+                            passed = False
+                            logger.log(f"benchmark.{i}.status", "fail")
+                            logger.log(f"benchmark.{i}.error", str(result))  # TODO: Make sure result implements __str__?
+                            break
 
-                logger.log("check", "pass" if passed else "fail")
+                    logger.log("check", "pass" if passed else "fail")
             elif mode == "profile":
                 run_profiling(logger, tests)
             else:
