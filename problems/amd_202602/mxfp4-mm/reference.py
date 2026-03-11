@@ -1,6 +1,10 @@
 """
 FP4 quant + FP4 GEMM reference: bf16 A, MXFP4 B -> MXFP4 per-1x32 quant A -> gemm_a4w4 -> bf16 C.
 Quant logic follows aiter op_tests/test_gemm_a4w4.py (get_triton_quant(QuantType.per_1x32)).
+
+NOTE: Explicitly uses dynamic_mxfp4_quant from aiter.ops.triton.quant (patched in #975)
+      rather than going through aiter.get_triton_quant, which may dispatch to the
+      unpatched fp4_utils.py kernel. See ROCm/aiter#974, ROCm/aiter#975.
 """
 import torch
 from task import input_t, output_t
@@ -8,8 +12,16 @@ from utils import make_match_reference
 from aiter import QuantType,dtypes
 import aiter
 from aiter.ops.shuffle import shuffle_weight
+from aiter.ops.triton.quant import dynamic_mxfp4_quant  # #975-patched kernel
+from aiter.utility.fp4_utils import e8m0_shuffle
 # K must be divisible by 64 (scale group 32 and fp4 pack 2)
 SCALE_GROUP_SIZE = 32
+
+def _quant_mxfp4(x, shuffle=True):
+    x_fp4, bs_e8m0 = dynamic_mxfp4_quant(x)
+    if shuffle:
+        bs_e8m0 = e8m0_shuffle(bs_e8m0)
+    return x_fp4.view(dtypes.fp4x2), bs_e8m0.view(dtypes.fp8_e8m0)
 
 def generate_input(m: int, n: int, k: int, seed: int):# -> input_t:
     """
@@ -23,11 +35,7 @@ def generate_input(m: int, n: int, k: int, seed: int):# -> input_t:
     gen.manual_seed(seed)
     A = torch.randn((m, k), dtype=torch.bfloat16, device="cuda", generator=gen)
     B = torch.randn((n, k), dtype=torch.bfloat16, device="cuda", generator=gen)
-    
-    # quantized mxfp4 B
-    quant_func = aiter.get_triton_quant(QuantType.per_1x32)
-    B_q, B_scale_sh = quant_func(B, shuffle=True)
-    
+    B_q, B_scale_sh = _quant_mxfp4(B, shuffle=True)
     # shuffle B(weight) to (16,16) tile coalesced
     B_shuffle = shuffle_weight(B_q, layout=(16, 16))
     return (A, B, B_q, B_shuffle, B_scale_sh)
@@ -76,10 +84,8 @@ def ref_kernel(data: input_t) -> output_t:
     
     # 1) PyTorch impl just for your reference: dequant fp4 + e8m0 -> f32 -> mm -> bf16
     # Per-1x32 MXFP4 quant
-    # quant_func = aiter.get_triton_quant(QuantType.per_1x32)
-    # quant_func(x, shuffle=False) -> (dtypes.fp4x2, scale); scale layout matches gemm_a4w4
-    # A_q, A_scale = quant_func(A, shuffle=False)
-    # B_q, B_scale = quant_func(B, shuffle=False)
+    # A_q, A_scale = _quant_mxfp4(A, shuffle=False)
+    # B_q, B_scale = _quant_mxfp4(B, shuffle=False)
 
     # gemm_a4w4 expects A [M,K/2], B [N,K/2] as dtypes.fp4x2; A_scale/B_scale [*,K/32] E8M0
     # quant_func returns scale as dtypes.fp8_e8m0; gemm_a4w4 accepts E8M0, no view to uint8 needed
@@ -91,9 +97,7 @@ def ref_kernel(data: input_t) -> output_t:
     # out_torch = run_torch_fp4_mm(A_q, B_q, A_scale, B_scale, torch.bfloat16)
 
     # 2) aiter.gemm_a4w4 path: needs shuffled B_q and shuffled scales (see test_gemm_a4w4.py:102-105)
-    # Per-1x32 MXFP4 quant
-    quant_func = aiter.get_triton_quant(QuantType.per_1x32)
-    A_q, A_scale_sh = quant_func(A, shuffle=True)
+    A_q, A_scale_sh = _quant_mxfp4(A, shuffle=True)
     # to be noted, aiter also has other a4w4 implements using triton, https://github.com/ROCm/aiter/blob/main/aiter/ops/triton/gemm/basic/gemm_afp4wfp4.py
     out_gemm = aiter.gemm_a4w4(
         A_q,

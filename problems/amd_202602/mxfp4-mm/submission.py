@@ -12,15 +12,22 @@ def custom_kernel(data: input_t) -> output_t:
     """
     import aiter
     from aiter import QuantType, dtypes
+    from aiter.ops.triton.quant import dynamic_mxfp4_quant 
+    from aiter.utility.fp4_utils import e8m0_shuffle
 
+    def _quant_mxfp4(x, shuffle=True):
+        x_fp4, bs_e8m0 = dynamic_mxfp4_quant(x)
+        if shuffle:
+            bs_e8m0 = e8m0_shuffle(bs_e8m0)
+        return x_fp4.view(dtypes.fp4x2), bs_e8m0.view(dtypes.fp8_e8m0)
+    
     A, B, B_q, B_shuffle, B_scale_sh = data
     A = A.contiguous()
     B = B.contiguous()
     m, k = A.shape
     n, _ = B.shape
 
-    quant_func = aiter.get_triton_quant(QuantType.per_1x32)
-    A_q, A_scale_sh = quant_func(A, shuffle=True)
+    A_q, A_scale_sh = _quant_mxfp4(A, shuffle=True)
     out_gemm = aiter.gemm_a4w4(
         A_q,
         B_shuffle,
