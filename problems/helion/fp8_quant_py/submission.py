@@ -3,12 +3,23 @@ from task import input_t, output_t
 import torch
 import helion
 import helion.language as hl
+from pathlib import Path
 
+COFIG_DICT={
+    "block_sizes": [1],
+    "num_warps": 1,
+    "num_stages": 1,
+}
+
+ACF_FILE = "booster_pack/fp8_group_quant_0.acf"
+if Path(ACF_FILE).exists():
+    print(f"Using ACF file: {ACF_FILE}")
+    COFIG_DICT["advanced_controls_file"] = ACF_FILE
 
 # NOTE: This is an intentionally inefficient baseline implementation.
 @helion.kernel(
     static_shapes=True,
-    config=helion.Config(block_sizes=[1], num_warps=1, num_stages=1),
+    config=helion.Config(**COFIG_DICT),
 )
 def normalize_to_range(
     data: torch.Tensor,       # [N, G] input rows
