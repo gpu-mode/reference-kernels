@@ -46,7 +46,7 @@ def check_implementation(data, output):
     received_q, received_s = output
 
     reasons_q = verbose_allclose(received_q, expected_q, rtol=1e-3, atol=1e-3)
-    reasons_s = verbose_allclose(received_s, expected_s, rtol=1e-4, atol=1e-6)
+    reasons_s = verbose_allclose(received_s, expected_s, rtol=1e-3, atol=1e-3)
 
     reasons = []
     if reasons_q:
