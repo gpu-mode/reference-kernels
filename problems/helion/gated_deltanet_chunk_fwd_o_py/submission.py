@@ -54,15 +54,20 @@ def _make_kernel(config: helion.Config):
             c_idx = tile_t.begin // C
 
             g_vals = g[b_idx, tile_t, h_idx]
-            q_s = q[b_idx, tile_t, h_idx, :] * torch.exp(g_vals)[:, None]
-            k_s = k[b_idx, tile_t, h_idx, :] * torch.exp(-g_vals)[:, None]
+            q_tile = q[b_idx, tile_t, h_idx, :]
+            k_tile = k[b_idx, tile_t, h_idx, :]
+            v_tile = v[b_idx, tile_t, h_idx, :]
 
-            sim = hl.dot(q_s, k_s.T)
+            # intra-chunk: q @ k^T * exp(g_i - g_j), with causal mask
+            qk = hl.dot(q_tile, k_tile.T)
             idx = hl.arange(tile_t.block_size)
-            mask = idx[:, None] >= idx[None, :]
-            sim = torch.where(mask, sim, 0.0)
-            local_out = hl.dot(sim.to(v.dtype), v[b_idx, tile_t, h_idx, :])
+            g_diff = g_vals[:, None] - g_vals[None, :]
+            causal_mask = idx[:, None] >= idx[None, :]
+            sim = torch.where(causal_mask, qk * torch.exp(g_diff), 0.0)
+            local_out = hl.dot(sim.to(v.dtype), v_tile)
 
+            # inter-chunk: (q @ h) * exp(g)
+            q_s = q_tile * torch.exp(g_vals)[:, None]
             global_out = hl.dot(q_s, h[b_idx, c_idx, h_idx, :, :])
 
             out[b_idx, tile_t, h_idx, :] = ((global_out + local_out) * scale).to(out.dtype)
