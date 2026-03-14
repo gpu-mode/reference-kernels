@@ -9,17 +9,17 @@ import helion.language as hl
 # Autotune locally for each shape, then paste the best config here.
 SHAPE_CONFIGS: dict[tuple, helion.Config] = {
     # Test shapes
-    (1, 64, 2, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
-    (2, 128, 4, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
-    (1, 256, 4, 64, 128): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
+    (1, 64, 2, 64, 64): helion.Config(block_sizes=[], num_warps=8, num_stages=2),  # TODO: use any config that passes correctness check
+    (2, 128, 4, 64, 64): helion.Config(block_sizes=[], num_warps=8, num_stages=2),  # TODO: use any config that passes correctness check
+    (1, 256, 4, 64, 128): helion.Config(block_sizes=[], num_warps=8, num_stages=2),  # TODO: use any config that passes correctness check
     # Benchmark shapes
-    (1, 64, 1, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (2, 512, 3, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (2, 1024, 3, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (3, 1024, 4, 100, 100): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (4, 1024, 4, 128, 128): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (2, 1536, 4, 128, 128): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (4, 2048, 8, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
+    (1, 64, 1, 64, 64): helion.Config(block_sizes=[], num_warps=8, num_stages=2),  # TODO: replace with your autotuned config
+    (2, 512, 3, 64, 64): helion.Config(block_sizes=[], num_warps=8, num_stages=2),  # TODO: replace with your autotuned config
+    (2, 1024, 3, 64, 64): helion.Config(block_sizes=[], num_warps=8, num_stages=2),  # TODO: replace with your autotuned config
+    (3, 1024, 4, 100, 100): helion.Config(block_sizes=[], num_warps=8, num_stages=2),  # TODO: replace with your autotuned config
+    (4, 1024, 4, 128, 128): helion.Config(block_sizes=[], num_warps=8, num_stages=2),  # TODO: replace with your autotuned config
+    (2, 1536, 4, 128, 128): helion.Config(block_sizes=[], num_warps=8, num_stages=2),  # TODO: replace with your autotuned config
+    (4, 2048, 8, 64, 64): helion.Config(block_sizes=[], num_warps=8, num_stages=2),  # TODO: replace with your autotuned config
 }
 
 
@@ -57,19 +57,13 @@ def _make_kernel(config: helion.Config):
             q_s = q[b_idx, tile_t, h_idx, :] * torch.exp(g_vals)[:, None]
             k_s = k[b_idx, tile_t, h_idx, :] * torch.exp(-g_vals)[:, None]
 
-            sim1 = hl.dot(q_s, k_s.T)
-            sim2 = hl.dot(q_s, k_s.T)
-            sim = (sim1 + sim2) * 0.5
+            sim = hl.dot(q_s, k_s.T)
             idx = hl.arange(tile_t.block_size)
             mask = idx[:, None] >= idx[None, :]
             sim = torch.where(mask, sim, 0.0)
-            local1 = hl.dot(sim.to(v.dtype), v[b_idx, tile_t, h_idx, :])
-            local2 = hl.dot(sim.to(v.dtype), v[b_idx, tile_t, h_idx, :])
-            local_out = (local1 + local2) * 0.5
+            local_out = hl.dot(sim.to(v.dtype), v[b_idx, tile_t, h_idx, :])
 
-            glob1 = hl.dot(q_s, h[b_idx, c_idx, h_idx, :, :])
-            glob2 = hl.dot(q_s, h[b_idx, c_idx, h_idx, :, :])
-            global_out = (glob1 + glob2) * 0.5
+            global_out = hl.dot(q_s, h[b_idx, c_idx, h_idx, :, :])
 
             out[b_idx, tile_t, h_idx, :] = ((global_out + local_out) * scale).to(out.dtype)
 
