@@ -9,17 +9,17 @@ import helion.language as hl
 # Autotune locally for each shape, then paste the best config here.
 SHAPE_CONFIGS: dict[tuple, helion.Config] = {
     # Test shapes
-    (1, 64, 64, 4): helion.Config(...),  # TODO: replace with default config or any config that passes correctness check
-    (2, 128, 128, 4): helion.Config(...),  # TODO: replace with default config or any config that passes correctness check
-    (1, 256, 256, 3): helion.Config(...),  # TODO: replace with default config or any config that passes correctness check
-    (1, 128, 64, 8): helion.Config(...),  # TODO: replace with default config or any config that passes correctness check
-    (4, 64, 128, 4): helion.Config(...),  # TODO: replace with default config or any config that passes correctness check
+    (1, 64, 64, 4): helion.Config(block_sizes=[1, 8], num_warps=1, num_stages=1),  # TODO: replace with default config or any config that passes correctness check
+    (2, 128, 128, 4): helion.Config(block_sizes=[1, 8], num_warps=1, num_stages=1),  # TODO: replace with default config or any config that passes correctness check
+    (1, 256, 256, 3): helion.Config(block_sizes=[1, 8], num_warps=1, num_stages=1),  # TODO: replace with default config or any config that passes correctness check
+    (1, 128, 64, 8): helion.Config(block_sizes=[1, 8], num_warps=1, num_stages=1),  # TODO: replace with default config or any config that passes correctness check
+    (4, 64, 128, 4): helion.Config(block_sizes=[1, 8], num_warps=1, num_stages=1),  # TODO: replace with default config or any config that passes correctness check
     # Benchmark shapes
-    (1, 768, 512, 4): helion.Config(...),  # TODO: replace with your autotuned config
-    (1, 768, 2048, 4): helion.Config(...),  # TODO: replace with your autotuned config
-    (1, 1536, 2048, 4): helion.Config(...),  # TODO: replace with your autotuned config
-    (1, 2560, 2048, 4): helion.Config(...),  # TODO: replace with your autotuned config
-    (1, 2560, 4096, 4): helion.Config(...),  # TODO: replace with your autotuned config
+    (1, 768, 512, 4): helion.Config(block_sizes=[1, 8], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
+    (1, 768, 2048, 4): helion.Config(block_sizes=[1, 8], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
+    (1, 1536, 2048, 4): helion.Config(block_sizes=[1, 8], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
+    (1, 2560, 2048, 4): helion.Config(block_sizes=[1, 8], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
+    (1, 2560, 4096, 4): helion.Config(block_sizes=[1, 8], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
 }
 
 
