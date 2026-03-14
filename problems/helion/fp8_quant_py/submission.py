@@ -10,11 +10,11 @@ from pathlib import Path
 # Autotune locally for each shape, then paste the best config here.
 SHAPE_CONFIGS: dict[tuple, helion.Config] = {
     # Test shapes
-    (1, 256, 64): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: replace with default config or any config that passes correctness check
-    (4, 512, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: replace with default config or any config that passes correctness check
-    (16, 1024, 64): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: replace with default config or any config that passes correctness check
-    (1, 4096, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: replace with default config or any config that passes correctness check
-    (8, 4096, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: replace with default config or any config that passes correctness check
+    (1, 256, 64): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
+    (4, 512, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
+    (16, 1024, 64): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
+    (1, 4096, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
+    (8, 4096, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
     # Benchmark shapes
     # (1, 4096, 128) already covered above
     (16, 4096, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
