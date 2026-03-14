@@ -23,6 +23,11 @@ SHAPE_CONFIGS: dict[tuple, helion.Config] = {
 }
 
 
+# Optional: add advanced_controls_file to your Config for extra performance (see docs).
+# Autotune with autotune_search_acf to find the best ACF, then hardcode it:
+#     helion.Config(..., advanced_controls_file="/opt/booster_pack/chunk_fwd_o_0.acf")
+
+
 # NOTE: This is an intentionally inefficient baseline implementation.
 def _make_kernel(config: helion.Config):
     @helion.kernel(static_shapes=True, dot_precision="ieee", config=config)
