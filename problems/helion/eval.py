@@ -440,31 +440,224 @@ def run_profiling(logger: PopcornOutput, tests: list[TestCase]):
     return 0
 
 
+def _find_inline_lines(source: str) -> set[int]:
+    """
+    Use AST analysis to find all lines belonging to hl.inline_triton(),
+    hl.triton_kernel(), and hl.inline_asm_elementwise() calls, plus any
+    @triton.jit function definitions referenced by hl.triton_kernel().
+
+    Returns a set of 1-based line numbers.
+    """
+    import ast
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return set()
+    inline_lines: set[int] = set()
+
+    # Names that match the three inline constructs
+    INLINE_NAMES = {"inline_triton", "triton_kernel", "inline_asm_elementwise"}
+
+    def _is_inline_call(node: ast.Call) -> bool:
+        """Check if a Call node is one of the three inline constructs."""
+        func = node.func
+        # hl.inline_triton(...) or helion.language.inline_triton(...)
+        if isinstance(func, ast.Attribute) and func.attr in INLINE_NAMES:
+            return True
+        # bare inline_triton(...) (unlikely but possible after `from helion.language import ...`)
+        if isinstance(func, ast.Name) and func.id in INLINE_NAMES:
+            return True
+        return False
+
+    def _add_line_range(start: int, end: int):
+        """Add a range of 1-based line numbers to inline_lines."""
+        for line in range(start, end + 1):
+            inline_lines.add(line)
+
+    def _node_range(node: ast.AST) -> tuple[int, int] | None:
+        """Get the (start, end) 1-based line range of an AST node."""
+        start = getattr(node, "lineno", None)
+        end = getattr(node, "end_lineno", None)
+        if start is not None and end is not None:
+            return (start, end)
+        return None
+
+    def _func_range(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[int, int]:
+        """Get the full line range of a function, including its decorators."""
+        start = node.lineno
+        for dec in node.decorator_list:
+            dec_start = getattr(dec, "lineno", start)
+            start = min(start, dec_start)
+        return (start, node.end_lineno)
+
+    TRITON_MODULE_NAMES = {"triton", "tl", "triton_language"}
+
+    def _is_triton_jit_decorator(dec: ast.expr) -> bool:
+        """Check if a decorator is @triton.jit or @triton.jit()."""
+        # @triton.jit / @tl.jit / @triton_language.jit
+        if isinstance(dec, ast.Attribute) and dec.attr == "jit":
+            if isinstance(dec.value, ast.Name) and dec.value.id in TRITON_MODULE_NAMES:
+                return True
+            return False
+        # bare @jit (ambiguous, but count it — unlikely to appear otherwise)
+        if isinstance(dec, ast.Name) and dec.id == "jit":
+            return True
+        # @triton.jit() / @tl.jit() (called with parens)
+        if isinstance(dec, ast.Call):
+            return _is_triton_jit_decorator(dec.func)
+        return False
+
+    # Collect all @triton.jit function names so we can count their definitions
+    triton_jit_funcs: set[str] = set()
+
+    # First pass: find triton_kernel() calls and extract referenced function names
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _is_inline_call(node):
+            r = _node_range(node)
+            if r:
+                _add_line_range(*r)
+            # For triton_kernel(), the first arg may be a function reference
+            func = node.func
+            attr = func.attr if isinstance(func, ast.Attribute) else func.id
+            if attr == "triton_kernel":
+                # First positional arg or keyword arg named fn/triton_source_or_fn
+                first_arg = None
+                if node.args:
+                    first_arg = node.args[0]
+                else:
+                    for kw in node.keywords:
+                        if kw.arg in ("fn", "triton_source_or_fn"):
+                            first_arg = kw.value
+                            break
+                if isinstance(first_arg, ast.Name):
+                    triton_jit_funcs.add(first_arg.id)
+
+    # Second pass: find @triton.jit decorated function definitions
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        is_triton_jit = any(_is_triton_jit_decorator(d) for d in node.decorator_list)
+        # Count if decorated with @triton.jit or referenced by triton_kernel()
+        if is_triton_jit or node.name in triton_jit_funcs:
+            _add_line_range(*_func_range(node))
+
+    return inline_lines
+
+
+def count_loc(problem_dir: Path):
+    """
+    Count lines of code in submission.py after linting and stripping comments.
+
+    Steps:
+    1. Copy submission.py to a temp file
+    2. Run ruff format + ruff check --fix (same as lint.sh fix)
+    3. Use tokenize to identify comment-only lines
+    4. Use AST to find inline triton/asm line spans
+    5. Count and report LOC, inline LOC, and 30% rule compliance
+    """
+    import shutil
+    import subprocess
+    import tempfile
+    import tokenize
+    import io
+
+    submission_path = problem_dir / "submission.py"
+    if not submission_path.exists():
+        print(f"Error: submission.py not found in {problem_dir}", file=sys.stderr)
+        return 1
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_file = Path(tmpdir) / "submission.py"
+        shutil.copy2(submission_path, tmp_file)
+
+        # Run ruff format + ruff check --fix (mirrors lint.sh fix)
+        for cmd in [
+            ["ruff", "format", str(tmp_file)],
+            ["ruff", "check", "--fix", str(tmp_file)],
+        ]:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode not in (0, 1):
+                # ruff check returns 1 for unfixable lint errors, which is ok
+                print(f"Warning: {' '.join(cmd)} returned {result.returncode}", file=sys.stderr)
+                if result.stderr:
+                    print(result.stderr, file=sys.stderr)
+
+        # Read the linted file
+        linted_source = tmp_file.read_text()
+
+    # Identify comment-only lines using tokenize
+    tokens = tokenize.generate_tokens(io.StringIO(linted_source).readline)
+    comment_only_lines = set()
+    code_tokens_by_line: dict[int, list] = {}
+
+    for tok in tokens:
+        if tok.type == tokenize.COMMENT:
+            comment_only_lines.add(tok.start[0])
+        elif tok.type not in (tokenize.NEWLINE, tokenize.NL, tokenize.ENCODING, tokenize.ENDMARKER):
+            code_tokens_by_line.setdefault(tok.start[0], []).append(tok)
+
+    # A line is comment-only if it has a comment and no other meaningful tokens
+    pure_comment_lines = comment_only_lines - set(code_tokens_by_line.keys())
+
+    lines = linted_source.splitlines()
+    total_lines = len(lines)
+    blank_lines = sum(1 for line in lines if not line.strip())
+    code_lines = total_lines - blank_lines - len(pure_comment_lines)
+
+    # Non-code lines (blank + pure comment) for filtering inline LOC
+    non_code_lines = {i for i, line in enumerate(lines, 1) if not line.strip()} | pure_comment_lines
+
+    # Find inline triton/asm lines using AST
+    inline_all_lines = _find_inline_lines(linted_source)
+    # Only count lines that are actual code (not blank/comment)
+    inline_code_lines = inline_all_lines - non_code_lines
+    inline_loc = len(inline_code_lines)
+
+    print(f"Lines of code report for: {submission_path}")
+    print(f"  Total lines:          {total_lines}")
+    print(f"  Blank lines:          {blank_lines}")
+    print(f"  Comment-only lines:   {len(pure_comment_lines)}")
+    print(f"  Code lines (LOC):     {code_lines}")
+    pct = inline_loc / code_lines * 100 if code_lines > 0 else 0
+    print(f"  Inline triton/asm:    {inline_loc} ({pct:.1f}% of LOC)")
+    if pct > 30:
+        print(f"  WARNING: Inline triton/asm exceeds 30% LOC limit!")
+    else:
+        print(f"  OK: Inline triton/asm within 30% LOC limit.")
+
+    return 0
+
+
 def run_local():
     """
     Local eval mode: reads task.yml from a problem directory, runs correctness tests
     and benchmarks, prints results to stdout. No Popcorn infrastructure needed.
 
     Usage: python eval.py <mode> <problem_dir>
-      mode: test, benchmark, or both
+      mode: test, benchmark, both, or loc
       problem_dir: path to the problem directory containing task.yml
     """
     import yaml
 
     if len(sys.argv) < 3:
         print("Usage: python eval.py <mode> <problem_dir>", file=sys.stderr)
-        print("  mode: test, benchmark, or both", file=sys.stderr)
+        print("  mode: test, benchmark, both, or loc", file=sys.stderr)
         print("  problem_dir: path to problem directory containing task.yml", file=sys.stderr)
         return 1
 
     mode = sys.argv[1]
     problem_dir = Path(sys.argv[2])
 
-    if mode not in ("test", "benchmark", "both"):
-        print(f"Unknown mode '{mode}'. Use 'test', 'benchmark', or 'both'.", file=sys.stderr)
+    if mode not in ("test", "benchmark", "both", "loc"):
+        print(f"Unknown mode '{mode}'. Use 'test', 'benchmark', 'both', or 'loc'.", file=sys.stderr)
         return 1
 
     problem_dir = problem_dir.resolve()
+
+    if mode == "loc":
+        return count_loc(problem_dir)
+
     task_path = problem_dir / "task.yml"
     if not task_path.exists():
         print(f"Error: task.yml not found in {problem_dir}", file=sys.stderr)
