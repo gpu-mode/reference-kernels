@@ -12,6 +12,7 @@ import tempfile
 
 import torch.cuda
 from cutlass.cute.nvgpu.common import OpError
+from torch.cuda.nvtx import range as nvtx_range
 
 from utils import set_seed, clear_l2_cache
 
@@ -339,27 +340,64 @@ def run_benchmarking(
         return 112
 
 
-def run_single_profile(test: TestCase) -> str:
+def _run_single_profile_torch(test: TestCase) -> str:
     """
-    Runs a single test case. Do not call directly
+    Profiles a single benchmark using the torch profiler.
     """
     from submission import custom_kernel
-    from torch.profiler import profile, record_function, ProfilerActivity
+    from torch.profiler import profile, ProfilerActivity
 
-    data = generate_input(**test.args)
-    torch.cuda.synchronize()
-
-    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
-        submission_output = custom_kernel(_clone_data(data))
+    with nvtx_range("generate input"):
+        data = generate_input(**test.args)
         torch.cuda.synchronize()
+
+    cloned = _clone_data(data)
+    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+        with nvtx_range("custom_kernel"):
+            submission_output = custom_kernel(cloned)
+            torch.cuda.synchronize()
+
     return prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=20)
 
 
-def run_profiling(logger: PopcornOutput, tests: list[TestCase]):
+def _run_single_profile_ncu(test: TestCase) -> str:
+    """
+    Profiles a single benchmark using ncu. Note: this does not
+    invoke NCU; instead, it is expected that eval is launched
+    under NCU, and this function will run the kernel exactly
+    once in the 'custom_kernel' nvtx range.
+    """
+    from submission import custom_kernel
+
+    with nvtx_range("generate input"):
+        data = generate_input(**test.args)
+        torch.cuda.synchronize()
+
+    cloned = _clone_data(data)
+    with nvtx_range("custom_kernel"):
+        submission_output = custom_kernel(cloned)
+        torch.cuda.synchronize()
+
+    return ""
+
+
+def run_single_profile(test: TestCase, pool: multiprocessing.Pool) -> str:
+    """
+    Runs a single profiling activity in another process.
+    """
+    if bool(os.getenv("POPCORN_NCU", "0")):
+        return pool.apply(_run_single_profile_ncu, (test,))
+    else:
+        return pool.apply(_run_single_profile_torch, (test,))
+
+
+def run_profiling(
+    logger: PopcornOutput, pool: multiprocessing.Pool, tests: list[TestCase]
+):
     logger.log("benchmark-count", len(tests))
     for idx, test in enumerate(tests):
         logger.log(f"benchmark.{idx}.spec", test.spec)
-        report = run_single_profile(test)
+        report = run_single_profile(test, pool)
         logger.log(
             f"benchmark.{idx}.report",
             base64.b64encode(report.encode("utf-8"), b"+*").decode("utf-8"),
@@ -419,7 +457,7 @@ def main():
 
                 logger.log("check", "pass" if passed else "fail")
             elif mode == "profile":
-                run_profiling(logger, tests)
+                run_profiling(logger, pool, tests)
             else:
                 # TODO: Implement script mode
                 return 2
