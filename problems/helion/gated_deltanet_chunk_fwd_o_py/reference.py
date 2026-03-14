@@ -19,8 +19,9 @@ def _chunk_scaled_dot_kkt_fwd_eager(k, g_cumsum, beta, chunk_size):
     g_c = g_cumsum.float().reshape(B, NT, C, H).permute(0, 1, 3, 2)
     beta_c = beta.float().reshape(B, NT, C, H).permute(0, 1, 3, 2)
     kkt = k_c @ k_c.transpose(-1, -2)
-    g_diff = g_c.unsqueeze(-1) - g_c.unsqueeze(-2)
     strict_lower = torch.tril(torch.ones(C, C, device=k.device), diagonal=-1)
+    g_diff = g_c.unsqueeze(-1) - g_c.unsqueeze(-2)
+    g_diff = g_diff * strict_lower
     A = kkt * beta_c.unsqueeze(-1) * torch.exp(g_diff) * strict_lower
     return A.permute(0, 1, 3, 2, 4).reshape(B, T, H, C).to(torch.float32)
 
@@ -103,9 +104,11 @@ def ref_kernel(data: input_t) -> output_t:
     v_c = v_new.float().reshape(B, NT, C, H, V).permute(0, 1, 3, 2, 4)
     g_c = g.float().reshape(B, NT, C, H).permute(0, 1, 3, 2)
     o_inter = (q_c @ h.float()) * torch.exp(g_c).unsqueeze(-1)
-    qk = q_c @ k_c.transpose(-1, -2) * torch.exp(g_c.unsqueeze(-1) - g_c.unsqueeze(-2))
-    causal = torch.tril(torch.ones(C, C, device=q.device))
-    o = (o_inter + (qk * causal) @ v_c) * scale
+    causal = torch.tril(torch.ones(C, C, dtype=torch.bool, device=q.device))
+    g_diff = g_c.unsqueeze(-1) - g_c.unsqueeze(-2)
+    g_diff = torch.where(causal, g_diff, torch.zeros_like(g_diff))
+    qk = q_c @ k_c.transpose(-1, -2) * torch.exp(g_diff) * causal
+    o = (o_inter + qk @ v_c) * scale
     return o.permute(0, 1, 3, 2, 4).reshape(B, T, H, V).to(q.dtype)
 
 
