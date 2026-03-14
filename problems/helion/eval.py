@@ -523,6 +523,7 @@ def run_local():
 
 
 def main():
+    os.environ["HELION_DISALLOW_AUTOTUNING"] = "1"
     fd = os.getenv("POPCORN_FD")
     if not fd:
         return run_local()
