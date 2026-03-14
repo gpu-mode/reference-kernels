@@ -72,8 +72,8 @@ def check_implementation(data, output):
     exp_w, exp_u = expected
     got_w, got_u = output
 
-    reasons_w = verbose_allclose(got_w, exp_w, rtol=1e-2, atol=1e-2)
-    reasons_u = verbose_allclose(got_u, exp_u, rtol=1e-2, atol=1e-2)
+    reasons_w = verbose_allclose(got_w, exp_w, rtol=1e-3, atol=1e-3)
+    reasons_u = verbose_allclose(got_u, exp_u, rtol=1e-3, atol=1e-3)
 
     reasons = []
     if reasons_w:
