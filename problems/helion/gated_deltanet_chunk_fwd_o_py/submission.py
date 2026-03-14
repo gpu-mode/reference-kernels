@@ -31,7 +31,7 @@ SHAPE_CONFIGS: dict[tuple, helion.Config] = {
 # NOTE: This is an intentionally inefficient baseline implementation.
 def _make_kernel(config: helion.Config):
     @helion.kernel(static_shapes=True, dot_precision="ieee", config=config)
-    def gated_chunk_attn(
+    def kernel(
         q: torch.Tensor,     # [B, T, H, K]
         k: torch.Tensor,     # [B, T, H, K]
         v: torch.Tensor,     # [B, T, H, V]
@@ -75,7 +75,7 @@ def _make_kernel(config: helion.Config):
 
         return out
 
-    return gated_chunk_attn
+    return kernel
 
 
 _KERNELS = {shape: _make_kernel(cfg) for shape, cfg in SHAPE_CONFIGS.items()}

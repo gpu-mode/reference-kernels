@@ -31,7 +31,7 @@ SHAPE_CONFIGS: dict[tuple, helion.Config] = {
 # NOTE: This is an intentionally inefficient baseline implementation.
 def _make_kernel(config: helion.Config):
     @helion.kernel(static_shapes=True, dot_precision="ieee", config=config)
-    def project_kv(
+    def kernel(
         k: torch.Tensor,     # [B, T, H, K]
         v: torch.Tensor,     # [B, T, H, V]
         beta: torch.Tensor,  # [B, T, H]
@@ -86,7 +86,7 @@ def _make_kernel(config: helion.Config):
 
         return w_out, u_out
 
-    return project_kv
+    return kernel
 
 
 _KERNELS = {shape: _make_kernel(cfg) for shape, cfg in SHAPE_CONFIGS.items()}

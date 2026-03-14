@@ -32,7 +32,7 @@ SHAPE_CONFIGS: dict[tuple, helion.Config] = {
 # NOTE: This is an intentionally inefficient baseline implementation.
 def _make_kernel(config: helion.Config):
     @helion.kernel(static_shapes=True, config=config)
-    def normalize_to_range(
+    def kernel(
         data: torch.Tensor,       # [N, G] input rows
         scales_out: torch.Tensor,  # [N] output normalization factors
     ) -> torch.Tensor:
@@ -63,7 +63,7 @@ def _make_kernel(config: helion.Config):
 
         return qout
 
-    return normalize_to_range
+    return kernel
 
 
 _KERNELS = {shape: _make_kernel(cfg) for shape, cfg in SHAPE_CONFIGS.items()}

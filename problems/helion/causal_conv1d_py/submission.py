@@ -31,7 +31,7 @@ SHAPE_CONFIGS: dict[tuple, helion.Config] = {
 # NOTE: This is an intentionally inefficient baseline implementation.
 def _make_kernel(config: helion.Config):
     @helion.kernel(static_shapes=True, config=config)
-    def conv1d_kernel(
+    def kernel(
         x_pad: torch.Tensor,  # (B, D, L) zero-padded input
         w: torch.Tensor,      # (D, W) filter coefficients
         b: torch.Tensor,      # (D,) additive offset
@@ -65,7 +65,7 @@ def _make_kernel(config: helion.Config):
 
         return y
 
-    return conv1d_kernel
+    return kernel
 
 
 _KERNELS = {shape: _make_kernel(cfg) for shape, cfg in SHAPE_CONFIGS.items()}
