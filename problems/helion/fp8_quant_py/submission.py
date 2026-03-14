@@ -10,57 +10,35 @@ from pathlib import Path
 # Autotune locally for each shape, then paste the best config here.
 SHAPE_CONFIGS: dict[tuple, helion.Config] = {
     # Test shapes
-    (1, 256, 64): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
-    (4, 512, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
-    (16, 1024, 64): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
-    (1, 4096, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
-    (8, 4096, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
+    (1, 256, 64):     helion.Config(block_sizes=[1],  num_warps=1, num_stages=1),
+    (4, 512, 128):    helion.Config(block_sizes=[2],  num_warps=2, num_stages=1),
+    (16, 1024, 64):   helion.Config(block_sizes=[4],  num_warps=2, num_stages=1),
+    (1, 4096, 128):   helion.Config(block_sizes=[1],  num_warps=1, num_stages=1),
+    (8, 4096, 128):   helion.Config(block_sizes=[4],  num_warps=2, num_stages=1),
     # Benchmark shapes
-    # (1, 4096, 128) already covered above
-    (16, 4096, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (256, 4096, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (256, 8192, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (4096, 7168, 128): helion.Config(block_sizes=[1], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
+    (16, 4096, 128):  helion.Config(block_sizes=[4],  num_warps=4, num_stages=2),
+    (256, 4096, 128): helion.Config(block_sizes=[8],  num_warps=8, num_stages=2),
+    (256, 8192, 128): helion.Config(block_sizes=[8],  num_warps=8, num_stages=2),
+    (4096, 7168, 128):helion.Config(block_sizes=[16], num_warps=8, num_stages=2),
 }
 
 
-# Optional: add advanced_controls_file to your Config for extra performance (see docs).
-# Autotune with autotune_search_acf to find the best ACF, then hardcode it:
-#     helion.Config(..., advanced_controls_file="/opt/booster_pack/fp8_group_quant_0.acf")
-
-
-# NOTE: This is an intentionally inefficient baseline implementation.
 def _make_kernel(config: helion.Config):
     @helion.kernel(static_shapes=True, config=config)
     def kernel(
-        data: torch.Tensor,       # [N, G] input rows
-        scales_out: torch.Tensor,  # [N] output normalization factors
+        data: torch.Tensor,        # [N, G] float32
+        scales_out: torch.Tensor,  # [N]
     ) -> torch.Tensor:
         nrows = data.size(0)
         ncols = hl.specialize(data.size(1))
         MAX_VAL = 448.0
-
         qout = torch.empty(nrows, ncols, dtype=torch.float32, device=data.device)
-
         for rr in hl.tile(nrows):
             row = data[rr, :].to(torch.float32)
-
-            abs1 = torch.abs(row)
-            amax1 = torch.amax(abs1, -1)
-            abs2 = torch.abs(row)
-            amax2 = torch.amax(abs2, -1)
-            abs3 = torch.abs(row)
-            amax3 = torch.amax(abs3, -1)
-            amax = (amax1 + amax2 + amax3) / 3.0
-            amax = torch.clamp(amax, min=1e-10)
+            amax = torch.amax(torch.abs(row), dim=-1).clamp(min=1e-10)
             scale = amax / MAX_VAL
-
-            q1 = row / scale[:, None]
-            q2 = row / scale[:, None]
-            q3 = row / scale[:, None]
-            qout[rr, :] = (q1 + q2 + q3) / 3.0
+            qout[rr, :] = torch.clamp(row / scale[:, None], -MAX_VAL, MAX_VAL)
             scales_out[rr] = scale
-
         return qout
 
     return kernel
