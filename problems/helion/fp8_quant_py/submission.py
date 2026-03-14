@@ -44,23 +44,37 @@ def _make_kernel(config: helion.Config):
     return kernel
 
 
+# Create a kernel for each shape based on the configs above.
 _KERNELS = {shape: _make_kernel(cfg) for shape, cfg in SHAPE_CONFIGS.items()}
 
 
+# TODO Fuse reshapes into kernel. Reshape is a no-op for the GPU, but requires
+# copy kernel in pytorch eager mode.
+
 def custom_kernel(data: input_t) -> output_t:
     x, x_q, x_s = data
+    # num_tokens, hidden_dim = x.shape
     T, H = x.shape
+    # num_groups = x_s.shape[1]
     G = x_s.shape[1]
+    # group_size = hidden_dim // num_groups
     gsz = H // G
+    # merge num_tokens and num_groups into a single dimension for the kernel
     N = T * G
 
+    # Select the appropriate kernel based on the input shape.
     kernel = _KERNELS[(T, H, gsz)]
 
+    # Reshape inputs and scales for the kernel
+    # inputs is input argument
+    # scales is output argument, but we need to pass it in as an argument
     flat_in = x.reshape(N, gsz)
     flat_s = x_s.reshape(N)
 
+    # return value is quantized output
     flat_q = kernel(flat_in, flat_s)
 
+    # Reshape outputs back to original shapes
     x_q[...] = flat_q.reshape(T, H)
     x_s[...] = flat_s.reshape(T, G)
     return x_q, x_s
