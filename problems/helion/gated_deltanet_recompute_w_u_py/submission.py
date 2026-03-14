@@ -9,17 +9,17 @@ import helion.language as hl
 # Autotune locally for each shape, then paste the best config here.
 SHAPE_CONFIGS: dict[tuple, helion.Config] = {
     # Test shapes
-    (1, 64, 2, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
-    (2, 128, 4, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
-    (1, 256, 4, 64, 128): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: use any config that passes correctness check
+    (1, 64, 2, 64, 64): helion.Config(block_sizes=[64, 64], num_warps=4, num_stages=3),
+    (2, 128, 4, 64, 64): helion.Config(block_sizes=[64, 64], num_warps=4, num_stages=3),
+    (1, 256, 4, 64, 128): helion.Config(block_sizes=[64, 128], num_warps=4, num_stages=3),
     # Benchmark shapes
-    (1, 64, 1, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (2, 512, 3, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (2, 1024, 3, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (3, 1024, 4, 100, 100): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (4, 1024, 4, 128, 128): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (2, 1536, 4, 128, 128): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
-    (4, 2048, 8, 64, 64): helion.Config(block_sizes=[], num_warps=1, num_stages=1),  # TODO: replace with your autotuned config
+    (1, 64, 1, 64, 64): helion.Config(block_sizes=[64, 64], num_warps=4, num_stages=3),
+    (2, 512, 3, 64, 64): helion.Config(block_sizes=[64, 64], num_warps=4, num_stages=3),
+    (2, 1024, 3, 64, 64): helion.Config(block_sizes=[64, 64], num_warps=4, num_stages=3),
+    (3, 1024, 4, 100, 100): helion.Config(block_sizes=[100, 100], num_warps=4, num_stages=3),
+    (4, 1024, 4, 128, 128): helion.Config(block_sizes=[64, 64], num_warps=4, num_stages=3),
+    (2, 1536, 4, 128, 128): helion.Config(block_sizes=[64, 64], num_warps=4, num_stages=3),
+    (4, 2048, 8, 64, 64): helion.Config(block_sizes=[64, 64], num_warps=4, num_stages=3),
 }
 
 
@@ -28,14 +28,13 @@ SHAPE_CONFIGS: dict[tuple, helion.Config] = {
 #     helion.Config(..., advanced_controls_file="/opt/booster_pack/recompute_w_u_fwd_0.acf")
 
 
-# NOTE: This is an intentionally inefficient baseline implementation.
 def _make_kernel(config: helion.Config):
     @helion.kernel(static_shapes=True, dot_precision="ieee", config=config)
     def kernel(
         k: torch.Tensor,     # [B, T, H, K]
         v: torch.Tensor,     # [B, T, H, V]
         beta: torch.Tensor,  # [B, T, H]
-        A: torch.Tensor,     # [B, T, H, BT]
+        A: torch.Tensor,     # [B, T, H, C]
         g: torch.Tensor,     # [B, T, H]
     ) -> tuple[torch.Tensor, torch.Tensor]:
         B, T, H, K = k.shape
@@ -47,42 +46,26 @@ def _make_kernel(config: helion.Config):
         w_out = torch.empty_like(k)
         u_out = torch.empty_like(v)
 
-        BH = B * H
-        for flat_bh, rt in hl.tile([BH, T], block_size=[1, C]):
-            b_idx = flat_bh.begin // H
-            h_idx = flat_bh.begin % H
+        block_k = hl.register_block_size(K)
+        block_v = hl.register_block_size(V)
 
-            w_acc1 = hl.zeros([rt, K], dtype=torch.float32)
-            u_acc1 = hl.zeros([rt, V], dtype=torch.float32)
-            w_acc2 = hl.zeros([rt, K], dtype=torch.float32)
-            u_acc2 = hl.zeros([rt, V], dtype=torch.float32)
+        # W = A_mat @ (β * exp(g̃) * k)
+        for tile_b, tile_h, rt, tile_k in hl.tile([B, H, T, K], block_size=[1, 1, C, block_k]):
+            b = tile_b.begin
+            h = tile_h.begin
+            a_mat_w = A[b, rt, h, :].to(torch.float32)                        # [C, C]
+            coeff_w = (beta[b, rt, h] * torch.exp(g[b, rt, h])).to(torch.float32)  # [C]
+            sk = k[b, rt, h, tile_k].to(torch.float32) * coeff_w[:, None]    # [C, block_k]
+            w_out[b, rt, h, tile_k] = hl.dot(a_mat_w, sk, out_dtype=torch.float32).to(k.dtype)
 
-            for ci in range(C):
-                t_ci = rt.begin + ci
-                a_col = A[b_idx, rt, h_idx, ci].to(torch.float32)
-                coeff_ci = beta[b_idx, t_ci, h_idx].to(torch.float32)
-                decay_ci = torch.exp(g[b_idx, t_ci, h_idx].to(torch.float32))
-
-                k_ci = k[b_idx, t_ci, h_idx, :].to(torch.float32)
-                v_ci = v[b_idx, t_ci, h_idx, :].to(torch.float32)
-
-                w_acc1 = w_acc1 + a_col[:, None] * (k_ci * coeff_ci * decay_ci)[None, :]
-                u_acc1 = u_acc1 + a_col[:, None] * (v_ci * coeff_ci)[None, :]
-
-            for ci in range(C - 1, -1, -1):
-                t_ci = rt.begin + ci
-                a_col = A[b_idx, rt, h_idx, ci].to(torch.float32)
-                coeff_ci = beta[b_idx, t_ci, h_idx].to(torch.float32)
-                decay_ci = torch.exp(g[b_idx, t_ci, h_idx].to(torch.float32))
-
-                k_ci = k[b_idx, t_ci, h_idx, :].to(torch.float32)
-                v_ci = v[b_idx, t_ci, h_idx, :].to(torch.float32)
-
-                w_acc2 = w_acc2 + a_col[:, None] * (k_ci * coeff_ci * decay_ci)[None, :]
-                u_acc2 = u_acc2 + a_col[:, None] * (v_ci * coeff_ci)[None, :]
-
-            w_out[b_idx, rt, h_idx, :] = ((w_acc1 + w_acc2) * 0.5).to(k.dtype)
-            u_out[b_idx, rt, h_idx, :] = ((u_acc1 + u_acc2) * 0.5).to(v.dtype)
+        # U = A_mat @ (β * v)
+        for tile_b2, tile_h2, rt2, tile_v in hl.tile([B, H, T, V], block_size=[1, 1, C, block_v]):
+            b2 = tile_b2.begin
+            h2 = tile_h2.begin
+            a_mat_u = A[b2, rt2, h2, :].to(torch.float32)                    # [C, C]
+            bv = beta[b2, rt2, h2].to(torch.float32)                         # [C]
+            sv = v[b2, rt2, h2, tile_v].to(torch.float32) * bv[:, None]      # [C, block_v]
+            u_out[b2, rt2, h2, tile_v] = hl.dot(a_mat_u, sv, out_dtype=torch.float32).to(v.dtype)
 
         return w_out, u_out
 
