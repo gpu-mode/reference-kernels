@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 from task import input_t, output_t
 from utils import make_match_reference
 
@@ -79,10 +78,11 @@ def generate_input(B: int, T: int, H: int, K: int, V: int, seed: int) -> input_t
     torch.manual_seed(seed)
     device = "cuda"
     q = torch.randn(B, T, H, K, dtype=torch.float32, device=device)
-    k = F.normalize(torch.randn(B, T, H, K, dtype=torch.float32, device=device), p=2, dim=-1)
+    k = torch.randn(B, T, H, K, dtype=torch.float32, device=device) / K**0.5
     v = torch.randn(B, T, H, V, dtype=torch.float32, device=device)
     beta = torch.sigmoid(torch.randn(B, T, H, dtype=torch.float32, device=device))
-    g = F.logsigmoid(torch.randn(B, T, H, dtype=torch.float32, device=device))
+    g_inc = -torch.abs(torch.randn(B, T, H, dtype=torch.float32, device=device))
+    g = g_inc.cumsum(dim=1)
     g_cumsum = _chunk_local_cumsum_eager(g, chunk_size=CHUNK_SIZE)
     A = _chunk_scaled_dot_kkt_fwd_eager(k=k, g_cumsum=g_cumsum, beta=beta, chunk_size=CHUNK_SIZE)
     A = _solve_tril_eager(A=A, output_dtype=k.dtype)
