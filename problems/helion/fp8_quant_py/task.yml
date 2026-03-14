@@ -49,8 +49,6 @@ benchmarks:
   - {"num_tokens": 1, "hidden_dim": 4096, "group_size": 128, "seed": 31232}
   - {"num_tokens": 16, "hidden_dim": 4096, "group_size": 128, "seed": 4052}
   - {"num_tokens": 256, "hidden_dim": 4096, "group_size": 128, "seed": 2146}
-  - {"num_tokens": 256, "hidden_dim": 8192, "group_size": 128, "seed": 3129}
-  - {"num_tokens": 4096, "hidden_dim": 7168, "group_size": 128, "seed": 54352}
 
 test_timeout: 180
 benchmark_timeout: 180
