@@ -1,3 +1,100 @@
+"""
+Gated DeltaNet: chunk-wise recomputation of w and u
+====================================================
+
+Background
+----------
+DeltaNet is a linear recurrent model based on the **delta rule** (Widrow-Hoff,
+1960), which updates a matrix-valued hidden state H_t ∈ R^{K×V} as:
+
+    H_t = exp(g_t) · H_{t-1}  +  β_t · (v_t − H_{t-1} k_t) ⊗ k_t
+
+where:
+  k_t ∈ R^K        — key (query used for the associative read)
+  v_t ∈ R^V        — value (target to associate)
+  β_t ∈ (0,1)      — per-step learning rate / write strength
+  g_t ≤ 0          — log-decay (gate); exp(g_t) ∈ (0,1] damps old memories
+  ⊗                — outer product
+
+The exp(g_t) term makes this the **Gated DeltaNet** (Yang et al., 2024).
+The delta rule term `−H_{t-1} k_t ⊗ k_t` is an error-correction: it first
+reads what the current memory says about k_t, then erases it before writing
+v_t, so the net update is proportional to the prediction error (v_t − ŷ_t).
+
+Chunk-wise parallel form
+------------------------
+To exploit GPU parallelism, the sequence of length T is split into NT = T/C
+non-overlapping chunks of size C. Within chunk n (positions t = nC … nC+C−1)
+define τ = t − nC as the within-chunk index.
+
+The chunk boundary state update can be written as:
+
+    H_{n+1} = exp(G_n) · H_n  +  Σ_τ  u_τ ⊗ k_τ  −  w_τ ⊗ k_τ · H_n
+            = exp(G_n) · H_n  +  (U_n  −  W_n) · H_n          (matrix form)
+
+where G_n = Σ_τ g_{nC+τ} is the total chunk decay.  The matrices U_n and W_n
+collect the within-chunk "value writes" and "key absorptions" respectively,
+and their efficient computation is the purpose of this file.
+
+Intra-chunk interaction matrix M
+---------------------------------
+For positions i > j within the same chunk (strict causal order), position j's
+delta-rule write creates a residual that position i must account for:
+
+    M_{i,j} = β_i · exp(g̃_i − g̃_j) · (k_i k_j^T)    (i > j, else 0)
+
+where g̃_t is the **chunk-local** cumulative sum of g (restarted at each chunk
+boundary).  The exponential exp(g̃_i − g̃_j) is the decay from position j to
+position i within the chunk.
+
+The k_i k_j^T factor arises because the delta rule at step i reads k_i^T H,
+and H already contains the write β_j k_j ⊗ k_j from step j, contributing
+β_j (k_i^T k_j) k_j to the correction term.
+
+Solving for A = (I + M)^{-1}
+------------------------------
+Within a chunk the delta-rule corrections chain together: the write at step j
+is partially cancelled by step j+1, which is further modified by step j+2,
+etc.  Summing this geometric-series of interactions leads to a linear system:
+
+    (I + M) · A = I    ⟹    A = (I + M)^{-1}
+
+Because M is **strictly lower-triangular**, (I + M) is unit lower-triangular
+and the solve is numerically stable.  A is computed once per chunk and reused
+for both w and u.
+
+Computing w and u
+-----------------
+Given the resolved interaction matrix A = (I + M)^{-1}:
+
+    u_i = Σ_j  A_{i,j} · β_j · v_j          (shape: [K])
+    w_i = Σ_j  A_{i,j} · β_j · exp(g̃_j) · k_j   (shape: [V])
+
+In matrix form (over the C positions in a chunk):
+
+    U = A · (β ⊙ v)                  (u_c in the code)
+    W = A · (β ⊙ exp(g̃) ⊙ k)        (w_c in the code)
+
+  u accumulates the net value contributions reaching each position after all
+  within-chunk delta-rule cancellations have been applied.
+
+  w accumulates the net key absorptions; the exp(g̃_j) factor converts the
+  local-cumsum decay at j into the correct scale for the outer chunk loop
+  (where H_{n,0} is decayed by the full chunk decay to position i).
+
+These (w, u) pairs are the inputs consumed by the chunk-wise outer state-
+transition loop of the full Gated DeltaNet forward pass.
+
+References
+----------
+- Yang et al. "Gated Delta Networks: Improving Mamba2 with Delta Rule" (2024)
+  https://arxiv.org/abs/2412.06464
+- Widrow & Hoff. "Adaptive Switching Circuits" (1960) — original delta rule
+- Schmidhuber. "Learning to Control Fast-Weight Memories" (1992) — fast-weight
+  programmers; modern framing of outer-product / delta-rule recurrences
+- Sun et al. "Retentive Network" / "Flash Linear Attention" — chunk-wise
+  formulation of linear RNN state transitions used here
+"""
 import torch
 from task import input_t, output_t
 from utils import verbose_allclose

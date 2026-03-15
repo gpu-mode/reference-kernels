@@ -22,17 +22,21 @@ def ref_kernel(data: input_t) -> output_t:
     num_groups = x_s.shape[1]
     group_size = hidden_dim // num_groups
 
+    # convert to float32 for computation
     x_f32 = x.float()
+    # reshape into fp8 groups
     x_grouped = x_f32.reshape(num_tokens, num_groups, group_size)
 
-    # Per-group absmax
+    # Per-group absmax and clamp to mimimum fp8 value
     absmax = x_grouped.abs().amax(dim=-1).clamp(min=FP8_EPS)
 
     # Scale = absmax / fp8_max
+    # scale abs-max by maximum fp8
     scale = absmax / FP8_MAX
 
-    # Quantize
+    # Quantize by dividing by scale and clamping to fp8 range
     quantized = (x_grouped / scale.unsqueeze(-1)).clamp(FP8_MIN, FP8_MAX)
+    # Reshape to original shape
     quantized = quantized.reshape(num_tokens, hidden_dim)
 
     x_q[...] = quantized
