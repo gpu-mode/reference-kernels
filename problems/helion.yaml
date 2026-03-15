@@ -4,26 +4,26 @@ description: "GPU kernel challenges inspired by Helion kernel ideas — convolut
 problems:
   - directory: helion/causal_conv1d_py
     name: causal_conv1d
-    deadline: "2026-03-15 03:00"
+    deadline: "2026-03-15 02:00"
     gpus:
       - B200_Nebius
   - directory: helion/fp8_quant_py
     name: fp8_quant
-    deadline: "2026-03-15 03:00"
+    deadline: "2026-03-15 02:00"
     gpus:
       - B200_Nebius
   - directory: helion/gated_deltanet_chunk_fwd_h_py
     name: gated_deltanet_chunk_fwd_h
-    deadline: "2026-03-15 03:00"
+    deadline: "2026-03-15 02:00"
     gpus:
       - B200_Nebius
   - directory: helion/gated_deltanet_chunk_fwd_o_py
     name: gated_deltanet_chunk_fwd_o
-    deadline: "2026-03-15 03:00"
+    deadline: "2026-03-15 02:00"
     gpus:
       - B200_Nebius
   - directory: helion/gated_deltanet_recompute_w_u_py
     name: gated_deltanet_recompute_w_u
-    deadline: "2026-03-15 03:00"
+    deadline: "2026-03-15 02:00"
     gpus:
       - B200_Nebius
