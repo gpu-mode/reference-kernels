@@ -300,6 +300,7 @@ def run_benchmarking(logger: PopcornOutput, pool: multiprocessing.Pool, tests: l
             passed = False
             logger.log(f"benchmark.{idx}.status", "fail")
             logger.log(f"benchmark.{idx}.error", result)
+            break
 
     if passed:
         logger.log("check", "pass")
