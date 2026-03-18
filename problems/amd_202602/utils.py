@@ -123,13 +123,41 @@ def verbose_allequal(received: torch.Tensor, expected: torch.Tensor, max_print: 
 
     return True, []
 
+def _is_mla_case(data) -> bool:
+    """
+    Detect mixed-MLA style input tuple:
+    (q, kv_data, qo_indptr, kv_indptr, config)
+    """
+    if not isinstance(data, tuple) or len(data) < 5:
+        return False
+    config = data[4]
+    if not isinstance(config, dict):
+        return False
+    mla_keys = {
+        "num_heads",
+        "num_kv_heads",
+        "qk_head_dim",
+        "kv_lora_rank",
+        "qk_rope_head_dim",
+        "v_head_dim",
+    }
+    return mla_keys.issubset(config.keys())
 
-def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08):
+def match_reference(data, output, reference: callable, rtol=1e-05, atol=1e-08, tol_err_ratio=0.05):
     """
     Convenient "default" implementation for tasks' `check_implementation` function.
     """
     expected = reference(data)
     good, reasons = verbose_allclose(output, expected, rtol=rtol, atol=atol)
+    # Only for MLA: aligned with aiter
+    if (not good) and _is_mla_case(data) and output.shape == expected.shape:
+        mismatch_mask = ~torch.isclose(output, expected, rtol=rtol, atol=atol)
+        mismatch_ratio = (mismatch_mask.sum() / output.numel()).item()
+        if mismatch_ratio <= tol_err_ratio:
+            return True, (
+                f"warning: mismatch_ratio={mismatch_ratio:.6f} "
+                f"(<= tol_err_ratio={tol_err_ratio}) with rtol={rtol}, atol={atol}"
+            )
 
     if len(reasons) > 0:
         return good, "\\n".join(reasons)
