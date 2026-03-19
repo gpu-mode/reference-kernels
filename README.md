@@ -15,6 +15,10 @@ You can see what's going on [gpumode.com](https://www.gpumode.com/)
 
 Please take a look at `vectoradd_py` to see multiple examples of expected submisisons ranging from PyTorch code to Triton to inline CUDA.
 
+## Security Note
+
+Evaluator trust-boundary concerns and a remediation proposal are documented in [EVALUATOR_SECURITY.md](EVALUATOR_SECURITY.md).
+
 
 ## Contributing New Problems
 
@@ -24,6 +28,5 @@ To add a new problem, create a new folder in the `problems/glory` directory wher
 - `task.py` - Specifies the schema of the inputs and outputs for the problem
 
 You can evaluate problems with your own Modal account (they give you a free $30) by borrowing this [neat script from @gau-nernst](https://github.com/gpu-mode/reference-kernels/pull/96#issue-3850136894)
-
 
 
