@@ -1,0 +1,40 @@
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "eval.py"}
+
+lang: "py"
+
+description: |
+  Implement fused cross-entropy forward and backward kernels for logits of shape (B, V).
+
+  Your submission must define:
+  - cross_entropy_forward(logits, targets) -> losses
+  - cross_entropy_backward(logits, targets, grad_output) -> grad_logits
+
+  Inputs:
+  - logits: torch.bfloat16 tensor of shape (B, V)
+  - targets: torch.int64 tensor of shape (B,)
+  - grad_output: torch.float32 tensor of shape (B,)
+
+  Outputs:
+  - forward output: torch.float32 tensor of shape (B,)
+  - backward output: torch.bfloat16 tensor of shape (B, V)
+
+config:
+  main: "eval.py"
+
+tests:
+  - {"vocab_size": 32000}
+
+benchmarks:
+  - {"vocab_size": 32000}
+  - {"vocab_size": 50264}
+  - {"vocab_size": 128256}
+
+test_timeout: 300
+benchmark_timeout: 900
+ranked_timeout: 1200
+ranking_by: "geom"
+gpus:
+  - A100
