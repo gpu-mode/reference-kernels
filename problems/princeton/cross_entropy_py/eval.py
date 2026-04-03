@@ -19,7 +19,7 @@ from reference import (
 )
 
 
-# Tri's original eval parameters
+# Original eval parameters
 B = 4_096
 WARMUP_ITERS = 20
 BENCH_ITERS = 100
