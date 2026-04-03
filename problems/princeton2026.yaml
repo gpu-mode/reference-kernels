@@ -1,0 +1,9 @@
+name: Princeton Problem Set
+deadline: "2026-04-17 03:59"
+description: "Princeton problem set"
+problems:
+  - directory: princeton/cross_entropy_py
+    name: princeton_cross_entropy
+    deadline: "2026-04-17 03:59"
+    gpus:
+      - A100
