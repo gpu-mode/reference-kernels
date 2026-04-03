@@ -185,7 +185,7 @@ def benchmark_one(mod, vocab_size):
     bwd_bw = bwd_bytes / (bwd_ms * 1e-3) / 1e9
     combined_bw = total_bytes / (combined_ms * 1e-3) / 1e9
 
-    # Keep KernelBot scoring on the exact metric Tri reports: median combined ms.
+    # Keep KernelBot scoring on the exact reported metric: median combined ms.
     return Stats(
         runs=BENCH_ITERS,
         mean=combined_ms * 1e6,
