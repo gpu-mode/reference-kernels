@@ -13,7 +13,7 @@ description: |
   - cross_entropy_backward(logits, targets, grad_output) -> grad_logits
 
   Inputs:
-  - logits: torch.bfloat16 tensor of shape (B, V)
+  - logits: torch.bfloat16 tensor of real-valued, finite logits with shape (B, V)
   - targets: torch.int64 tensor of shape (B,)
   - grad_output: torch.float32 tensor of shape (B,)
 
@@ -21,11 +21,19 @@ description: |
   - forward output: torch.float32 tensor of shape (B,)
   - backward output: torch.bfloat16 tensor of shape (B, V)
 
+  Assumptions used by the evaluator and benchmark:
+  - batch size is fixed at B = 4096
+  - vocab sizes are V in {32000, 50264, 128256}
+  - vocab size is guaranteed to be divisible by 8
+  - logits are ordinary real numbers; masked values such as -inf are not used
+
 config:
   main: "eval.py"
 
 tests:
   - {"vocab_size": 32000}
+  - {"vocab_size": 50264}
+  - {"vocab_size": 128256}
 
 benchmarks:
   - {"vocab_size": 32000}

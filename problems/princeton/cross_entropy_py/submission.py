@@ -1,7 +1,15 @@
+#!POPCORN leaderboard princeton_cross_entropy
+
 """
 Baseline submission for the cross-entropy problem.
 
 Replace these functions with a faster implementation.
+
+The evaluator uses:
+- B = 4096
+- V in {32000, 50264, 128256}
+- V % 8 == 0
+- finite real-valued logits (no masking with -inf)
 
 Example local bandwidth calculation for the three ranked shapes:
 
