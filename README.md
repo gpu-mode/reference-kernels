@@ -4,6 +4,10 @@ This repo holds reference kernels for the KernelBot which hosts regular competit
 
 You can see what's going on [gpumode.com](https://www.gpumode.com/)
 
+We also work with universities on hosting the infrastructure for their classes:
+- [Stanford CS149 assignment 5 kernels](https://github.com/stanford-cs149/asst5-kernels)
+- [Tri Dao's Princeton parallel programming class](problems/princeton)
+
 ## Competition
 1. [PMPP practice problems](https://github.com/gpu-mode/reference-kernels/tree/main/problems/pmpp_v2)
 2. [AMD $100K kernel competition](problems/amd)
@@ -27,5 +31,3 @@ To add a new problem, create a new folder in the `problems/glory` directory wher
 - `task.py` - Specifies the schema of the inputs and outputs for the problem
 
 You can evaluate problems with your own Modal account (they give you a free $30) by borrowing this [neat script from @gau-nernst](https://github.com/gpu-mode/reference-kernels/pull/96#issue-3850136894)
-
-
