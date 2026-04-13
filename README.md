@@ -4,11 +4,7 @@ This repo holds reference kernels for the KernelBot which hosts regular competit
 
 You can see what's going on [gpumode.com](https://www.gpumode.com/)
 
-We also work with universities on hosting the infrastructure for their classes:
-- [Stanford CS149 assignment 5 kernels](https://github.com/stanford-cs149/asst5-kernels)
-- [Tri Dao's Princeton parallel programming class](problems/princeton)
-
-## Competition
+## Competitions
 1. [PMPP practice problems](https://github.com/gpu-mode/reference-kernels/tree/main/problems/pmpp_v2)
 2. [AMD $100K kernel competition](problems/amd)
 3. [BioML kernels](problems/bioml)
@@ -16,12 +12,10 @@ We also work with universities on hosting the infrastructure for their classes:
 5. [NVIDIA Blackwell NVFP4 competition](problems/nvidia)
 6. [AMD $1.1M competition](problems/amd_202602)
 7. [Helion IRL hackathon](problems/helion)
-8. [Princeton course](problems/princeton)
 
-## Making a Leaderboard Submission
-
-Please take a look at `vectoradd_py` to see multiple examples of expected submisisons ranging from PyTorch code to Triton to inline CUDA.
-
+We also work with universities on hosting the infrastructure for their classes:
+- [Stanford CS149 assignment 5 kernels](https://github.com/stanford-cs149/asst5-kernels)
+- [Tri Dao's Princeton parallel programming class](problems/princeton)
 
 ## Contributing New Problems
 
