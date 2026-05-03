@@ -48,7 +48,7 @@ torch::Tensor add_cuda(torch::Tensor A, torch::Tensor B, torch::Tensor C) {
 add_cpp_source = """
 #include <torch/extension.h>
 
-torch::Tensor add_cuda(torch::Tensor A, torch::Tensor B);
+torch::Tensor add_cuda(torch::Tensor A, torch::Tensor B, torch::Tensor C);
 """
 
 add_module = load_inline(
@@ -59,10 +59,10 @@ add_module = load_inline(
     verbose=True,
 )
 
-def add(A, B):
-    if not A.is_cuda or not B.is_cuda:
-        raise RuntimeError("Both tensors must be on GPU")
-    return add_module.add_cuda(A, B)
+def add(A, B, C):
+    if not A.is_cuda or not B.is_cuda or not C.is_cuda:
+        raise RuntimeError("All tensors must be on GPU")
+    return add_module.add_cuda(A, B, C)
 
 def custom_kernel(data: input_t) -> output_t:
     """
@@ -72,12 +72,13 @@ def custom_kernel(data: input_t) -> output_t:
     Returns:
         Tensor containing element-wise sum.
     """
-    A, B = data
+    A, B, C = data
 
-    assert A.is_cuda and B.is_cuda, "Input tensors must be on GPU"
+    assert A.is_cuda and B.is_cuda and C.is_cuda, "Input/output tensors must be on GPU"
     assert A.shape == B.shape, "Input tensors must have the same shape"
-    assert A.dtype == torch.float16 and B.dtype == torch.float16, "Input tensors must be float16"
+    assert C.shape == A.shape, "Output tensor and input tensors must have the same shape"
+    assert A.dtype == torch.float16 and B.dtype == torch.float16 and C.dtype == torch.float16, "Input/output tensors must be float16"
     
     # Simply reuse the existing add function we already defined
     # This avoids the compilation issues with the inline kernel
-    return add(A, B)
+    return add(A, B, C)
