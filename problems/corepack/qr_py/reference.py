@@ -88,6 +88,7 @@ def generate_input(batch: int, n: int, cond: int, seed: int, case: str = "dense"
 
 
 def ref_kernel(data: input_t) -> output_t:
+    # Starter/reference path: correctness first; submissions compete on speed.
     return torch.geqrf(data)
 
 

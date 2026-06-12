@@ -51,9 +51,8 @@ description: |
   already implied by the factor residual against `triu(H)`.
 
   Among passing submissions, ranking is by runtime using the geometric mean of
-  benchmark cases. We will also call out the most accurate bitwise-deterministic
-  fast kernel and the fastest passing kernel with the fewest characters in
-  `submission.py` as separate recognitions.
+  benchmark cases. We will also celebrate notable submissions beyond the main
+  leaderboard: the fastest, the most elegant, and the strangest working kernels.
 
 config:
   main: "eval.py"
