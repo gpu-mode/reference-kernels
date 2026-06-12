@@ -12,6 +12,7 @@ You can see what's going on [gpumode.com](https://www.gpumode.com/)
 5. [NVIDIA Blackwell NVFP4 competition](problems/nvidia)
 6. [AMD $1.1M competition](problems/amd_202602)
 7. [Helion IRL hackathon](problems/helion)
+8. [Linear Algebra Problems](problems/linalg)
 
 We also work with universities on hosting the infrastructure for their classes:
 - [Stanford CS149 assignment 5 kernels](https://github.com/stanford-cs149/asst5-kernels)
