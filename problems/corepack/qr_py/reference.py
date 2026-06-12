@@ -7,6 +7,7 @@ _ORTH_RTOL_FACTOR = 100.0
 
 
 def _apply_column_scaling(a: torch.Tensor, cond: int) -> torch.Tensor:
+    # `cond` is a deterministic dynamic-range knob, not an exact condition number.
     if cond:
         n = a.shape[-1]
         scales = torch.logspace(0.0, -float(cond), n, device=a.device, dtype=torch.float32)
