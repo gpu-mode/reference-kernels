@@ -1,0 +1,12 @@
+name: Corepack
+
+deadline: ""
+
+description: "Core linear algebra kernels for modern accelerator workloads."
+
+problems:
+  - directory: corepack/qr_py
+    name: qr
+    deadline: "2100-12-31"
+    gpus:
+      - B200
