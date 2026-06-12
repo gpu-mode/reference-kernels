@@ -107,7 +107,7 @@ def _scaled_residual(
 
 
 def _matrix_l1_norm(value: torch.Tensor) -> torch.Tensor:
-    return torch.linalg.matrix_norm(value.float(), ord=1, dim=(-2, -1))
+    return torch.linalg.matrix_norm(value.double(), ord=1, dim=(-2, -1))
 
 
 def _check_tensor(name: str, value: torch.Tensor, shape: tuple[int, ...], device: torch.device) -> str | None:
@@ -143,9 +143,12 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
 
     q = torch.linalg.householder_product(h, tau)
     r = torch.triu(h)
-    projected = q.transpose(-1, -2) @ a
-    factor_residual = _matrix_l1_norm(r - projected).amax()
-    factor_scale = _matrix_l1_norm(a).amax()
+    a_check = a.double()
+    q_check = q.double()
+    r_check = r.double()
+    projected = q_check.transpose(-1, -2) @ a_check
+    factor_residual = _matrix_l1_norm(r_check - projected).amax()
+    factor_scale = _matrix_l1_norm(a_check).amax()
     factor_allowed = factor_rtol * factor_scale
     factor_scaled = _scaled_residual(factor_residual, factor_scale, n)
     if factor_residual.item() > factor_allowed.item():
@@ -155,8 +158,8 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
             f"scaled={factor_scaled.item():.3g}"
         )
 
-    eye = torch.eye(n, device=a.device, dtype=torch.float32).expand(batch, n, n)
-    qtq = q.transpose(-1, -2) @ q
+    eye = torch.eye(n, device=a.device, dtype=torch.float64).expand(batch, n, n)
+    qtq = q_check.transpose(-1, -2) @ q_check
     orth_residual = _matrix_l1_norm(qtq - eye).amax()
     orth_scale = _matrix_l1_norm(eye).amax()
     orth_allowed = orth_rtol * orth_scale
@@ -170,12 +173,12 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
 
     lower = torch.tril(projected, diagonal=-1)
     tri_residual = _matrix_l1_norm(lower).amax()
-    tri_scale = _matrix_l1_norm(a).amax()
+    tri_scale = _matrix_l1_norm(a_check).amax()
     tri_scaled = _scaled_residual(tri_residual, tri_scale, n)
 
-    recon = q @ r
-    recon_residual = _matrix_l1_norm(recon - a).amax()
-    recon_scale = _matrix_l1_norm(a).amax()
+    recon = q_check @ r_check
+    recon_residual = _matrix_l1_norm(recon - a_check).amax()
+    recon_scale = _matrix_l1_norm(a_check).amax()
     recon_scaled = _scaled_residual(recon_residual, recon_scale, n)
 
     return True, (
