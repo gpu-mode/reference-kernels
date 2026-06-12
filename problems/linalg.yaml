@@ -1,0 +1,12 @@
+name: Linear Algebra
+
+deadline: ""
+
+description: "Core linear algebra kernels for modern accelerator workloads."
+
+problems:
+  - directory: linalg/qr_py
+    name: qr
+    deadline: "2026-06-30"
+    gpus:
+      - B200
