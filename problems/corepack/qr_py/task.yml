@@ -32,6 +32,13 @@ description: |
   `512 x 512` is especially important, while `1024`, `2048`, and `4096` cover
   larger square factors.
 
+  Test and benchmark specs include a `cond` field. In this task `cond` is a
+  deterministic input-scaling knob, not an exact requested condition number:
+  dense cases multiply columns by `logspace(0, -cond, n)`, so larger `cond`
+  creates a wider dynamic range across columns. Some stress cases use their own
+  structure, such as rank-deficient, near-rank-deficient, banded, row-scaled,
+  near-collinear, upper-triangular, or clustered-scale inputs.
+
   Correctness is a hard gate against the original FP32 input and the FP32
   `torch.geqrf` compact-factor contract. Low-bit FP16, FP8, or NVFP4 work is
   allowed only as an internal implementation strategy: returned factors must
