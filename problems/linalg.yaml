@@ -10,3 +10,8 @@ problems:
     deadline: "2026-06-30"
     gpus:
       - B200
+  - directory: linalg/qr_v2
+    name: qr_v2
+    deadline: "2026-06-30"
+    gpus:
+      - B200
