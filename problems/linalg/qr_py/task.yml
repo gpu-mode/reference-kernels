@@ -39,6 +39,14 @@ description: |
   structure, such as rank-deficient, near-rank-deficient, banded, row-scaled,
   near-collinear, upper-triangular, or clustered-scale inputs.
 
+  The `mixed` case builds a heterogeneous batch: each matrix is independently
+  assigned a conditioning profile at a random seeded position in the batch. This
+  mirrors the optimizer-statistics regime, where factors batched into one call
+  can have very different conditioning, rather than all sharing one structure.
+  Benchmarks include both `mixed` batches and fully ill-conditioned homogeneous
+  batches, so conditioning robustness is ranked, not only gated. Each matrix in
+  the batch must be factored correctly on its own merits.
+
   Correctness is a hard gate against the original FP32 input and the FP32
   `torch.geqrf` compact-factor contract. Low-bit FP16, FP8, or NVFP4 work is
   allowed only as an internal implementation strategy: returned factors must
@@ -89,6 +97,9 @@ tests:
   - {"batch": 2, "n": 2048, "cond": 2, "seed": 224466, "case": "dense"}
   - {"batch": 2, "n": 2048, "cond": 0, "seed": 224467, "case": "rankdef"}
   - {"batch": 1, "n": 4096, "cond": 0, "seed": 75343, "case": "upper"}
+  - {"batch": 16, "n": 512, "cond": 2, "seed": 32530, "case": "mixed"}
+  - {"batch": 4, "n": 1024, "cond": 2, "seed": 4332, "case": "mixed"}
+  - {"batch": 2, "n": 2048, "cond": 2, "seed": 224468, "case": "mixed"}
 
 benchmarks:
   - {"batch": 20, "n": 32, "cond": 1, "seed": 43214}
@@ -98,3 +109,8 @@ benchmarks:
   - {"batch": 60, "n": 1024, "cond": 2, "seed": 75342}
   - {"batch": 8, "n": 2048, "cond": 1, "seed": 224466}
   - {"batch": 2, "n": 4096, "cond": 1, "seed": 32412}
+  - {"batch": 640, "n": 512, "cond": 2, "seed": 770001, "case": "mixed"}
+  - {"batch": 60, "n": 1024, "cond": 2, "seed": 770002, "case": "mixed"}
+  - {"batch": 640, "n": 512, "cond": 0, "seed": 770003, "case": "rankdef"}
+  - {"batch": 640, "n": 512, "cond": 0, "seed": 770004, "case": "clustered"}
+  - {"batch": 60, "n": 1024, "cond": 0, "seed": 770005, "case": "nearrank"}

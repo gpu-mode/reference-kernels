@@ -20,18 +20,21 @@ def _band_mask(n: int, bandwidth: int, device: torch.device) -> torch.Tensor:
     return (idx[:, None] - idx[None, :]).abs() <= bandwidth
 
 
-def generate_input(batch: int, n: int, cond: int, seed: int, case: str = "dense") -> input_t:
-    assert batch > 0, "batch must be positive"
-    assert n > 0, "n must be positive"
-    assert cond >= 0, "cond must be non-negative"
+_MIXED_PROFILES = (
+    "dense",
+    "rankdef",
+    "nearrank",
+    "clustered",
+    "band",
+    "rowscale",
+    "nearcollinear",
+)
+_MIXED_WEIGHTS = (6.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    gen = torch.Generator(device=device)
-    gen.manual_seed(seed)
 
-    case = case.lower()
-    a = torch.randn((batch, n, n), device=device, dtype=torch.float32, generator=gen)
-
+def _apply_case(a: torch.Tensor, case: str, cond: int, gen: torch.Generator) -> torch.Tensor:
+    batch, n = a.shape[0], a.shape[-1]
+    device = a.device
     if case == "dense":
         a = _apply_column_scaling(a, cond)
     elif case == "upper":
@@ -83,6 +86,48 @@ def generate_input(batch: int, n: int, cond: int, seed: int, case: str = "dense"
         a = scales.reshape(1, n, 1) * a
     else:
         raise ValueError(f"unknown QR test case: {case}")
+    return a
+
+
+def _generate_mixed(a: torch.Tensor, cond: int, gen: torch.Generator) -> torch.Tensor:
+    batch = a.shape[0]
+    device = a.device
+    weights = torch.tensor(_MIXED_WEIGHTS, dtype=torch.float32, device=device)
+    labels = torch.multinomial(weights, batch, replacement=True, generator=gen)
+
+    if batch >= 2:
+        is_dense = labels == 0
+        if not bool(is_dense.any()):
+            labels[int(torch.randint(0, batch, (1,), device=device, generator=gen))] = 0
+        elif bool(is_dense.all()):
+            pos = int(torch.randint(0, batch, (1,), device=device, generator=gen))
+            labels[pos] = int(
+                torch.randint(1, len(_MIXED_PROFILES), (1,), device=device, generator=gen)
+            )
+
+    for idx, profile in enumerate(_MIXED_PROFILES):
+        mask = labels == idx
+        if bool(mask.any()):
+            a[mask] = _apply_case(a[mask], profile, cond, gen)
+    return a
+
+
+def generate_input(batch: int, n: int, cond: int, seed: int, case: str = "dense") -> input_t:
+    assert batch > 0, "batch must be positive"
+    assert n > 0, "n must be positive"
+    assert cond >= 0, "cond must be non-negative"
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    gen = torch.Generator(device=device)
+    gen.manual_seed(seed)
+
+    case = case.lower()
+    a = torch.randn((batch, n, n), device=device, dtype=torch.float32, generator=gen)
+
+    if case == "mixed":
+        a = _generate_mixed(a, cond, gen)
+    else:
+        a = _apply_case(a, case, cond, gen)
 
     return a.contiguous()
 
@@ -143,27 +188,44 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
 
     q = torch.linalg.householder_product(h, tau)
     r = torch.triu(h)
+    if not torch.isfinite(q).all().item():
+        return False, "Q materialized from `(H, tau)` contains NaN or Inf"
+    if not torch.isfinite(r).all().item():
+        return False, "R extracted from `triu(H)` contains NaN or Inf"
+
     a_check = a.double()
     q_check = q.double()
     r_check = r.double()
     projected = q_check.transpose(-1, -2) @ a_check
-    factor_residual = _matrix_l1_norm(r_check - projected).amax()
-    factor_scale = _matrix_l1_norm(a_check).amax()
+    if not torch.isfinite(projected).all().item():
+        return False, "Q.T @ A contains NaN or Inf"
+
+    factor_residual = _matrix_l1_norm(r_check - projected)
+    factor_scale = _matrix_l1_norm(a_check)
     factor_allowed = factor_rtol * factor_scale
     factor_scaled = _scaled_residual(factor_residual, factor_scale, n)
-    if factor_residual.item() > factor_allowed.item():
+    if not torch.isfinite(factor_scaled).all().item():
+        return False, "R - Q.T @ A residual produced NaN or Inf"
+    factor_failed = factor_residual > factor_allowed
+    if bool(factor_failed.any().item()):
+        worst = int(factor_scaled.argmax().item())
         return False, (
             "R - Q.T @ A is too large: "
-            f"residual={factor_residual.item():.3g}, allowed={factor_allowed.item():.3g}, "
-            f"scaled={factor_scaled.item():.3g}"
+            f"matrix={worst}, residual={factor_residual[worst].item():.3g}, "
+            f"allowed={factor_allowed[worst].item():.3g}, "
+            f"scaled={factor_scaled[worst].item():.3g}"
         )
 
     eye = torch.eye(n, device=a.device, dtype=torch.float64).expand(batch, n, n)
     qtq = q_check.transpose(-1, -2) @ q_check
+    if not torch.isfinite(qtq).all().item():
+        return False, "Q.T @ Q contains NaN or Inf"
     orth_residual = _matrix_l1_norm(qtq - eye).amax()
     orth_scale = _matrix_l1_norm(eye).amax()
     orth_allowed = orth_rtol * orth_scale
     orth_scaled = _scaled_residual(orth_residual, orth_scale, n)
+    if not torch.isfinite(orth_scaled).all().item():
+        return False, "Q.T @ Q residual produced NaN or Inf"
     if orth_residual.item() > orth_allowed.item():
         return False, (
             "Q is not orthogonal enough: "
@@ -177,6 +239,8 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
     tri_scaled = _scaled_residual(tri_residual, tri_scale, n)
 
     recon = q_check @ r_check
+    if not torch.isfinite(recon).all().item():
+        return False, "Q @ R contains NaN or Inf"
     recon_residual = _matrix_l1_norm(recon - a_check).amax()
     recon_scale = _matrix_l1_norm(a_check).amax()
     recon_scaled = _scaled_residual(recon_residual, recon_scale, n)
@@ -184,7 +248,7 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
     return True, (
         f"factor_rtol={factor_rtol:.3g}; "
         f"orth_rtol={orth_rtol:.3g}; "
-        f"scaled_factor_residual={factor_scaled.item():.3g}; "
+        f"scaled_factor_residual={factor_scaled.amax().item():.3g}; "
         f"scaled_reconstruction_residual={recon_scaled.item():.3g}; "
         f"scaled_triangular_residual={tri_scaled.item():.3g}; "
         f"scaled_orthogonality_residual={orth_scaled.item():.3g}; "
