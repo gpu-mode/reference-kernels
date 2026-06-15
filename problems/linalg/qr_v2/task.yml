@@ -1,0 +1,121 @@
+# name: qr_v2
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../../pmpp_v2/utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "eval.py"}
+
+lang: "py"
+
+description: |
+  Implement batched square compact-Householder QR factorization.
+
+  Input is `A`, a `batch x n x n` CUDA tensor in `torch.float32`.
+
+  Return `(H, tau)` in the same compact Householder convention as
+  `torch.geqrf(A)`. `H` is a `batch x n x n` FP32 tensor containing `R` in its
+  upper triangle and Householder vectors below the diagonal. `tau` is a
+  `batch x n` FP32 tensor containing reflector coefficients. The checker
+  materializes `Q = torch.linalg.householder_product(H, tau)`, uses
+  `R_factor = triu(H)`, and validates the LAPACK-style QR factorization
+  residual `R_factor - Q.T @ A` and orthogonality of `Q`. Since `R_factor`
+  is extracted with `triu`, triangularity is part of the factorization check:
+  if `Q.T @ A` has meaningful lower-triangular leakage, then it cannot match
+  `R_factor`. The checker reports that lower-triangular leakage and the
+  reconstruction residual as diagnostics.
+
+  This shape set targets optimizer-style matrix statistics where gradients are
+  viewed as `[for_each..., basis_dim, contracted_dim]`, statistics are formed as
+  `G @ G.T`, and QR is run on square `basis_dim x basis_dim` matrices. Batched
+  `512 x 512` is especially important, while `1024`, `2048`, and `4096` cover
+  larger square factors.
+
+  Test and benchmark specs include a `cond` field. In this task `cond` is a
+  deterministic input-scaling knob, not an exact requested condition number:
+  dense cases multiply columns by `logspace(0, -cond, n)`, so larger `cond`
+  creates a wider dynamic range across columns. Some stress cases use their own
+  structure, such as rank-deficient, near-rank-deficient, banded, row-scaled,
+  near-collinear, upper-triangular, or clustered-scale inputs.
+
+  The `mixed` case builds a heterogeneous batch: each matrix is independently
+  assigned a conditioning profile (a well-conditioned dense majority interleaved
+  with the ill-conditioned stress structures above) at a random position in the
+  batch. This mirrors the real optimizer-statistics regime, where the per-layer
+  or per-block factors batched into one call have widely varying conditioning,
+  rather than all sharing one structure. The benchmark set (not just the test
+  set) now includes both `mixed` batches and fully ill-conditioned homogeneous
+  batches, so conditioning robustness is ranked, not only gated: an
+  implementation cannot inspect a few matrices, decide the whole batch is
+  well-conditioned, and route it to a path that is only valid for well-conditioned
+  inputs, and the runtime cost of the accurate path on hard inputs is part of the
+  score. Each matrix must be factored correctly on its own merits.
+
+  Correctness is a hard gate against the original FP32 input and the FP32
+  `torch.geqrf` compact-factor contract. Low-bit FP16, FP8, or NVFP4 work is
+  allowed only as an internal implementation strategy: returned factors must
+  still be FP32 and must satisfy the same QR invariants as an FP32
+  factorization. Residuals are measured in FP64 to reduce checker noise, but
+  the target tolerance is still FP32 accuracy. The numerical property tolerance
+  is purely relative, with no QR `atol`.
+  The hard gates are the LAPACK-style factor residual, which uses
+  `rtol = 20 * n * eps32`, and orthogonality, which uses
+  `rtol = 100 * n * eps32`, each applied to the corresponding matrix L1 norm.
+  Triangularity is reported as lower-triangular leakage in `Q.T @ A` and is
+  already implied by the factor residual against `triu(H)`.
+
+  Among passing submissions, ranking is by runtime using the geometric mean of
+  benchmark cases. We will also celebrate notable submissions beyond the main
+  leaderboard: the fastest, the most elegant, and the strangest working kernels.
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "submission.py"
+
+test_timeout: 240
+benchmark_timeout: 480
+ranked_timeout: 900
+ranking_by: "geom"
+gpus:
+  - B200
+
+tests:
+  - {"batch": 20, "n": 32, "cond": 1, "seed": 53124}
+  - {"batch": 40, "n": 176, "cond": 1, "seed": 3321}
+  - {"batch": 40, "n": 352, "cond": 1, "seed": 1200}
+  - {"batch": 16, "n": 512, "cond": 2, "seed": 32523}
+  - {"batch": 4, "n": 1024, "cond": 2, "seed": 4327}
+  - {"batch": 1, "n": 4096, "cond": 1, "seed": 75342}
+  - {"batch": 16, "n": 512, "cond": 4, "seed": 32524, "case": "dense"}
+  - {"batch": 16, "n": 512, "cond": 0, "seed": 32525, "case": "rankdef"}
+  - {"batch": 16, "n": 512, "cond": 0, "seed": 32526, "case": "clustered"}
+  - {"batch": 16, "n": 512, "cond": 0, "seed": 32527, "case": "band"}
+  - {"batch": 16, "n": 512, "cond": 0, "seed": 32528, "case": "rowscale"}
+  - {"batch": 16, "n": 512, "cond": 0, "seed": 32529, "case": "nearcollinear"}
+  - {"batch": 4, "n": 1024, "cond": 4, "seed": 4328, "case": "dense"}
+  - {"batch": 4, "n": 1024, "cond": 0, "seed": 4329, "case": "rankdef"}
+  - {"batch": 4, "n": 1024, "cond": 0, "seed": 4330, "case": "nearrank"}
+  - {"batch": 4, "n": 1024, "cond": 0, "seed": 4331, "case": "clustered"}
+  - {"batch": 2, "n": 2048, "cond": 2, "seed": 224466, "case": "dense"}
+  - {"batch": 2, "n": 2048, "cond": 0, "seed": 224467, "case": "rankdef"}
+  - {"batch": 1, "n": 4096, "cond": 0, "seed": 75343, "case": "upper"}
+  - {"batch": 16, "n": 512, "cond": 2, "seed": 32530, "case": "mixed"}
+  - {"batch": 4, "n": 1024, "cond": 2, "seed": 4332, "case": "mixed"}
+  - {"batch": 2, "n": 2048, "cond": 2, "seed": 224468, "case": "mixed"}
+
+benchmarks:
+  - {"batch": 20, "n": 32, "cond": 1, "seed": 43214}
+  - {"batch": 40, "n": 176, "cond": 1, "seed": 423011}
+  - {"batch": 40, "n": 352, "cond": 1, "seed": 123456}
+  - {"batch": 640, "n": 512, "cond": 2, "seed": 1029}
+  - {"batch": 60, "n": 1024, "cond": 2, "seed": 75342}
+  - {"batch": 8, "n": 2048, "cond": 1, "seed": 224466}
+  - {"batch": 2, "n": 4096, "cond": 1, "seed": 32412}
+  - {"batch": 640, "n": 512, "cond": 2, "seed": 770001, "case": "mixed"}
+  - {"batch": 60, "n": 1024, "cond": 2, "seed": 770002, "case": "mixed"}
+  - {"batch": 640, "n": 512, "cond": 0, "seed": 770003, "case": "rankdef"}
+  - {"batch": 640, "n": 512, "cond": 0, "seed": 770004, "case": "clustered"}
+  - {"batch": 60, "n": 1024, "cond": 0, "seed": 770005, "case": "nearrank"}
