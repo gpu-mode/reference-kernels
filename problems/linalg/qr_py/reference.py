@@ -202,15 +202,18 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
     q_check = q.double()
     r_check = r.double()
     projected = q_check.transpose(-1, -2) @ a_check
-    factor_residual = _matrix_l1_norm(r_check - projected).amax()
-    factor_scale = _matrix_l1_norm(a_check).amax()
+    factor_residual = _matrix_l1_norm(r_check - projected)
+    factor_scale = _matrix_l1_norm(a_check)
     factor_allowed = factor_rtol * factor_scale
     factor_scaled = _scaled_residual(factor_residual, factor_scale, n)
-    if factor_residual.item() > factor_allowed.item():
+    factor_failed = factor_residual > factor_allowed
+    if bool(factor_failed.any().item()):
+        worst = int(factor_scaled.argmax().item())
         return False, (
             "R - Q.T @ A is too large: "
-            f"residual={factor_residual.item():.3g}, allowed={factor_allowed.item():.3g}, "
-            f"scaled={factor_scaled.item():.3g}"
+            f"matrix={worst}, residual={factor_residual[worst].item():.3g}, "
+            f"allowed={factor_allowed[worst].item():.3g}, "
+            f"scaled={factor_scaled[worst].item():.3g}"
         )
 
     eye = torch.eye(n, device=a.device, dtype=torch.float64).expand(batch, n, n)
@@ -239,7 +242,7 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
     return True, (
         f"factor_rtol={factor_rtol:.3g}; "
         f"orth_rtol={orth_rtol:.3g}; "
-        f"scaled_factor_residual={factor_scaled.item():.3g}; "
+        f"scaled_factor_residual={factor_scaled.amax().item():.3g}; "
         f"scaled_reconstruction_residual={recon_scaled.item():.3g}; "
         f"scaled_triangular_residual={tri_scaled.item():.3g}; "
         f"scaled_orthogonality_residual={orth_scaled.item():.3g}; "
