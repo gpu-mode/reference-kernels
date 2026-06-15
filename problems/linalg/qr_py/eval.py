@@ -241,7 +241,15 @@ def run_benchmarking(logger: PopcornOutput, pool: multiprocessing.Pool, tests: l
     logger.log("benchmark-count", len(tests))
     for idx, test in enumerate(tests):
         logger.log(f"benchmark.{idx}.spec", test.spec)
-        result = run_single_benchmark(pool, test, False, 200, 10e9)
+        # recheck=True: re-validate the output of every timed iteration, not just
+        # the pre-timing warmup. Without this, the timed loop (which for the
+        # low-`count` shapes reuses one input object across all repeats) never
+        # re-checks its outputs, so a kernel that diverges only inside the timed
+        # region -- e.g. one that caches and replays an output keyed on the
+        # reused input -- is scored as fast without ever being caught locally.
+        # `leaderboard` mode already rechecks; this brings `benchmark` mode in
+        # line so a wrong timed output fails here too.
+        result = run_single_benchmark(pool, test, True, 200, 10e9)
         if isinstance(result, Stats):
             for field in dataclasses.fields(Stats):
                 logger.log(f"benchmark.{idx}.{field.name}", getattr(result, field.name))
