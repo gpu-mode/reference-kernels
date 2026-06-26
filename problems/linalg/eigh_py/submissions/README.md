@@ -11,29 +11,8 @@ far.
 
 ## Local KernelBot Measurements
 
-Measured through the local KernelBot API with `popcorn-cli submit --gpu B200`.
-Speedup is relative to `torch_eigh.py`.
-
-| Submission | Mean ns | Speedup |
-| --- | ---: | ---: |
-| `torch_eigh.py` | 61,283,134.5 | 1.000x |
-| `triton_diagonal_fast_path.py` | 187,568.5 | 326.724x |
-
-This table is from a temporary `eigh_diag_measure` leaderboard using the
-official large diagonal shape `batch=1,n=4096,case=diagonal`.
-
-The expanded benchmark list includes additional spectrum, PSD, repeated,
-banded, and row-scaled cases where `triton_diagonal_fast_path.py` falls back to
-the dense PyTorch path. Those fallback costs are intentional benchmark signal:
-the diagonal specialization should win only on the diagonal case and stay close
-to baseline elsewhere.
-
-On the expanded local KernelBot `eigh` benchmark list,
-`triton_diagonal_fast_path.py` passed as submission 17 and measured `1.366x`
-geometric mean speedup over `torch_eigh.py` submission 16. It was `1113.054x`
-faster on the included `batch=2,n=4096,case=diagonal` benchmark and roughly
-neutral on the additional dense fallback cases.
-
-Both retained submissions also passed local KernelBot test mode over all 39
-test specs: `torch_eigh.py` as submission 18 and
-`triton_diagonal_fast_path.py` as submission 19.
+Regenerate measurements whenever `task.yml` benchmark cases change. The current
+benchmark set keeps dense, mixed, rank-deficient, near-rank-deficient,
+clustered, diagonal, and two LAPACK dense spectrum cases. The Triton submission
+is expected to win on the diagonal case and fall back to the dense PyTorch path
+elsewhere; those fallback costs are intentional benchmark signal.
