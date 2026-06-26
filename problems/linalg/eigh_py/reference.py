@@ -1,3 +1,5 @@
+import math
+
 import torch
 from task import input_t, output_t
 
@@ -59,6 +61,95 @@ def _make_from_spectrum(values: torch.Tensor, gen: torch.Generator) -> torch.Ten
     q = _random_orthogonal(batch, n, gen, values.device)
     a = (q * values.unsqueeze(-2)) @ q.transpose(-1, -2)
     return _symmetrize(a).contiguous()
+
+
+def _lapack_scale(itype: int) -> float:
+    if itype in (6, 11, 14, 17):
+        return float(torch.finfo(torch.float32).max**0.5)
+    if itype in (7, 12, 15, 18):
+        return float(torch.finfo(torch.float32).tiny**0.5)
+    return 1.0
+
+
+def _lapack_signed_values(
+    batch: int,
+    n: int,
+    mode: str,
+    gen: torch.Generator,
+    device: torch.device,
+) -> torch.Tensor:
+    ulp = 2.0 * torch.finfo(torch.float32).eps
+    if n == 1:
+        values = torch.ones((1,), device=device, dtype=torch.float32)
+    elif mode == "even":
+        values = torch.linspace(1.0, ulp, n, device=device, dtype=torch.float32)
+    elif mode == "geometric":
+        values = torch.logspace(0.0, math.log10(ulp), n, device=device, dtype=torch.float32)
+    elif mode == "clustered":
+        values = torch.full((n,), ulp, device=device, dtype=torch.float32)
+        values[0] = 1.0
+    else:
+        raise ValueError(f"unknown LAPACK spectrum mode: {mode}")
+
+    signs = torch.randint(0, 2, (batch, n), device=device, generator=gen, dtype=torch.int64)
+    return values.expand(batch, n) * signs.to(torch.float32).mul_(2.0).sub_(1.0)
+
+
+_LAPACK_CASE_TYPES = {
+    "lapack_zero": 1,
+    "lapack_identity": 2,
+    "lapack_diag_even_spectrum": 3,
+    "lapack_diag_geometric_spectrum": 4,
+    "lapack_diag_clustered_spectrum": 5,
+    "lapack_diag_geometric_high_magnitude": 6,
+    "lapack_diag_geometric_low_magnitude": 7,
+    "lapack_dense_even_spectrum": 8,
+    "lapack_dense_geometric_spectrum": 9,
+    "lapack_dense_clustered_spectrum": 10,
+    "lapack_dense_even_high_magnitude": 11,
+    "lapack_dense_even_low_magnitude": 12,
+    "lapack_random_symmetric": 13,
+    "lapack_random_symmetric_high_magnitude": 14,
+    "lapack_random_symmetric_low_magnitude": 15,
+    "lapack_band_even_spectrum": 16,
+    "lapack_band_even_high_magnitude": 17,
+    "lapack_band_even_low_magnitude": 18,
+}
+
+
+def _generate_lapack(batch: int, n: int, itype: int, gen: torch.Generator, device: torch.device) -> torch.Tensor:
+    assert 1 <= itype <= 18, "LAPACK itype must be in [1, 18]"
+    scale = _lapack_scale(itype)
+    if itype == 1:
+        return torch.zeros((batch, n, n), device=device, dtype=torch.float32)
+    if itype == 2:
+        return torch.eye(n, device=device, dtype=torch.float32).expand(batch, n, n).clone() * scale
+    if itype == 3:
+        return torch.diag_embed(_lapack_signed_values(batch, n, "even", gen, device) * scale)
+    if itype in (4, 6, 7):
+        return torch.diag_embed(_lapack_signed_values(batch, n, "geometric", gen, device) * scale)
+    if itype == 5:
+        return torch.diag_embed(_lapack_signed_values(batch, n, "clustered", gen, device) * scale)
+    if itype in (8, 11, 12):
+        return _make_from_spectrum(_lapack_signed_values(batch, n, "even", gen, device) * scale, gen)
+    if itype == 9:
+        return _make_from_spectrum(_lapack_signed_values(batch, n, "geometric", gen, device), gen)
+    if itype == 10:
+        return _make_from_spectrum(_lapack_signed_values(batch, n, "clustered", gen, device), gen)
+    if itype in (13, 14, 15):
+        a = torch.empty((batch, n, n), device=device, dtype=torch.float32).uniform_(-1.0, 1.0, generator=gen)
+        return _symmetrize(a) * scale
+    if itype in (16, 17, 18):
+        a = _make_from_spectrum(_lapack_signed_values(batch, n, "even", gen, device) * scale, gen)
+        # DDRVST specifies a symmetric band matrix with eigenvalues. This
+        # generator bands a planted-spectrum dense matrix, so the final banded
+        # matrix's spectrum is perturbed; the checker validates the returned
+        # eigendecomposition of the final FP32 input.
+        bandwidth = torch.randint(0, n, (batch,), device=device, generator=gen)
+        idx = torch.arange(n, device=device)
+        mask = (idx[None, :, None] - idx[None, None, :]).abs() <= bandwidth[:, None, None]
+        return (a * mask).contiguous()
+    raise ValueError(f"unknown LAPACK matrix type: {itype}")
 
 
 def _apply_case(a: torch.Tensor, case: str, cond: int, gen: torch.Generator) -> torch.Tensor:
@@ -170,6 +261,9 @@ def generate_input(batch: int, n: int, cond: int, seed: int, case: str = "dense"
     gen.manual_seed(seed)
 
     case = case.lower()
+    if case in _LAPACK_CASE_TYPES:
+        return _generate_lapack(batch, n, _LAPACK_CASE_TYPES[case], gen, torch.device(device)).contiguous()
+
     a = torch.randn((batch, n, n), device=device, dtype=torch.float32, generator=gen)
     if case == "mixed":
         return _generate_mixed(a, cond, gen).contiguous()

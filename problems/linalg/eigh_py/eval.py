@@ -69,7 +69,7 @@ def get_test_cases(file_name: str, seed: Optional[int]) -> list[TestCase]:
         exit(113)
 
     tests = []
-    match = r"\s*([a-zA-Z]+):\s*([a-zA-Z]+|[+-]?[0-9]+)\s*"
+    match = r"\s*([a-zA-Z_][a-zA-Z0-9_]*):\s*([a-zA-Z_][a-zA-Z0-9_]*|[+-]?[0-9]+)\s*"
     for line in content.splitlines():
         case = {}
         for part in line.split(";"):
