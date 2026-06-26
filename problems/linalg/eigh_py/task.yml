@@ -19,7 +19,8 @@ description: |
   `Q` is a `batch x n x n` FP32 tensor whose columns are orthonormal
   eigenvectors, and `L` is a `batch x n` FP32 tensor of eigenvalues sorted in
   ascending order. The checker validates the invariant `A @ Q = Q @ diag(L)`,
-  reconstructs `A = Q @ diag(L) @ Q.T`, and checks orthogonality of `Q`.
+  checks `L` against `torch.linalg.eigvalsh(A)`, reconstructs
+  `A = Q @ diag(L) @ Q.T`, and checks orthogonality of `Q`.
 
   Eigenvectors are not unique. Individual signs may flip, and repeated or
   tightly clustered eigenvalues may rotate within their eigenspaces. Correctness
@@ -58,8 +59,9 @@ description: |
   room for approximate low-bit solutions while still rejecting non-orthogonal
   factors, unsorted eigenvalues, and outputs that do not reconstruct the input.
   The hard gates are the eigen-equation residual `A @ Q - Q @ diag(L)`,
-  reconstruction residual `Q @ diag(L) @ Q.T - A`, and orthogonality residual
-  `Q.T @ Q - I`, each applied relative to the corresponding matrix L1 norm.
+  eigenvalue error against `torch.linalg.eigvalsh(A)`, reconstruction residual
+  `Q @ diag(L) @ Q.T - A`, and orthogonality residual `Q.T @ Q - I`, each
+  applied with dimension-scaled FP32 tolerances.
 
   Among passing submissions, ranking is by runtime using the geometric mean of
   benchmark cases.
