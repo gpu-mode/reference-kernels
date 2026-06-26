@@ -198,7 +198,14 @@ def _run_single_benchmark(
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
         start_event.record()
-        outputs = [custom_kernel(data) for data in data_list]
+        # The capture range a profiler narrows to with nsys
+        # --capture-range=cudaProfilerApi / ncu --profile-from-start off: it
+        # records only the timed custom_kernel launches, not the warmup,
+        # clear_l2_cache, or the reference checker below. A no-op when no
+        # profiler is attached, so normal test/benchmark/leaderboard runs and
+        # their timing are unaffected.
+        with torch.cuda.profiler.profile():
+            outputs = [custom_kernel(data) for data in data_list]
         end_event.record()
         torch.cuda.synchronize()
         durations.append(start_event.elapsed_time(end_event) * 1e6 / len(data_list))
