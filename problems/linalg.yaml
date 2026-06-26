@@ -15,3 +15,8 @@ problems:
     deadline: "2026-06-30"
     gpus:
       - B200
+  - directory: linalg/eigh_py
+    name: eigh
+    deadline: "2026-07-15"
+    gpus:
+      - B200
