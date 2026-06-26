@@ -29,11 +29,11 @@ the diagonal specialization should win only on the diagonal case and stay close
 to baseline elsewhere.
 
 On the expanded local KernelBot `eigh` benchmark list,
-`triton_diagonal_fast_path.py` passed as submission 13 and measured `1.305x`
-geometric mean speedup over `torch_eigh.py` submission 12. It was `320.003x`
-faster on the included `batch=1,n=4096,case=diagonal` benchmark and roughly
+`triton_diagonal_fast_path.py` passed as submission 17 and measured `1.366x`
+geometric mean speedup over `torch_eigh.py` submission 16. It was `1113.054x`
+faster on the included `batch=2,n=4096,case=diagonal` benchmark and roughly
 neutral on the additional dense fallback cases.
 
 Both retained submissions also passed local KernelBot test mode over all 39
-test specs: `torch_eigh.py` as submission 14 and
-`triton_diagonal_fast_path.py` as submission 15.
+test specs: `torch_eigh.py` as submission 18 and
+`triton_diagonal_fast_path.py` as submission 19.
