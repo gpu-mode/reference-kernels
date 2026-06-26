@@ -125,7 +125,6 @@ benchmarks:
   - {"batch": 640, "n": 512, "cond": 2, "seed": 1029}
   - {"batch": 60, "n": 1024, "cond": 2, "seed": 75342}
   - {"batch": 8, "n": 2048, "cond": 1, "seed": 224466}
-  - {"batch": 2, "n": 4096, "cond": 1, "seed": 32412, "case": "diagonal"}
   - {"batch": 640, "n": 512, "cond": 2, "seed": 770001, "case": "mixed"}
   - {"batch": 60, "n": 1024, "cond": 2, "seed": 770002, "case": "mixed"}
   - {"batch": 640, "n": 512, "cond": 0, "seed": 770003, "case": "rankdef"}
