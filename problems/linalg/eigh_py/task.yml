@@ -41,9 +41,13 @@ description: |
   The `mixed` case builds a heterogeneous batch: each matrix is independently
   assigned a conditioning profile at a random position in the batch. This
   mirrors real optimizer-statistics batches, where per-layer or per-block
-  factors do not share one numerical structure. The benchmark set includes
-  mixed batches and homogeneous ill-conditioned batches, so robustness is
-  ranked, not only gated.
+  factors do not share one numerical structure.
+
+  The `tests` list is for fast iteration and correctness coverage across input
+  families. The `benchmarks` list is the performance target. It includes dense,
+  mixed, structured, and ill-conditioned cases so robustness is ranked, not
+  only gated. A specialization may still fall back to PyTorch on cases it does
+  not accelerate, but those fallback costs are part of the benchmark score.
 
   Correctness is residual-gated against the original FP32 input. Low-bit FP16,
   FP8, or NVFP4 work is allowed as an internal implementation strategy:
@@ -95,6 +99,24 @@ tests:
   - {"batch": 1, "n": 4096, "cond": 1, "seed": 75343, "case": "diagonal"}
   - {"batch": 8, "n": 512, "cond": 2, "seed": 32532, "case": "mixed"}
   - {"batch": 2, "n": 1024, "cond": 2, "seed": 4331, "case": "mixed"}
+  - {"batch": 2, "n": 16, "cond": 1, "seed": 91001}
+  - {"batch": 2, "n": 16, "cond": 1, "seed": 91002, "case": "diagonal"}
+  - {"batch": 2, "n": 16, "cond": 2, "seed": 91003, "case": "spectrum"}
+  - {"batch": 2, "n": 16, "cond": 2, "seed": 91004, "case": "psd"}
+  - {"batch": 2, "n": 16, "cond": 0, "seed": 91005, "case": "rankdef"}
+  - {"batch": 2, "n": 16, "cond": 0, "seed": 91006, "case": "nearrank"}
+  - {"batch": 2, "n": 16, "cond": 0, "seed": 91007, "case": "repeated"}
+  - {"batch": 2, "n": 16, "cond": 0, "seed": 91008, "case": "clustered"}
+  - {"batch": 2, "n": 16, "cond": 0, "seed": 91009, "case": "band"}
+  - {"batch": 2, "n": 16, "cond": 0, "seed": 91010, "case": "rowscale"}
+  - {"batch": 2, "n": 16, "cond": 2, "seed": 91011, "case": "mixed"}
+  - {"batch": 4, "n": 64, "cond": 4, "seed": 91012}
+  - {"batch": 4, "n": 64, "cond": 1, "seed": 91013, "case": "diagonal"}
+  - {"batch": 4, "n": 64, "cond": 2, "seed": 91014, "case": "psd"}
+  - {"batch": 4, "n": 64, "cond": 0, "seed": 91015, "case": "rankdef"}
+  - {"batch": 4, "n": 64, "cond": 0, "seed": 91016, "case": "repeated"}
+  - {"batch": 4, "n": 64, "cond": 0, "seed": 91017, "case": "band"}
+  - {"batch": 4, "n": 64, "cond": 2, "seed": 91018, "case": "mixed"}
 
 benchmarks:
   - {"batch": 20, "n": 32, "cond": 1, "seed": 43214}
@@ -109,3 +131,13 @@ benchmarks:
   - {"batch": 64, "n": 512, "cond": 0, "seed": 770003, "case": "rankdef"}
   - {"batch": 64, "n": 512, "cond": 0, "seed": 770004, "case": "clustered"}
   - {"batch": 12, "n": 1024, "cond": 0, "seed": 770005, "case": "nearrank"}
+  - {"batch": 64, "n": 512, "cond": 4, "seed": 770006, "case": "spectrum"}
+  - {"batch": 64, "n": 512, "cond": 2, "seed": 770007, "case": "psd"}
+  - {"batch": 64, "n": 512, "cond": 0, "seed": 770008, "case": "repeated"}
+  - {"batch": 64, "n": 512, "cond": 0, "seed": 770009, "case": "band"}
+  - {"batch": 64, "n": 512, "cond": 0, "seed": 770010, "case": "rowscale"}
+  - {"batch": 12, "n": 1024, "cond": 4, "seed": 770011, "case": "spectrum"}
+  - {"batch": 12, "n": 1024, "cond": 2, "seed": 770012, "case": "psd"}
+  - {"batch": 12, "n": 1024, "cond": 0, "seed": 770013, "case": "repeated"}
+  - {"batch": 12, "n": 1024, "cond": 0, "seed": 770014, "case": "band"}
+  - {"batch": 12, "n": 1024, "cond": 0, "seed": 770015, "case": "rowscale"}

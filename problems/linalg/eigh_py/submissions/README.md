@@ -22,11 +22,18 @@ Speedup is relative to `torch_eigh.py`.
 This table is from a temporary `eigh_diag_measure` leaderboard using the
 official large diagonal shape `batch=1,n=4096,case=diagonal`.
 
-On the full local KernelBot `eigh` benchmark list, `triton_diagonal_fast_path.py`
-passed as submission 11 and measured `1.590x` geometric mean speedup over
-`torch_eigh.py` submission 10. It was approximately neutral on dense fallback
-cases and `330.243x` faster on the included `batch=1,n=4096,case=diagonal`
-benchmark.
+The expanded benchmark list includes additional spectrum, PSD, repeated,
+banded, and row-scaled cases where `triton_diagonal_fast_path.py` falls back to
+the dense PyTorch path. Those fallback costs are intentional benchmark signal:
+the diagonal specialization should win only on the diagonal case and stay close
+to baseline elsewhere.
 
-`triton_diagonal_fast_path.py` also passed local KernelBot test mode on a temp
-test set containing both diagonal and dense fallback cases.
+On the expanded local KernelBot `eigh` benchmark list,
+`triton_diagonal_fast_path.py` passed as submission 13 and measured `1.305x`
+geometric mean speedup over `torch_eigh.py` submission 12. It was `320.003x`
+faster on the included `batch=1,n=4096,case=diagonal` benchmark and roughly
+neutral on the additional dense fallback cases.
+
+Both retained submissions also passed local KernelBot test mode over all 39
+test specs: `torch_eigh.py` as submission 14 and
+`triton_diagonal_fast_path.py` as submission 15.
