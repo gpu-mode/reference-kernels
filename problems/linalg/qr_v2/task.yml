@@ -51,6 +51,9 @@ description: |
   well-conditioned, and route it to a path that is only valid for well-conditioned
   inputs, and the runtime cost of the accurate path on hard inputs is part of the
   score. Each matrix must be factored correctly on its own merits.
+  Local `test` mode is a smoke path for contestants, not the only competition
+  gate; shape-only numerical routing must be covered by `benchmarks`, because
+  leaderboard mode validates benchmark outputs and those cases determine rank.
 
   Correctness is a hard gate against the original FP32 input and the FP32
   `torch.geqrf` compact-factor contract. Low-bit FP16, FP8, or NVFP4 work is
@@ -119,3 +122,5 @@ benchmarks:
   - {"batch": 640, "n": 512, "cond": 0, "seed": 770003, "case": "rankdef"}
   - {"batch": 640, "n": 512, "cond": 0, "seed": 770004, "case": "clustered"}
   - {"batch": 60, "n": 1024, "cond": 0, "seed": 770005, "case": "nearrank"}
+  - {"batch": 640, "n": 512, "cond": 0, "seed": 770006, "case": "rowscale"}
+  - {"batch": 640, "n": 512, "cond": 0, "seed": 770007, "case": "nearcollinear"}
