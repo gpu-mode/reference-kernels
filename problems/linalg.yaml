@@ -20,3 +20,8 @@ problems:
     deadline: "2026-07-15"
     gpus:
       - B200
+  - directory: linalg/eigh_v2
+    name: eigh_v2
+    deadline: "2026-07-15"
+    gpus:
+      - B200
