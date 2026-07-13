@@ -70,8 +70,8 @@ config:
 templates:
   Python: "submission.py"
 
-test_timeout: 240
-benchmark_timeout: 480
+test_timeout: 480
+benchmark_timeout: 900
 ranked_timeout: 900
 ranking_by: "geom"
 gpus:
