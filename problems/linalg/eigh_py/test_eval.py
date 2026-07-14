@@ -99,15 +99,15 @@ class FreshBenchmarkInputTest(unittest.TestCase):
                     side_effect=(bytes([1]) * 16, bytes([2]) * 16),
                 )
             )
-            first = evaluator._run_single_benchmark(test, True, 4, float("inf"))
-            second = evaluator._run_single_benchmark(test, True, 4, float("inf"))
+            first = evaluator._run_single_benchmark(test, True, 60, float("inf"))
+            second = evaluator._run_single_benchmark(test, True, 60, float("inf"))
 
         self.assertIsInstance(first, evaluator.Stats)
         self.assertIsInstance(second, evaluator.Stats)
-        self.assertEqual(first.runs, 4)
-        self.assertEqual(second.runs, 4)
+        self.assertEqual(first.runs, evaluator.MAX_FRESH_REPEATS_PER_BENCHMARK)
+        self.assertEqual(second.runs, evaluator.MAX_FRESH_REPEATS_PER_BENCHMARK)
         self.assertEqual(cache_hits, 0)
-        self.assertEqual(len(generated_seeds), 10)
+        self.assertEqual(len(generated_seeds), 102)
         self.assertEqual(len(set(generated_seeds)), len(generated_seeds))
 
 

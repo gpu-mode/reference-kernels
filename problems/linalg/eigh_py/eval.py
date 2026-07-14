@@ -23,6 +23,7 @@ except ImportError:
 
 
 MAX_ITERATIONS_PER_BENCHMARK = 50
+MAX_FRESH_REPEATS_PER_BENCHMARK = 50
 BENCHMARK_INPUT_BYTES_TARGET = 256 * 1024 * 1024
 BENCHMARK_NONCE_BYTES = 16
 TORCH_SEED_MASK = (1 << 63) - 1
@@ -218,7 +219,8 @@ def _run_single_benchmark(
 
     durations = []
     bm_start_time = time.perf_counter_ns()
-    for i in range(max_repeats):
+    repeat_limit = min(max_repeats, MAX_FRESH_REPEATS_PER_BENCHMARK)
+    for i in range(repeat_limit):
         # Cloning a warmup tensor changes its identity but not its contents.
         # Generate unseen contents for every timed invocation so neither
         # pointer-key nor byte-equality memoization can hit inside the timer.
