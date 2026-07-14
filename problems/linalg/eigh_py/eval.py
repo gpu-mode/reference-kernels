@@ -5,7 +5,9 @@ import os
 import re
 import sys
 import time
+from hashlib import blake2b
 from pathlib import Path
+from secrets import token_bytes as secure_token_bytes
 from typing import Any, Optional
 
 import torch
@@ -21,7 +23,10 @@ except ImportError:
 
 
 MAX_ITERATIONS_PER_BENCHMARK = 50
+MAX_FRESH_REPEATS_PER_BENCHMARK = 50
 BENCHMARK_INPUT_BYTES_TARGET = 256 * 1024 * 1024
+BENCHMARK_NONCE_BYTES = 16
+TORCH_SEED_MASK = (1 << 63) - 1
 
 
 class PopcornOutput:
@@ -155,12 +160,28 @@ def run_testing(logger: PopcornOutput, pool: multiprocessing.Pool, tests: list[T
     return 0 if passed else 112
 
 
-def _make_data_batch(test: TestCase, count: int):
-    args = dict(test.args)
+def _benchmark_seed(
+    base_seed: int,
+    nonce: bytes,
+    generation: int,
+    index: int,
+) -> int:
+    payload = f"{base_seed}:{generation}:{index}".encode("ascii")
+    digest = blake2b(
+        payload,
+        digest_size=8,
+        key=nonce,
+        person=b"eigh-eval-v1",
+    ).digest()
+    return int.from_bytes(digest, "little") & TORCH_SEED_MASK
+
+
+def _make_data_batch(test: TestCase, count: int, nonce: bytes, generation: int):
+    base_seed = int(test.args.get("seed", 0))
     data_list = []
-    for _ in range(count):
-        if "seed" in args:
-            args["seed"] += 42
+    for index in range(count):
+        args = dict(test.args)
+        args["seed"] = _benchmark_seed(base_seed, nonce, generation, index)
         data_list.append(generate_input(**args))
     return data_list
 
@@ -180,20 +201,32 @@ def _run_single_benchmark(
     max_repeats: int,
     max_time_ns: float,
 ) -> Stats | Any:
+    # This nonce separates warmup and measured inputs across every invocation,
+    # including leaderboard prewarm and the later scored pass.
+    nonce = secure_token_bytes(BENCHMARK_NONCE_BYTES)
     from submission import custom_kernel
 
-    data_list = _make_data_batch(test, _benchmark_batch_count(test))
-    check_copy = _clone_data(data_list)
+    batch_count = _benchmark_batch_count(test)
+    warmup_data = _make_data_batch(test, batch_count, nonce, generation=0)
+    warmup_reference = _clone_data(warmup_data)
 
-    outputs = [custom_kernel(_clone_data(data)) for data in data_list]
-    for reference_data, output in zip(check_copy, outputs):
+    outputs = [custom_kernel(_clone_data(data)) for data in warmup_data]
+    for reference_data, output in zip(warmup_reference, outputs):
         good, message = check_implementation(reference_data, output)
         if not good:
             return message
+    del warmup_data, warmup_reference, outputs
 
     durations = []
     bm_start_time = time.perf_counter_ns()
-    for i in range(max_repeats):
+    repeat_limit = min(max_repeats, MAX_FRESH_REPEATS_PER_BENCHMARK)
+    for i in range(repeat_limit):
+        # Cloning a warmup tensor changes its identity but not its contents.
+        # Generate unseen contents for every timed invocation so neither
+        # pointer-key nor byte-equality memoization can hit inside the timer.
+        data_list = _make_data_batch(test, batch_count, nonce, generation=i + 1)
+        check_copy = _clone_data(data_list) if recheck else None
+
         torch.cuda.synchronize()
         clear_l2_cache()
         start_event = torch.cuda.Event(enable_timing=True)
@@ -209,6 +242,7 @@ def _run_single_benchmark(
                 good, message = check_implementation(reference_data, output)
                 if not good:
                     return message
+        del data_list, check_copy, outputs
 
         total_bm_duration = time.perf_counter_ns() - bm_start_time
         if i > 1 and total_bm_duration > 1e8:
