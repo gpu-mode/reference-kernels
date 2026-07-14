@@ -27,10 +27,12 @@ description: |
   control; it is not an exact requested condition number for every case.
 
   The benchmark grid emphasizes batched factorization: from thousands of small
-  matrices through a single 32768 x 32768 matrix. The entries from n=32 through
-  n=1024 each contain 2^22 FP32 input elements, so batch scaling is compared at
-  a consistent 16 MiB input footprint. Among passing submissions, ranking is by
-  the geometric mean of runtime across all benchmark entries.
+  matrices through a single 32768 x 32768 matrix. The low-batch entries from
+  n=32 through n=1024 each contain 2^22 FP32 input elements, so matrix scaling
+  is compared at a consistent 16 MiB input footprint. Paired high-batch entries
+  at n=512, 1024, 2048, and 4096 separately exercise throughput and batch
+  parallelism. Among passing submissions, ranking is by the geometric mean of
+  runtime across all benchmark entries.
 
 config:
   main: "eval.py"
@@ -70,9 +72,13 @@ benchmarks:
   - {"batch": 256, "n": 128, "cond": 2, "seed": 41128}
   - {"batch": 64, "n": 256, "cond": 2, "seed": 41256}
   - {"batch": 16, "n": 512, "cond": 2, "seed": 41512}
+  - {"batch": 640, "n": 512, "cond": 2, "seed": 510512}
   - {"batch": 4, "n": 1024, "cond": 2, "seed": 42024}
+  - {"batch": 60, "n": 1024, "cond": 2, "seed": 511024}
   - {"batch": 2, "n": 2048, "cond": 2, "seed": 44048}
+  - {"batch": 8, "n": 2048, "cond": 2, "seed": 512048}
   - {"batch": 1, "n": 4096, "cond": 2, "seed": 48096}
+  - {"batch": 2, "n": 4096, "cond": 2, "seed": 514096}
   - {"batch": 1, "n": 8192, "cond": 2, "seed": 48192}
   - {"batch": 1, "n": 16384, "cond": 2, "seed": 48284}
   - {"batch": 1, "n": 32768, "cond": 2, "seed": 48368}
