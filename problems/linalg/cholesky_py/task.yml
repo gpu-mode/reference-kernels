@@ -1,0 +1,84 @@
+# name: cholesky
+
+files:
+  - {"name": "submission.py", "source": "@SUBMISSION@"}
+  - {"name": "task.py", "source": "task.py"}
+  - {"name": "utils.py", "source": "../../pmpp_v2/utils.py"}
+  - {"name": "reference.py", "source": "reference.py"}
+  - {"name": "eval.py", "source": "eval.py"}
+
+lang: "py"
+
+description: |
+  Implement batched dense Cholesky factorization.
+
+  Input is `A`, a `batch x n x n` CUDA tensor in `torch.float32`. Every matrix
+  is symmetric positive definite up to FP32 roundoff. Return a lower-triangular
+  FP32 tensor `L` with positive diagonal such that `A = L @ L.T`.
+
+  The checker validates shape, dtype, device, finiteness, lower-triangular
+  structure, positive diagonal, and the reconstruction residual against the
+  original FP32 input. Correctness is property-based rather than elementwise
+  comparison with one library implementation.
+
+  Inputs cover dense covariance-like matrices, planted spectra, diagonal
+  matrices, damped low-rank matrices, scaled rows and columns, and
+  tridiagonal SPD matrices. The `cond` field is a deterministic dynamic-range
+  control; it is not an exact requested condition number for every case.
+
+  The benchmark grid emphasizes batched factorization: from thousands of small
+  matrices through a single 32768 x 32768 matrix. The low-batch entries from
+  n=32 through n=1024 each contain 2^22 FP32 input elements, so matrix scaling
+  is compared at a consistent 16 MiB input footprint. Paired high-batch entries
+  at n=512, 1024, 2048, and 4096 separately exercise throughput and batch
+  parallelism. Among passing submissions, ranking is by the geometric mean of
+  runtime across all benchmark entries.
+
+config:
+  main: "eval.py"
+
+templates:
+  Python: "submission.py"
+
+test_timeout: 240
+benchmark_timeout: 600
+ranked_timeout: 1200
+ranking_by: "geom"
+gpus:
+  - B200
+
+tests:
+  - {"batch": 16, "n": 32, "cond": 2, "seed": 53124}
+  - {"batch": 16, "n": 64, "cond": 2, "seed": 53125}
+  - {"batch": 16, "n": 128, "cond": 2, "seed": 3321}
+  - {"batch": 8, "n": 256, "cond": 2, "seed": 94010}
+  - {"batch": 4, "n": 512, "cond": 2, "seed": 32523}
+  - {"batch": 2, "n": 1024, "cond": 2, "seed": 4327}
+  - {"batch": 1, "n": 2048, "cond": 2, "seed": 224466}
+  - {"batch": 8, "n": 128, "cond": 5, "seed": 1200, "case": "spectrum"}
+  - {"batch": 8, "n": 128, "cond": 5, "seed": 1201, "case": "diagonal"}
+  - {"batch": 32, "n": 32, "cond": 5, "seed": 1202, "case": "spectrum"}
+  - {"batch": 32, "n": 32, "cond": 5, "seed": 1203, "case": "diagonal"}
+  - {"batch": 16, "n": 64, "cond": 5, "seed": 1204, "case": "spectrum"}
+  - {"batch": 16, "n": 64, "cond": 5, "seed": 1205, "case": "diagonal"}
+  - {"batch": 4, "n": 256, "cond": 4, "seed": 32524, "case": "lowrank"}
+  - {"batch": 4, "n": 512, "cond": 4, "seed": 32525, "case": "rowscale"}
+  - {"batch": 4, "n": 512, "cond": 1, "seed": 32526, "case": "tridiagonal"}
+  - {"batch": 2, "n": 1024, "cond": 4, "seed": 4330, "case": "lowrank"}
+
+benchmarks:
+  - {"batch": 4096, "n": 32, "cond": 2, "seed": 41032}
+  - {"batch": 1024, "n": 64, "cond": 2, "seed": 41064}
+  - {"batch": 256, "n": 128, "cond": 2, "seed": 41128}
+  - {"batch": 64, "n": 256, "cond": 2, "seed": 41256}
+  - {"batch": 16, "n": 512, "cond": 2, "seed": 41512}
+  - {"batch": 640, "n": 512, "cond": 2, "seed": 510512}
+  - {"batch": 4, "n": 1024, "cond": 2, "seed": 42024}
+  - {"batch": 60, "n": 1024, "cond": 2, "seed": 511024}
+  - {"batch": 2, "n": 2048, "cond": 2, "seed": 44048}
+  - {"batch": 8, "n": 2048, "cond": 2, "seed": 512048}
+  - {"batch": 1, "n": 4096, "cond": 2, "seed": 48096}
+  - {"batch": 2, "n": 4096, "cond": 2, "seed": 514096}
+  - {"batch": 1, "n": 8192, "cond": 2, "seed": 48192}
+  - {"batch": 1, "n": 16384, "cond": 2, "seed": 48284}
+  - {"batch": 1, "n": 32768, "cond": 2, "seed": 48368}

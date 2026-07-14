@@ -20,3 +20,8 @@ problems:
     deadline: "2026-07-15"
     gpus:
       - B200
+  - directory: linalg/cholesky_py
+    name: cholesky
+    deadline: "2026-07-30"
+    gpus:
+      - B200
