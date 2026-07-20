@@ -24,6 +24,68 @@ MAX_ITERATIONS_PER_BENCHMARK = 50
 BENCHMARK_INPUT_BYTES_TARGET = 256 * 1024 * 1024
 
 
+# ---------------------------------------------------------------------------
+# OUTPUT-SIDE ROOFLINE FLOOR (red-team hardening, brief-13).
+#
+# The mechanism-side defenses (parent-side timing, reject-Tensor-subclass,
+# recheck accounting, per-iteration regenerate) each close ONE way a number is
+# forged. This is the complementary OUTPUT-SIDE check: it sanity-checks WHAT
+# number the timed loop emitted, independent of HOW it was produced, so it also
+# rejects forging mechanisms not yet discovered (clock-divide, stats-patch,
+# function-replacement, the mode-gated apex, single-shape aggregation-collapse).
+#
+# `_run_single_benchmark` reports `stats.mean` as the per-shape time, in
+# NANOSECONDS for ONE (batch, n, n) batched-eigh call (it is
+# `Event.elapsed_time(ms) * 1e6 / len(data_list)`, and benchmark.sh divides by
+# 1000 to get microseconds). We derive a PHYSICAL lower bound on that time for a
+# batched real-symmetric eigendecomposition on this GPU and ERROR any shape
+# whose reported mean falls below it.
+#
+# The bound is derived PURELY from hardware physics and the irreducible work of
+# the operation -- it is NEVER back-fit to any observed honest time:
+#
+#   * Bandwidth floor: an honest eigh must, at minimum, READ the input A
+#     (batch*n*n*4 B) and WRITE the eigenvectors Q (batch*n*n*4 B) and
+#     eigenvalues L (batch*n*4 B). That irreducible traffic divided by the
+#     GPU's PEAK HBM bandwidth is a hard lower bound on the time -- no algorithm
+#     can move the bytes faster than the memory system.
+#   * Compute floor: a dense symmetric eigendecomposition with eigenvectors is
+#     Theta(n^3) flops per matrix (tridiagonalization ~4/3 n^3 + back-transform
+#     ~2 n^3); batch * n^3 (coefficient 1.0) is a conservative lower bound on the
+#     essential flops. Divided by the GPU's PEAK flop rate it bounds the time.
+#
+# Both ceilings are the HIGHEST published B200 figures (8 TB/s; 9 PFLOP/s, the
+# FP4 dense tensor-core rate -- the fastest ANY precision can run). Using the
+# highest ceilings makes the physical bound as SMALL as possible, so it is a
+# guaranteed lower bound on the honest time even for a mixed-precision tensor-core
+# solver. We then multiply by a deliberately LOOSE fraction (1e-3) so every
+# honest shape -- including the tiny launch-bound shape whose real microseconds
+# sit orders of magnitude above any roofline -- keeps enormous headroom and is
+# NEVER false-positived. The floor only rejects the physically IMPOSSIBLE.
+# ---------------------------------------------------------------------------
+# Peak B200 (Blackwell, sm_100) hardware ceilings, from the NVIDIA datasheet.
+_ROOFLINE_PEAK_BW_BYTES_PER_S = 8.0e12   # 8 TB/s HBM3e (peak)
+_ROOFLINE_PEAK_FLOP_PER_S = 9.0e15       # 9 PFLOP/s, FP4 dense tensor (highest any precision reaches)
+# Deliberately loose safety margin below the (already-too-optimistic) physical
+# limit. NEVER tuned to observed honest times.
+_ROOFLINE_LOOSE_FRACTION = 1.0e-3
+
+
+def _roofline_floor_ns(batch: int, n: int) -> float:
+    """Physical lower bound (ns) on a batched (batch x n x n) real-symmetric
+    eigendecomposition's per-call time on this GPU. Pure physics; loose."""
+    if batch <= 0 or n <= 0:
+        return 0.0
+    # Irreducible HBM traffic: read A + write Q + write L (FP32, 4 bytes each).
+    bytes_min = (2.0 * batch * n * n + batch * n) * 4.0
+    t_bw_ns = bytes_min / _ROOFLINE_PEAK_BW_BYTES_PER_S * 1e9
+    # Irreducible flops: batch * n^3 (conservative vs the ~3.3 n^3 real cost).
+    flops_min = float(batch) * (float(n) ** 3)
+    t_flop_ns = flops_min / _ROOFLINE_PEAK_FLOP_PER_S * 1e9
+    # The binding (larger) lower bound, scaled down by the loose fraction.
+    return _ROOFLINE_LOOSE_FRACTION * max(t_bw_ns, t_flop_ns)
+
+
 class PopcornOutput:
     def __init__(self, fd: int):
         self.file = os.fdopen(fd, "w")
@@ -220,7 +282,25 @@ def _run_single_benchmark(
             ):
                 break
 
-    return calculate_stats(durations)
+    stats = calculate_stats(durations)
+
+    # OUTPUT-SIDE ROOFLINE FLOOR: reject a physically-impossible reported time,
+    # independent of how it was forged. stats.mean is ns for one (batch,n,n)
+    # batched-eigh call -- the same quantity benchmark.sh converts to us.
+    batch = int(test.args.get("batch", 1))
+    n = int(test.args.get("n", 1))
+    floor_ns = _roofline_floor_ns(batch, n)
+    if stats.mean < floor_ns:
+        return (
+            "reported time below physical roofline floor: "
+            f"batch={batch}, n={n}, reported_mean={stats.mean:.6g} ns "
+            f"({stats.mean / 1000.0:.6g} us), floor={floor_ns:.6g} ns "
+            f"({floor_ns / 1000.0:.6g} us); a batched real-symmetric eigh "
+            "cannot complete this fast on this GPU (read A + write Q exceeds "
+            "peak HBM bandwidth at this size)"
+        )
+
+    return stats
 
 
 def run_single_benchmark(
