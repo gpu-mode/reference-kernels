@@ -82,3 +82,38 @@ benchmarks:
   - {"batch": 1, "n": 8192, "cond": 2, "seed": 48192}
   - {"batch": 1, "n": 16384, "cond": 2, "seed": 48284}
   - {"batch": 1, "n": 32768, "cond": 2, "seed": 48368}
+
+validation:
+  name: "natural-gradient-training"
+  version: "cholesky-natural-gradient-v1"
+  main: "validation.py"
+  files:
+    - {"name": "submission.py", "source": "@SUBMISSION@"}
+    - {"name": "task.py", "source": "task.py"}
+    - {"name": "validation.py", "source": "validation.py"}
+  timeout: 900
+  top_k: 10
+  max_concurrency: 2
+  schedule:
+    hour: 22
+    minute: 0
+    timezone: "America/Los_Angeles"
+  settings:
+    samples: 48
+    seed: 20260726
+    learning_rate: 0.15
+    ridge: 0.00001
+    max_relative_residual: 0.0005
+    require_no_torch_fallback: true
+    min_speedup: 1.0
+    benchmark_warmup: 3
+    benchmark_repeats: 5
+  shapes:
+    - {"batch": 4096, "n": 32, "steps": 12}
+    - {"batch": 1024, "n": 64, "steps": 12}
+    - {"batch": 256, "n": 128, "steps": 12}
+    - {"batch": 64, "n": 256, "steps": 12}
+    - {"batch": 16, "n": 512, "steps": 12}
+    - {"batch": 4, "n": 1024, "steps": 12}
+    - {"batch": 2, "n": 2048, "steps": 12}
+    - {"batch": 1, "n": 4096, "steps": 12}
