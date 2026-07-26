@@ -82,3 +82,7 @@ benchmarks:
   - {"batch": 1, "n": 8192, "cond": 2, "seed": 48192}
   - {"batch": 1, "n": 16384, "cond": 2, "seed": 48284}
   - {"batch": 1, "n": 32768, "cond": 2, "seed": 48368}
+
+validation:
+  version: "cholesky-natural-gradient-v1"
+  script: "validation.py"
