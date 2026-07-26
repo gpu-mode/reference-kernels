@@ -7,7 +7,6 @@ entrypoint is available as ``submission.custom_kernel``.
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
 import importlib
 import json
 import math
@@ -22,6 +21,25 @@ from torch.utils._python_dispatch import TorchDispatchMode
 
 
 Tensor = torch.Tensor
+
+SHAPES = [
+    (4096, 32),
+    (1024, 64),
+    (256, 128),
+    (64, 256),
+    (16, 512),
+    (4, 1024),
+    (2, 2048),
+    (1, 4096),
+]
+STEPS = 12
+SAMPLES = 48
+SEED = 20260726
+LEARNING_RATE = 0.15
+RIDGE = 1.0e-5
+MAX_RELATIVE_RESIDUAL = 5.0e-4
+BENCHMARK_WARMUP = 3
+BENCHMARK_REPEATS = 5
 
 
 class DispatchAudit(TorchDispatchMode):
@@ -55,7 +73,7 @@ def _make_problem(
     samples: int,
     n: int,
     seed: int,
-) -> tuple[Tensor, Tensor, Tensor]:
+) -> tuple[Tensor, Tensor]:
     generator = torch.Generator(device="cuda")
     generator.manual_seed(seed)
     scales = torch.logspace(0.0, -2.5, n, device="cuda", dtype=torch.float32)
@@ -86,7 +104,7 @@ def _make_problem(
     targets = torch.sigmoid(
         torch.einsum("tmn,tn->tm", x, target_weights)
     ).contiguous()
-    return x, targets, target_weights
+    return x, targets
 
 
 def _damping(step: int, steps: int) -> float:
@@ -109,7 +127,7 @@ def _validate_factor(
     factor: Tensor,
     *,
     max_relative_residual: float,
-) -> dict[str, float | bool]:
+) -> float:
     if type(factor) is not torch.Tensor:
         raise TypeError(f"custom_kernel returned {type(factor)!r}")
     if factor.shape != matrix.shape:
@@ -146,12 +164,7 @@ def _validate_factor(
             "factor reconstruction residual exceeds gate: "
             f"{worst_residual} > {max_relative_residual}"
         )
-    return {
-        "finite": True,
-        "minimum_diagonal": diagonal_min,
-        "maximum_upper_abs": upper_abs,
-        "maximum_relative_residual": worst_residual,
-    }
+    return worst_residual
 
 
 def _train(
@@ -165,9 +178,8 @@ def _train(
     learning_rate: float,
     ridge: float,
     max_relative_residual: float,
-    phase: dict[str, object],
 ) -> dict[str, float | int]:
-    x, targets, target_weights = _make_problem(
+    x, targets = _make_problem(
         tasks=batch,
         samples=samples,
         n=n,
@@ -177,7 +189,6 @@ def _train(
     eye = torch.eye(n, device="cuda", dtype=torch.float32).expand(batch, -1, -1)
     initial_loss = None
     final_loss = None
-    final_parameter_error = None
     worst_residual = 0.0
 
     for step in range(steps):
@@ -201,20 +212,16 @@ def _train(
             fisher + (_damping(step, steps) + ridge) * eye
         ).contiguous()
 
-        phase["name"] = "training"
         factor = factor_fn(fisher.clone())
         factor = factor.clone()
         torch.cuda.synchronize()
         if step in (0, steps - 1):
-            diagnostics = _validate_factor(
+            residual = _validate_factor(
                 fisher,
                 factor,
                 max_relative_residual=max_relative_residual,
             )
-            worst_residual = max(
-                worst_residual,
-                float(diagnostics["maximum_relative_residual"]),
-            )
+            worst_residual = max(worst_residual, residual)
         elif not torch.isfinite(factor).all().item():
             raise FloatingPointError("factor contains NaN or Inf")
 
@@ -229,18 +236,11 @@ def _train(
         loss_value = float(loss.item())
         initial_loss = loss_value if initial_loss is None else initial_loss
         final_loss = loss_value
-        final_parameter_error = float(
-            torch.linalg.vector_norm(
-                weights - target_weights,
-                dim=-1,
-            ).mean().item()
-        )
 
     return {
         "steps_completed": steps,
         "initial_loss": float(initial_loss),
         "final_loss": float(final_loss),
-        "final_parameter_error": float(final_parameter_error),
         "worst_checked_factor_residual": worst_residual,
     }
 
@@ -253,7 +253,7 @@ def _initial_fisher(
     seed: int,
     ridge: float,
 ) -> Tensor:
-    x, _, _ = _make_problem(tasks=batch, samples=samples, n=n, seed=seed)
+    x, _ = _make_problem(tasks=batch, samples=samples, n=n, seed=seed)
     weighted_x = x * 0.5
     fisher = torch.matmul(
         weighted_x.transpose(-1, -2),
@@ -269,10 +269,7 @@ def _benchmark_wall(
     *,
     warmup: int,
     repeats: int,
-    phase: dict[str, object],
-    phase_name: str,
 ) -> float:
-    phase["name"] = phase_name
     for index in range(warmup):
         factor_fn(inputs[index % len(inputs)].clone()).clone()
     torch.cuda.synchronize()
@@ -286,28 +283,21 @@ def _benchmark_wall(
     return statistics.median(samples)
 
 
-def _route(
-    calls: list[dict[str, str]],
-    dispatch_ops: list[str],
-) -> tuple[str, dict[str, int]]:
-    phase_counts = Counter(call["phase"] for call in calls)
-    if not calls and not dispatch_ops:
-        return "custom_no_torch_observed", dict(sorted(phase_counts.items()))
-    return "torch_fallback_observed", dict(sorted(phase_counts.items()))
+def _route(fallback_calls: int, dispatch_ops: list[str]) -> str:
+    if fallback_calls == 0 and not dispatch_ops:
+        return "custom_no_torch_observed"
+    return "torch_fallback_observed"
 
 
 def _run() -> dict[str, object]:
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required for Cholesky validation")
     config = json.loads(os.environ["KERNELBOT_VALIDATION_CONFIG"])
-    settings = config["settings"]
-    shapes = config["shapes"]
     torch.set_grad_enabled(False)
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
-    seed = int(settings["seed"])
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)
 
     baseline_cholesky_ex = torch.linalg.cholesky_ex
     baseline_cholesky = torch.linalg.cholesky
@@ -319,27 +309,19 @@ def _run() -> dict[str, object]:
             check_errors=False,
         ).L
 
-    phase: dict[str, object] = {"n": -1, "name": "import"}
-    fallback_calls: dict[int, list[dict[str, str]]] = defaultdict(list)
+    current_n = -1
+    fallback_calls: dict[int, int] = {}
 
-    def wrap(name: str, original: Callable) -> Callable:
+    def wrap(original: Callable) -> Callable:
         def audited(*args, **kwargs):
-            fallback_calls[int(phase["n"])].append(
-                {"op": name, "phase": str(phase["name"])}
-            )
+            fallback_calls[current_n] = fallback_calls.get(current_n, 0) + 1
             return original(*args, **kwargs)
 
         return audited
 
-    torch.linalg.cholesky_ex = wrap(
-        "torch.linalg.cholesky_ex",
-        baseline_cholesky_ex,
-    )
-    torch.linalg.cholesky = wrap(
-        "torch.linalg.cholesky",
-        baseline_cholesky,
-    )
-    torch.cholesky = wrap("torch.cholesky", baseline_legacy_cholesky)
+    torch.linalg.cholesky_ex = wrap(baseline_cholesky_ex)
+    torch.linalg.cholesky = wrap(baseline_cholesky)
+    torch.cholesky = wrap(baseline_legacy_cholesky)
     submission = importlib.import_module("submission")
     factor_fn = getattr(submission, "custom_kernel", None)
     if not callable(factor_fn):
@@ -347,15 +329,12 @@ def _run() -> dict[str, object]:
 
     results: list[dict[str, object]] = []
     try:
-        for index, shape in enumerate(shapes):
-            batch = int(shape["batch"])
-            n = int(shape["n"])
-            steps = int(shape["steps"])
-            phase.update(n=n, name="setup")
+        for index, (batch, n) in enumerate(SHAPES):
+            current_n = n
             item: dict[str, object] = {
                 "batch": batch,
                 "n": n,
-                "steps": steps,
+                "steps": STEPS,
                 "passed": False,
             }
             dispatch_ops: list[str] = []
@@ -364,9 +343,9 @@ def _run() -> dict[str, object]:
                     _initial_fisher(
                         batch=batch,
                         n=n,
-                        samples=int(settings["samples"]),
-                        seed=seed + index * 100 + ring,
-                        ridge=float(settings["ridge"]),
+                        samples=SAMPLES,
+                        seed=SEED + index * 100 + ring,
+                        ridge=RIDGE,
                     )
                     for ring in range(2)
                 ]
@@ -374,17 +353,13 @@ def _run() -> dict[str, object]:
                     baseline_fn,
                     batch=batch,
                     n=n,
-                    steps=steps,
-                    samples=int(settings["samples"]),
-                    seed=seed + index,
-                    learning_rate=float(settings["learning_rate"]),
-                    ridge=float(settings["ridge"]),
-                    max_relative_residual=float(
-                        settings["max_relative_residual"]
-                    ),
-                    phase=phase,
+                    steps=STEPS,
+                    samples=SAMPLES,
+                    seed=SEED + index,
+                    learning_rate=LEARNING_RATE,
+                    ridge=RIDGE,
+                    max_relative_residual=MAX_RELATIVE_RESIDUAL,
                 )
-                phase["name"] = "dispatch_audit"
                 audit = DispatchAudit()
                 with audit:
                     factor = factor_fn(matrix_inputs[0].clone()).clone()
@@ -396,43 +371,33 @@ def _run() -> dict[str, object]:
                         if "cholesky" in op.lower()
                     }
                 )
-                diagnostics = _validate_factor(
+                direct_residual = _validate_factor(
                     matrix_inputs[0],
                     factor,
-                    max_relative_residual=float(
-                        settings["max_relative_residual"]
-                    ),
+                    max_relative_residual=MAX_RELATIVE_RESIDUAL,
                 )
                 baseline_wall_us = _benchmark_wall(
                     baseline_fn,
                     matrix_inputs,
-                    warmup=int(settings["benchmark_warmup"]),
-                    repeats=int(settings["benchmark_repeats"]),
-                    phase=phase,
-                    phase_name="baseline_benchmark",
+                    warmup=BENCHMARK_WARMUP,
+                    repeats=BENCHMARK_REPEATS,
                 )
-                phase["name"] = "candidate_benchmark"
                 candidate_wall_us = _benchmark_wall(
                     factor_fn,
                     matrix_inputs,
-                    warmup=int(settings["benchmark_warmup"]),
-                    repeats=int(settings["benchmark_repeats"]),
-                    phase=phase,
-                    phase_name="candidate_benchmark",
+                    warmup=BENCHMARK_WARMUP,
+                    repeats=BENCHMARK_REPEATS,
                 )
                 candidate_training = _train(
                     factor_fn,
                     batch=batch,
                     n=n,
-                    steps=steps,
-                    samples=int(settings["samples"]),
-                    seed=seed + index,
-                    learning_rate=float(settings["learning_rate"]),
-                    ridge=float(settings["ridge"]),
-                    max_relative_residual=float(
-                        settings["max_relative_residual"]
-                    ),
-                    phase=phase,
+                    steps=STEPS,
+                    samples=SAMPLES,
+                    seed=SEED + index,
+                    learning_rate=LEARNING_RATE,
+                    ridge=RIDGE,
+                    max_relative_residual=MAX_RELATIVE_RESIDUAL,
                 )
                 speedup = baseline_wall_us / candidate_wall_us
                 baseline_improvement = (
@@ -446,14 +411,10 @@ def _run() -> dict[str, object]:
                 converged = (
                     candidate_training["final_loss"] <= loss_threshold
                 )
-                calls = fallback_calls.get(n, [])
-                route, phase_counts = _route(calls, dispatch_ops)
-                fallback_call_count = sum(phase_counts.values())
-                no_fallback = (
-                    route == "custom_no_torch_observed"
-                    or not bool(settings["require_no_torch_fallback"])
-                )
-                fast_enough = speedup >= float(settings["min_speedup"])
+                fallback_call_count = fallback_calls.get(n, 0)
+                route = _route(fallback_call_count, dispatch_ops)
+                no_fallback = route == "custom_no_torch_observed"
+                fast_enough = speedup >= 1.0
                 passed = converged and no_fallback and fast_enough
                 item.update(
                     {
@@ -462,17 +423,10 @@ def _run() -> dict[str, object]:
                         "numerically_stable": True,
                         "converged": converged,
                         "route": route,
-                        "torch_call_phase_counts": phase_counts,
                         "torch_fallback_calls": fallback_call_count,
-                        "dispatch_cholesky_ops": dispatch_ops,
                         "sync_wall_speedup": speedup,
-                        "baseline_sync_wall_us": baseline_wall_us,
-                        "candidate_sync_wall_us": candidate_wall_us,
-                        "diagnostics": diagnostics,
                         "factor_residual": max(
-                            float(
-                                diagnostics["maximum_relative_residual"]
-                            ),
+                            direct_residual,
                             float(
                                 candidate_training[
                                     "worst_checked_factor_residual"
@@ -481,36 +435,27 @@ def _run() -> dict[str, object]:
                         ),
                         "baseline_final_loss": baseline_training["final_loss"],
                         "candidate_final_loss": candidate_training["final_loss"],
-                        "loss_threshold": loss_threshold,
-                        "gates": {
-                            "no_torch_fallback": no_fallback,
-                            "minimum_speedup": fast_enough,
-                            "convergence": converged,
-                        },
                     }
                 )
                 if not passed:
-                    failed_gates = [
-                        name
-                        for name, passed_gate in item["gates"].items()
-                        if not passed_gate
-                    ]
-                    item["failure_reason"] = (
-                        "validation gates failed: " + ", ".join(failed_gates)
-                    )
+                    failed_gates = []
+                    if not converged:
+                        failed_gates.append("convergence")
+                    if not no_fallback:
+                        failed_gates.append("torch fallback")
+                    if not fast_enough:
+                        failed_gates.append("speed")
+                    item["failure_reason"] = ", ".join(failed_gates)
             except Exception as exc:
-                calls = fallback_calls.get(n, [])
-                route, phase_counts = _route(calls, dispatch_ops)
+                fallback_call_count = fallback_calls.get(n, 0)
                 item.update(
                     {
                         "status": "failed",
                         "passed": False,
                         "numerically_stable": False,
                         "converged": False,
-                        "route": route,
-                        "torch_call_phase_counts": phase_counts,
-                        "torch_fallback_calls": sum(phase_counts.values()),
-                        "dispatch_cholesky_ops": dispatch_ops,
+                        "route": _route(fallback_call_count, dispatch_ops),
+                        "torch_fallback_calls": fallback_call_count,
                         "failure_reason": f"{type(exc).__name__}: {exc}",
                     }
                 )
@@ -533,12 +478,11 @@ def _run() -> dict[str, object]:
     )
     return {
         "schema_version": "kernelbot-application-validation-v1",
-        "contract_name": config["name"],
         "contract_version": config["version"],
         "device": torch.cuda.get_device_name(),
         "torch_version": torch.__version__,
         "passed_shapes": passed_shapes,
-        "total_shapes": len(results),
+        "total_shapes": len(SHAPES),
         "fully_validated": passed_shapes == len(results),
         "geomean_sync_wall_speedup": geomean_speedup,
         "results": results,
