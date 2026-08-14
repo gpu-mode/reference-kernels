@@ -1,3 +1,6 @@
+#!POPCORN leaderboard amd-mixed-mla
+#!POPCORN gpu MI300X
+
 import os
 import torch
 from torch.utils.cpp_extension import load
