@@ -25,6 +25,9 @@ To add a new problem, create a new folder in the `problems/glory` directory wher
 - `task.yml` - This is the problem specification that will be used to generate test cases for different shapes
 - `task.py` - Specifies the schema of the inputs and outputs for the problem
 
+For NVIDIA problems, follow [Adding Nsight Compute support](docs/ncu-profiling.md)
+to implement the evaluator profile path and verify captured kernels on a real GPU.
+
 You can evaluate problems with your own Modal account (they give you a free $30) by borrowing this [neat script from @gau-nernst](https://github.com/gpu-mode/reference-kernels/pull/96#issue-3850136894)
 
 ## License
