@@ -26,14 +26,15 @@ at least one representative entry under `benchmarks`. See the
 [QR v2 task definition](../problems/linalg/qr_v2/task.yml).
 
 KernelBot profiles `benchmarks`, not `tests`: it launches a separate evaluator
-run for each benchmark entry. With the Modal profiling command, `--benchmark-index N`
+run for each benchmark entry. With the profiling command, `--benchmark-index N`
 selects the zero-based `benchmarks[N]`; omitting it profiles every benchmark
 entry. The evaluator reads the benchmark specification file supplied by the
 runner. Do not hardcode a shape or import a separate shape list for profiling.
 
 Register the problem's leaderboard name, directory, and supported GPU names in
 its competition YAML (for example, [linalg.yaml](../problems/linalg.yaml)).
-The CLI resolves that mapping to find the task and rejects unsupported GPUs.
+KernelBot syncs that mapping into its leaderboard configuration and rejects
+unsupported GPUs.
 
 ## Mark the submitted work
 
@@ -79,7 +80,7 @@ inputs, and synchronize before entering the range.
 
 If the evaluator uses worker processes, define the worker at module scope and
 use the existing pool. The runner must use `--target-processes all` to capture
-kernels launched in those children; the Modal CLI runner already does this.
+kernels launched in those children; the hosted NCU runner already does this.
 
 ## Dispatch and report profile results
 
@@ -127,14 +128,14 @@ resources. An NCU-only profile path, like QR v2's, can call its worker directly.
 
 Use a popcorn-cli build that exposes `submit --profile`; check `popcorn submit
 --help` or see the [CLI profiling guide](https://github.com/gpu-mode/popcorn-cli/blob/main/docs/profiling.md).
-`--profile` runs in your own Modal account. `--profile-brev` explicitly selects
-the separate Brev service; there is no automatic provider switch on failure.
+`--profile` submits through the normal authenticated GPU Mode API. Users do
+not need a compute-provider SDK, account, or token. `--profile-brev` explicitly
+selects the separate Brev service; there is no automatic provider switch on failure.
 
-Install and authenticate Modal, then profile a known-correct starter submission:
+Register with Popcorn, then profile a known-correct starter submission:
 
 ```bash
-pip install modal
-modal setup
+popcorn register discord
 popcorn submit submission.py --leaderboard YOUR_LEADERBOARD --gpu B200 \
   --profile --benchmark-index 0
 ```
@@ -164,31 +165,26 @@ popcorn submit submission.py --leaderboard YOUR_LEADERBOARD --gpu B200 \
 
 A filter that matches no launched kernels cannot produce a useful profile.
 `--set full` requests a broad metric set but does not guarantee that every
-metric exists or has data on every GPU. The Modal runner leaves GPU clocks
+metric exists or has data on every GPU. The hosted NCU runner leaves GPU clocks
 unchanged, so use the normal benchmark path for latency comparisons.
 
 ## Record source provenance
 
-The profiler runs the evaluator from its active reference-kernels checkout.
-Editing a local `eval.py` does not change a remote run. The Modal CLI resolves
-current repository revisions when launched and saves the problem directory,
-selected shapes, capture options, and source refs in `manifest.json`.
-To validate a public problem branch before merging, push it and select its
-full commit SHA explicitly:
+The hosted profiler runs the task/evaluator synced into KernelBot's leaderboard
+configuration. Editing a local `eval.py` or setting a client-side repository ref
+does not update that configuration. Publish the problem revision and have an
+operator sync it through the normal KernelBot problem-update workflow before
+validating the hosted profile.
 
-```bash
-export POPCORN_REFERENCE_KERNELS_REF=FULL_COMMIT_SHA
-popcorn submit submission.py --leaderboard YOUR_LEADERBOARD --gpu B200 \
-  --profile --benchmark-index 0
-```
-
-This override selects a ref in `gpu-mode/reference-kernels`; it does not upload
-a local working tree or select an arbitrary fork. Brev uses its own deployed
-checkout, so the Modal override does not update that service.
+The CLI saves the leaderboard, GPU, selected shapes, capture options, and a
+SHA-256 digest of the evaluation configuration in `manifest.json`. This digest
+identifies evaluated content, not a repository commit. Record the synced
+reference-kernels commit separately in the problem PR or operator validation
+record. Brev has its own deployed checkout and must be refreshed separately.
 
 In the problem PR, record the resolved problem directory, reference-kernels
 commit, GPU, benchmark indices tested, kernel filter/launch limit, and observed
-artifacts. For example, the existing Modal integration was verified against
+artifacts. For example, the NCU GPU integration was verified against
 `problems/linalg/qr_v2`, benchmark 0, on B200 at reference-kernels
 `51e22db671d36c1c76091c43c36a44546ba324a1`. That is evidence for that run, not a
 claim that every problem in this repository already supports NCU.
@@ -201,5 +197,5 @@ claim that every problem in this repository already supports NCU.
 | No kernels captured | Check the exact NVTX push/pop range name, matching kernel filter, and child-process capture. |
 | Only setup kernels appear | Move generation, cloning, and reference work outside the range; select the intended kernel or expand the launch limit. |
 | Profiling initialization fails | Ensure the NCU path does not also start PyTorch's profiler; inspect the NCU version and driver/runtime errors. |
-| Wrong shape or missing recent evaluator changes | Inspect `manifest.json` and the remote source ref; local edits are not automatically uploaded. |
+| Wrong shape or missing recent evaluator changes | Inspect `manifest.json` and the operator's synced source revision; local edits are not automatically uploaded. |
 | Timeout | Start with one shape and a bounded kernel capture; NCU replay can be much slower than a normal benchmark. |
