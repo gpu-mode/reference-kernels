@@ -194,6 +194,17 @@ def _run_single_benchmark(
     durations = []
     bm_start_time = time.perf_counter_ns()
     for i in range(max_repeats):
+        if recheck:
+            # Regenerate a FRESH input batch every timed iteration so no
+            # submission can memoize / cache / graph-replay an output keyed on a
+            # reused input. Bump the spec seed (the secret-seed-combined value)
+            # so each iteration draws a distinct, never-before-seen batch, then
+            # rebuild data_list and its reference copy. Generation happens before
+            # the timing window below, so it is not charged to the kernel.
+            if "seed" in test.args:
+                test.args["seed"] += 13
+            data_list = _make_data_batch(test, _benchmark_batch_count(test))
+            check_copy = _clone_data(data_list)
         torch.cuda.synchronize()
         clear_l2_cache()
         start_event = torch.cuda.Event(enable_timing=True)
