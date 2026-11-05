@@ -12,7 +12,9 @@ lang: "py"
 description: |
   Implement an inclusive prefix sum (scan) kernel that matches the reference implementation.
   The kernel should compute the cumulative sum of all elements up to each position.
-  Because of numerical instability, the tolerance is scaled by the square root of the input size.
+  Input and output use float32. Correctness is checked against float64 accumulation
+  rounded to float32, with fixed relative tolerance 1e-5 and an absolute roundoff
+  allowance of 1e-5 * (1 + L2 norm of the input). Relative error does not grow with size.
 
   Input:
   - `data`: A 1D tensor of size `n`
@@ -31,6 +33,10 @@ tests:
   - {"size": 1025, "seed": 1001}
   - {"size": 2048, "seed": 5531}
   - {"size": 4096, "seed": 9173}
+  - {"size": 4097, "seed": 4001, "distribution": "positive"}
+  - {"size": 4097, "seed": 4002, "distribution": "negative"}
+  - {"size": 4097, "seed": 4003, "distribution": "alternating"}
+  - {"size": 4097, "seed": 4004, "distribution": "sparse"}
 
 benchmarks:
   # - {"size": 8192, "seed": 54352}

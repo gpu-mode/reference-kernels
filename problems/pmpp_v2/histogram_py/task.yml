@@ -11,8 +11,9 @@ lang: "py"
 
 description: |
   Implement a histogram kernel that counts the number of elements falling into each bin across the specified range.
-  The minimum and maximum values of the range are fixed to 0 and 100 respectively.
-  All sizes are multiples of 16 and the number of bins is set to the size of the input tensor divided by 16.
+  Input values are uint8 integers in [0, 255]. All sizes are multiples of 16.
+  The output must be a CUDA int64 tensor of shape (256,), containing the exact count
+  for every bin. Broadcasting a scalar or returning floating-point counts is invalid.
 
   Input:
     - data: a tensor of shape (size,)
@@ -29,6 +30,8 @@ tests:
   - {"size": 30080,  "seed": 9999, "contention": 10}
   - {"size": 30080,  "seed": 4254, "contention": 90}
   - {"size": 100000, "seed": 1212, "contention": 10}
+  - {"size": 5120, "seed": 3917, "contention": 0}
+  - {"size": 5120, "seed": 3918, "contention": 100}
 
 benchmarks:
   - {"size": 1310720, "seed": 6252, "contention": 10}

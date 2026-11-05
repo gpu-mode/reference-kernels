@@ -1,6 +1,6 @@
-from utils import make_match_reference, DeterministicContext
 import torch
 from task import input_t, output_t
+from utils import DeterministicContext, make_match_reference_exact
 
 
 def ref_kernel(data: input_t) -> output_t:
@@ -17,43 +17,45 @@ def ref_kernel(data: input_t) -> output_t:
         return output
 
 
-def generate_input(size: int, seed: int) -> torch.Tensor:
+def generate_input(
+    size: int, seed: int, distribution: str = "normal", *, device="cuda"
+) -> input_t:
+    """Seeds select random values, never their magnitude or location.
+
+    Private seeds can be very large. Adding them to float32 data erases the
+    random values and makes approximate, input-independent outputs pass.
     """
-    Generates random input tensor where elements are drawn from different distributions.
-
-    Args:
-        size: Total size of the final 1D tensor
-        seed: Base seed for random generation
-
-    Returns:
-        1D tensor of size `size` containing flattened values from different distributions
-    """
-    # Calculate dimensions for a roughly square 2D matrix
-    rows = int(size**0.5)  # Square root for roughly square shape
-    cols = (
-        size + rows - 1
-    ) // rows  # Ceiling division to ensure total size >= requested size
-
-    gen = torch.Generator(device="cuda")
-    result = torch.empty((rows, cols), device="cuda", dtype=torch.float32)
-
-    # Different seed for each row!
-    for i in range(rows):
-        row_seed = seed + i
-        gen.manual_seed(row_seed)
-
-        # Generate values for this row with mean=row_seed
-        result[i, :] = (
-            torch.randn(cols, device="cuda", dtype=torch.float32, generator=gen)
-            + row_seed
+    if size < 0:
+        raise ValueError("size must be non-negative")
+    gen = torch.Generator(device=device).manual_seed(seed)
+    if distribution in ("normal", "sorted", "reverse", "outliers"):
+        values = torch.randn(size, device=device, dtype=torch.float32, generator=gen)
+        if distribution == "sorted":
+            values = values.sort().values
+        elif distribution == "reverse":
+            values = values.sort(descending=True).values
+        elif distribution == "outliers" and size:
+            indices = torch.randperm(size, device=device, generator=gen)[
+                : max(1, size // 32)
+            ]
+            values[indices] *= 1024
+    elif distribution == "uniform":
+        values = (
+            torch.rand(size, device=device, dtype=torch.float32, generator=gen) * 16 - 8
         )
+    elif distribution == "duplicates":
+        values = torch.randint(-8, 9, (size,), device=device, generator=gen).to(
+            torch.float32
+        )
+    elif distribution == "constant":
+        value = torch.randint(-8, 9, (), device=device, generator=gen).item()
+        values = torch.full((size,), value, device=device, dtype=torch.float32)
+    else:
+        raise ValueError(f"Unknown sort distribution: {distribution}")
+    values = values.contiguous()
+    return values, torch.empty_like(values)
 
-    # Flatten and trim to exact size requested
-    input_tensor = result.flatten()[:size].contiguous()
-    output_tensor = torch.empty_like(
-        input_tensor, device="cuda", dtype=torch.float32
-    ).contiguous()
-    return input_tensor, output_tensor
 
-
-check_implementation = make_match_reference(ref_kernel)
+# Sorting preserves values exactly. Tolerance accepts fabricated values and
+# lost duplicates even when the output is increasing and looks plausible.
+check_implementation = make_match_reference_exact(ref_kernel)
