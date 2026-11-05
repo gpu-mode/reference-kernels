@@ -10,6 +10,9 @@ files:
 lang: "py"
 
 description: |
+  Return a plain, materialized torch.Tensor. Tensor subclasses and deferred
+  computation during checking are not allowed; compute the result inside custom_kernel.
+
   Implement a histogram kernel that counts the number of elements falling into each bin across the specified range.
   Input values are uint8 integers in [0, 255]. All sizes are multiples of 16.
   The output must be a CUDA int64 tensor of shape (256,), containing the exact count

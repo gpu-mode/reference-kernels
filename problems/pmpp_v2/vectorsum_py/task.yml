@@ -10,6 +10,9 @@ files:
 lang: "py"
 
 description: |
+  Return a plain, materialized torch.Tensor. Tensor subclasses and deferred
+  computation during checking are not allowed; compute the result inside custom_kernel.
+
   Implement a vector sum reduction kernel. This kernel computes the sum of all elements in the input tensor.
 
   Input: A tensor of shape `(N,)` with values from a normal distribution with mean 0 and variance 1.

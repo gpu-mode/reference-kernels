@@ -8,6 +8,9 @@ files:
 lang: "py"
 
 description: |
+  Return a plain, materialized torch.Tensor. Tensor subclasses and deferred
+  computation during checking are not allowed; compute the result inside custom_kernel.
+
   Implement an RGB to grayscale conversion kernel that matches the reference implementation.
   The kernel should convert square RGB images with even sizes to grayscale using the standard coefficients:
   Y = 0.2989 R + 0.5870 G + 0.1140 B

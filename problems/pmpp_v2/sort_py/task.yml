@@ -10,6 +10,9 @@ files:
 lang: "py"
 
 description: |
+  Return a plain, materialized torch.Tensor. Tensor subclasses and deferred
+  computation during checking are not allowed; compute the result inside custom_kernel.
+
   Implement a sort kernel that matches the reference implementation.
   The kernel should sort the input array in ascending order using a sort algorithm of your choice.
   

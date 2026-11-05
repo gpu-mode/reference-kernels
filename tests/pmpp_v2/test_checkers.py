@@ -16,6 +16,24 @@ def test_reference_result_passes(problem, load_problem, examples):
 
 
 @pytest.mark.parametrize("problem", PROBLEMS)
+def test_tensor_subclasses_are_rejected_without_dispatch(
+    problem, load_problem, examples
+):
+    class InterceptedOutput(torch.Tensor):
+        @classmethod
+        def __torch_function__(cls, func, types, args=(), kwargs=None):
+            raise AssertionError("checker invoked an untrusted output hook")
+
+    ref = load_problem(problem)
+    data = examples[problem]
+    base = ref.ref_kernel(data).clone()
+    output = torch.Tensor._make_subclass(InterceptedOutput, base, False)
+    passed, message = ref.check_implementation(data, output)
+    assert not passed
+    assert "TYPE MISMATCH" in message
+
+
+@pytest.mark.parametrize("problem", PROBLEMS)
 @pytest.mark.parametrize("bad_result", ("shape", "dtype", "type", "device"))
 def test_malformed_results_are_rejected(problem, bad_result, load_problem, examples):
     ref = load_problem(problem)
