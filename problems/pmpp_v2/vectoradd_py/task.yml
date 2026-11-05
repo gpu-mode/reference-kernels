@@ -10,6 +10,9 @@ files:
 lang: "py"
 
 description: |
+  Return a plain, materialized torch.Tensor. Tensor subclasses and deferred
+  computation during checking are not allowed; compute the result inside custom_kernel.
+
   Implement a float16 vector addition kernel.
 
   Input: tuple(torch.Tensor, torch.Tensor) with tensors of shape (N, N) and type torch.float16. These tensors are from

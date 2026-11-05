@@ -28,8 +28,10 @@ def get_device(use_cuda: bool = True) -> torch.device:
 
 def _check_tensor_contract(received, expected) -> list[str]:
     """Reject malformed results before comparisons can broadcast or promote them."""
-    if not isinstance(received, torch.Tensor):
-        return ["TYPE MISMATCH: output must be a torch.Tensor"]
+    # Subclass hooks can fabricate comparisons or defer the kernel until the
+    # checker touches its result, moving computation outside the timed region.
+    if type(received) is not torch.Tensor:
+        return ["TYPE MISMATCH: output must be a plain, materialized torch.Tensor"]
     if received.shape != expected.shape:
         return [
             f"SIZE MISMATCH: got {tuple(received.shape)}, expected {tuple(expected.shape)}"

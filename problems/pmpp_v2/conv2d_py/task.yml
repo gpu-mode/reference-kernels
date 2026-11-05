@@ -10,6 +10,9 @@ files:
 lang: "py"
 
 description: |
+  Return a plain, materialized torch.Tensor. Tensor subclasses and deferred
+  computation during checking are not allowed; compute the result inside custom_kernel.
+
   Implement a 2D convolution kernel that matches the reference implementation.
   The kernel should perform 2D convolution with the given specifications
   We will benchmark different sizes, kernel sizes, channels and batch sizes but they will all 
