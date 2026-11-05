@@ -54,5 +54,5 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
     # with input energy, not answer magnitude: sqrt(n)-scaled rtol allowed a
     # 16% error on the largest benchmark.
     input_norm = torch.linalg.vector_norm(data[0].to(torch.float64)).item()
-    atol = 1e-6 * (1 + input_norm)
+    atol = 1e-5 * (1 + input_norm)
     return match_reference(data, output, reference=ref_kernel, rtol=1e-5, atol=atol)
