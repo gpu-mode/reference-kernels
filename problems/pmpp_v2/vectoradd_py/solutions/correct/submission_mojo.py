@@ -1,7 +1,5 @@
 #!POPCORN leaderboard vectoradd_v2
 import importlib
-import sys
-import tempfile
 from pathlib import Path
 
 import mojo.importer  # noqa: F401
@@ -93,9 +91,7 @@ def PyInit_mojo_vecadd_v2() abi("C") -> PythonObject:
         abort(t"Failed to initialize mojo_vecadd_v2: {e}")
 """
 
-_pkg = Path(tempfile.mkdtemp(prefix="mojo_vecadd_v2_"))
-(_pkg / "mojo_vecadd_v2.mojo").write_text(MOJO_SOURCE)
-sys.path.insert(0, str(_pkg))
+(Path(__file__).resolve().parent / "mojo_vecadd_v2.mojo").write_text(MOJO_SOURCE)
 mojo_vecadd_v2 = importlib.import_module("mojo_vecadd_v2")
 
 _LAUNCH = mojo_vecadd_v2.Runner().launch
