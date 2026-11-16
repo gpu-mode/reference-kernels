@@ -20,10 +20,12 @@ We also work with universities on hosting the infrastructure for their classes:
 
 ## Contributing New Problems
 
-To add a new problem, create a new folder in the `problems/glory` directory where you need to add the following files:
+To add a new problem, create a folder for it inside the directory of the competition it belongs to (for example `problems/linalg/cholesky_py`), and add the following files:
 - `reference.py` - This is the PyTorch reference implementation of the problem.
 - `task.yml` - This is the problem specification that will be used to generate test cases for different shapes
 - `task.py` - Specifies the schema of the inputs and outputs for the problem
+
+The existing problems also include an example `submission.py`. Then list the problem in that competition's YAML file (for example `problems/linalg.yaml`) with its `directory`, `name`, `deadline` and `gpus`.
 
 For NVIDIA problems, follow [Adding Nsight Compute support](docs/ncu-profiling.md)
 to implement the evaluator profile path and verify captured kernels on a real GPU.
