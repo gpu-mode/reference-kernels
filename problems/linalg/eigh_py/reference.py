@@ -8,6 +8,7 @@ from task import input_t, output_t
 # eigenspace non-uniqueness, and we want to admit reasonable approximate or
 # low-bit internal strategies without comparing against reference eigenvectors.
 _EIGEN_RTOL_FACTOR = 200.0
+_EIGVAL_RTOL_FACTOR = 200.0
 _RECON_RTOL_FACTOR = 400.0
 _ORTH_RTOL_FACTOR = 100.0
 _SORT_RTOL_FACTOR = 100.0
@@ -310,6 +311,7 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
     a = data
     batch, n, _ = a.shape
     eigen_rtol = _property_rtol(n, _EIGEN_RTOL_FACTOR)
+    eigval_rtol = _property_rtol(n, _EIGVAL_RTOL_FACTOR)
     recon_rtol = _property_rtol(n, _RECON_RTOL_FACTOR)
     orth_rtol = _property_rtol(n, _ORTH_RTOL_FACTOR)
 
@@ -352,6 +354,26 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
             f"scaled={eigen_scaled[worst].item():.3g}"
         )
 
+    eigval_ref = torch.linalg.eigvalsh(a).double()
+    eigval_residual = torch.linalg.vector_norm(values_check - eigval_ref, ord=float("inf"), dim=-1)
+    eigval_scale = torch.maximum(
+        torch.linalg.vector_norm(eigval_ref, ord=float("inf"), dim=-1),
+        (eigen_scale / max(n, 1)),
+    ).clamp_min(1.0)
+    eigval_allowed = eigval_rtol * eigval_scale
+    eigval_scaled = _scaled_residual(eigval_residual, eigval_scale, n)
+    if not torch.isfinite(eigval_scaled).all().item():
+        return False, "eigenvalue error produced NaN or Inf"
+    eigval_failed = eigval_residual > eigval_allowed
+    if bool(eigval_failed.any().item()):
+        worst = int(eigval_scaled.argmax().item())
+        return False, (
+            "eigenvalues differ too much from torch.linalg.eigvalsh(A): "
+            f"matrix={worst}, residual={eigval_residual[worst].item():.3g}, "
+            f"allowed={eigval_allowed[worst].item():.3g}, "
+            f"scaled={eigval_scaled[worst].item():.3g}"
+        )
+
     eye = torch.eye(n, device=a.device, dtype=torch.float64).expand(batch, n, n)
     qtq = q_check.transpose(-1, -2) @ q_check
     if not torch.isfinite(qtq).all().item():
@@ -392,9 +414,11 @@ def check_implementation(data: input_t, output: output_t) -> tuple[bool, str]:
 
     return True, (
         f"eigen_rtol={eigen_rtol:.3g}; "
+        f"eigval_rtol={eigval_rtol:.3g}; "
         f"recon_rtol={recon_rtol:.3g}; "
         f"orth_rtol={orth_rtol:.3g}; "
         f"scaled_eigen_residual={eigen_scaled.amax().item():.3g}; "
+        f"scaled_eigenvalue_residual={eigval_scaled.amax().item():.3g}; "
         f"scaled_reconstruction_residual={recon_scaled.amax().item():.3g}; "
         f"scaled_diagonalization_residual={diag_scaled.item():.3g}; "
         f"scaled_orthogonality_residual={orth_scaled.item():.3g}; "

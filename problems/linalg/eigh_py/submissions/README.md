@@ -11,9 +11,9 @@ far.
 
 ## Local KernelBot Measurements
 
-Measured through a local KernelBot debug API against the previous 39-test,
-14-benchmark `eigh_py-dev` leaderboard on B200 before the diagonal-only
-benchmark row was removed.
+Measured through a local KernelBot debug API against a previous 39-test,
+14-benchmark `eigh_py-dev` leaderboard on B200, before the benchmark set was
+pruned.
 
 | Submission | Mode | Local submission | Result | Evaluator duration |
 | --- | --- | ---: | --- | ---: |
@@ -22,8 +22,8 @@ benchmark row was removed.
 | `triton_diagonal_fast_path.py` | test | 22 | 39/39 passed | 5.626s |
 | `triton_diagonal_fast_path.py` | benchmark | 23 | 14/14 passed | 45.949s |
 
-After removing the diagonal-only benchmark row, regenerate benchmark
-measurements before quoting speedups. The retained Triton submission remains a
-structured smoke test: it validates that diagonal fast paths can pass
-correctness, while dense, mixed, rank-deficient, near-rank-deficient, clustered,
-and LAPACK dense spectrum cases use the dense fallback path.
+After removing the diagonal-only benchmark row and the slowest redundant dense
+rows, regenerate benchmark measurements before quoting speedups. The retained
+Triton submission remains a structured smoke test: it validates that diagonal
+fast paths can pass correctness, while dense, mixed, rank-deficient, clustered,
+and LAPACK dense spectrum benchmark cases use the dense fallback path.
