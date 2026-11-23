@@ -51,7 +51,6 @@ struct Runner(Movable, Writable):
         b_py: PythonObject,
         c_py: PythonObject,
         n_py: PythonObject,
-        stream_py: PythonObject,
     ) raises:
         var n = Int(py=n_py)
         var a = TileTensor(
@@ -66,12 +65,7 @@ struct Runner(Movable, Writable):
             Pointer[Float16, MutUntrackedOrigin](unsafe_from_address=Int(py=c_py)),
             row_major(n),
         )
-        # Launch on PyTorch's current stream so ordering and CUDA-event timing
-        # match the evaluator.
-        var stream = self_ptr[].ctx.create_external_stream(
-            Pointer[NoneType, MutUntrackedOrigin](unsafe_from_address=Int(py=stream_py))
-        )
-        stream.enqueue_function(
+        self_ptr[].ctx.enqueue_function(
             self_ptr[].func,
             a,
             b,
@@ -111,6 +105,5 @@ def custom_kernel(data: input_t) -> output_t:
         B.data_ptr(),
         C.data_ptr(),
         A.numel(),
-        torch.cuda.current_stream().cuda_stream,
     )
     return C
