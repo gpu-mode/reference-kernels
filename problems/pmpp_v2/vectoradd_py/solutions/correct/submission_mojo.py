@@ -1,0 +1,116 @@
+#!POPCORN leaderboard vectoradd_v2
+from pathlib import Path
+
+import mojo.importer  # noqa: F401
+import torch
+from task import input_t, output_t
+
+MOJO_SOURCE = """
+from std.math import ceildiv
+from std.memory import Pointer
+from std.os import abort
+from std.python import PythonObject
+from std.python.bindings import PythonModuleBuilder
+from max.gpu import global_idx
+from max.gpu.host import DeviceContext
+from layout import RowMajorLayout, TileTensor, row_major
+
+comptime BLOCK = 256
+comptime Layout1D = RowMajorLayout[Int]
+
+
+def add_kernel(
+    a: TileTensor[.float16, Layout1D, ImmUntrackedOrigin],
+    b: TileTensor[.float16, Layout1D, ImmUntrackedOrigin],
+    c: TileTensor[.float16, Layout1D, MutUntrackedOrigin],
+    n: Int32,
+):
+    var idx = Int32(global_idx.x)
+    if idx < n:
+        c[idx] = a[idx] + b[idx]
+
+
+@fieldwise_init
+struct Runner(Movable, Writable):
+    var ctx: DeviceContext
+    var func: type_of(DeviceContext().compile_function[add_kernel]())
+
+    def write_repr_to(self, mut writer: Some[Writer]):
+        writer.write("Runner()")
+
+    @staticmethod
+    def py_init(out self: Self, args: PythonObject, kwargs: PythonObject) raises:
+        var ctx = DeviceContext()
+        var func = ctx.compile_function[add_kernel]()
+        self = Self(ctx^, func^)
+
+    @staticmethod
+    def launch(
+        self_ptr: Pointer[Self, MutAnyOrigin],
+        a_py: PythonObject,
+        b_py: PythonObject,
+        c_py: PythonObject,
+        n_py: PythonObject,
+        stream_py: PythonObject,
+    ) raises:
+        var n = Int(py=n_py)
+        var a = TileTensor(
+            Pointer[Float16, ImmUntrackedOrigin](unsafe_from_address=Int(py=a_py)),
+            row_major(n),
+        )
+        var b = TileTensor(
+            Pointer[Float16, ImmUntrackedOrigin](unsafe_from_address=Int(py=b_py)),
+            row_major(n),
+        )
+        var c = TileTensor(
+            Pointer[Float16, MutUntrackedOrigin](unsafe_from_address=Int(py=c_py)),
+            row_major(n),
+        )
+        # Launch on PyTorch's current stream so ordering and CUDA-event timing
+        # match the evaluator.
+        var stream = self_ptr[].ctx.create_external_stream(
+            Pointer[NoneType, MutUntrackedOrigin](unsafe_from_address=Int(py=stream_py))
+        )
+        stream.enqueue_function(
+            self_ptr[].func,
+            a,
+            b,
+            c,
+            Int32(n),
+            grid_dim=ceildiv(n, BLOCK),
+            block_dim=BLOCK,
+        )
+
+
+@export
+def PyInit_mojo_vecadd() abi("C") -> PythonObject:
+    try:
+        var mb = PythonModuleBuilder("mojo_vecadd")
+        _ = (
+            mb.add_type[Runner]("Runner")
+            .def_py_init[Runner.py_init]()
+            .def_method[Runner.launch]("launch")
+        )
+        return mb.finalize()
+    except e:
+        abort(t"Failed to initialize mojo_vecadd: {e}")
+"""
+
+# Compiled by mojo.importer on first import and cached in __mojocache__ next to
+# the source, so the evaluator's worker processes reuse one build.
+(Path(__file__).resolve().parent / "mojo_vecadd.mojo").write_text(MOJO_SOURCE)
+import mojo_vecadd  # noqa: E402
+
+_RUNNER = mojo_vecadd.Runner()
+
+
+def custom_kernel(data: input_t) -> output_t:
+    A, B, C = data
+    _RUNNER.launch(
+        A.data_ptr(),
+        B.data_ptr(),
+        C.data_ptr(),
+        A.numel(),
+        torch.cuda.current_stream().cuda_stream,
+    )
+    return C
